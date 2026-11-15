@@ -69,6 +69,8 @@ const state = {
   gpsDragging: false,
   lastGpsAt: 0,
   autoGpsError: "",
+  gpsAccuracy: null,
+  offTrailM: 0,
 };
 
 const ui = {
@@ -122,6 +124,9 @@ const ui = {
   panePacking: document.querySelector("#pane-packing"),
   legSwitch: document.querySelector("#leg-switch"),
   autoGps: document.querySelector("#auto-gps"),
+  autoGpsText: document.querySelector("#auto-gps-text"),
+  simToggle: document.querySelector("#sim-toggle"),
+  liveDrawer: document.querySelector("#live-drawer"),
   crewModal: document.querySelector("#crew-modal"),
 };
 
@@ -428,6 +433,7 @@ function renderPacking() {
     button.setAttribute("role", "tab");
     const from = Math.round(leg.from_km);
     const to = Math.round(leg.to_km);
+    button.className = "liquid-pill";
     button.textContent = `Leg ${index + 1} (${from}–${to}km)`;
     button.setAttribute("aria-selected", state.legView === index ? "true" : "false");
     button.addEventListener("click", () => {
@@ -438,6 +444,7 @@ function renderPacking() {
   });
   const all = document.createElement("button");
   all.type = "button";
+  all.className = "liquid-pill";
   all.textContent = "All";
   all.setAttribute("role", "tab");
   all.setAttribute("aria-selected", state.legView === "all" ? "true" : "false");
@@ -457,7 +464,7 @@ function renderPacking() {
 function packCard(leg) {
   const card = document.createElement("article");
   card.className = "pack-card";
-  const chips = leg.pack.map((item) => `<li>${chipLabel(item)}</li>`).join("");
+  const chips = leg.pack.map((item) => chipLabel(item)).join("");
   card.innerHTML = `
     <div class="pack-top">
       <h2>${leg.from_name} → ${leg.to_name} <span class="km">(${leg.distance_km.toFixed(1)} km)</span></h2>
@@ -508,7 +515,7 @@ function chipLabel(item) {
   const name = item.item
     .replace("Soft flask 500 ml", "500ml Flask")
     .replace("Salt capsule", "Salt");
-  return `${item.quantity}× ${name}`;
+  return `<li class="liquid-pill glass-chip"><span class="qty">${item.quantity}×</span>${name}</li>`;
 }
 
 function eatLabel(leg) {
@@ -520,7 +527,7 @@ function eatLabel(leg) {
 }
 
 function shortIntake(stop) {
-  if (stop.at_aid_station) return `Aid plate (${Math.round(stop.carbs_g)}g)`;
+  if (stop.at_aid_station) return `Aid plate · ${Math.round(stop.carbs_g)}g`;
   if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) return "Water and salt sip";
   if (stop.form === "micro_dose" || stop.form === "liquid") return `Liquid ${Math.round(stop.carbs_g)}g · small sips`;
   const name = stop.product || "Gel";
@@ -754,7 +761,7 @@ const RECAL_EVERY_MS = 30000;
 function paintRaceControls() {
   const racing = state.raceMode;
   ui.raceMode.setAttribute("aria-pressed", racing ? "true" : "false");
-  ui.raceMode.textContent = racing ? "■ Stop Hands-Free Race Mode" : "▶ Start Hands-Free Race Mode";
+  ui.raceMode.textContent = racing ? "Stop Race Mode" : "Race Mode";
   ui.alerts.setAttribute("aria-pressed", state.alerts ? "true" : "false");
   ui.undoAuto.classList.toggle("hidden", state.lastAutoLog == null);
 }
@@ -835,6 +842,7 @@ function onRaceGps(pos) {
   const lon = pos.coords.longitude;
   const accuracy = pos.coords.accuracy;
   state.realGps = { latitude: lat, longitude: lon, accuracy };
+  state.gpsAccuracy = accuracy;
   showRealDot();
   let offCourseM = 0;
   try {
@@ -884,33 +892,33 @@ function onRaceGpsError(err) {
 }
 
 function paintAutoGps() {
-  if (!ui.autoGps) {
+  if (!ui.autoGps || !ui.autoGpsText) {
     return;
   }
   ui.autoGps.classList.remove("ok", "warn");
+  const acc = Number.isFinite(state.gpsAccuracy) ? ` · ±${Math.round(state.gpsAccuracy)}m` : "";
   if (!state.packedPlan) {
-    ui.autoGps.textContent = "Auto-GPS starts when a plan is ready";
-    return;
-  }
-  const ago = state.lastGpsAt ? Math.max(0, Math.round((Date.now() - state.lastGpsAt) / 1000)) : null;
-  const offCourse = Boolean(state.snap && state.snap.offCourseM > 250) || !ui.offCourse.classList.contains("hidden");
-  if (offCourse && ago != null) {
-    ui.autoGps.classList.add("warn");
-    ui.autoGps.textContent = `🟠 Off course · Updated ${ago}s ago`;
+    ui.autoGpsText.textContent = "GPS starts with a plan";
     return;
   }
   if (state.autoGpsError) {
     ui.autoGps.classList.add("warn");
-    ui.autoGps.textContent = `🟠 ${state.autoGpsError}`;
+    ui.autoGpsText.textContent = "GPS unavailable";
     return;
   }
-  if (ago == null) {
+  if (state.offTrailM > 250) {
     ui.autoGps.classList.add("warn");
-    ui.autoGps.textContent = "🟠 Auto-GPS waiting for a fix";
+    const km = state.offTrailM / 1000;
+    const digits = km >= 10 ? 0 : 1;
+    ui.autoGpsText.textContent = `${km.toFixed(digits)} km off trail${acc}`;
+    return;
+  }
+  if (!state.lastGpsAt) {
+    ui.autoGpsText.textContent = "Waiting for GPS";
     return;
   }
   ui.autoGps.classList.add("ok");
-  ui.autoGps.textContent = `🟢 Auto-GPS Active · Updated ${ago}s ago`;
+  ui.autoGpsText.textContent = `On trail${acc}`;
 }
 
 function noteAidDistance(latitude, longitude) {
@@ -1175,6 +1183,7 @@ function paintGps(message, tone) {
 }
 
 function paintOffCourse(metres) {
+  state.offTrailM = metres > 250 ? metres : 0;
   if (!(metres > 250)) {
     ui.offCourse.classList.add("hidden");
     ui.offCourse.textContent = "";
@@ -1224,6 +1233,8 @@ function onUpdateGpsClick() {
 function onGpsError(err) {
   const code = err && Number.isFinite(err.code) ? err.code : 0;
   const message = (err && err.message) || "Location request failed.";
+  state.autoGpsError = "GPS unavailable";
+  paintAutoGps();
   paintGps(`GPS Error (${code}): ${message}. Check iPhone Settings > Privacy > Location Services > Safari Websites.`, "error");
 }
 
@@ -1231,6 +1242,8 @@ function onGpsSuccess(pos) {
   const lat = pos.coords.latitude;
   const lon = pos.coords.longitude;
   state.realGps = { latitude: lat, longitude: lon, accuracy: pos.coords.accuracy };
+  state.gpsAccuracy = pos.coords.accuracy;
+  state.autoGpsError = "";
   paintGps(`GPS Locked: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(pos.coords.accuracy)}m)`, "ok");
   if (state.sim.playing) {
     stopPlay(false);
@@ -1664,7 +1677,7 @@ function renderLocker() {
   for (const preset of PRESETS) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "pill";
+    button.className = "pill liquid-pill";
     const selected = state.locker.some((item) => item.name === preset.name && item.carbs_g === preset.carbs_g && item.caffeine_mg === preset.caffeine_mg);
     if (selected) {
       button.setAttribute("aria-checked", "true");
@@ -1726,7 +1739,7 @@ function renderCustomAids() {
   ui.aidList.replaceChildren();
   for (const [index, station] of state.customAids.entries()) {
     const chip = document.createElement("li");
-    chip.className = "pill aid-chip";
+    chip.className = "pill liquid-pill aid-chip";
     const food = station.has_food ? " · Food" : "";
     const label = document.createElement("span");
     label.textContent = `${station.name} · ${Number(station.distance_km).toFixed(1)}km${food}`;
@@ -1910,7 +1923,7 @@ function bind() {
     showTab("map");
     requestAnimationFrame(() => {
       if (!state.realGps) {
-        setStatus("Tap Sync Now on the Live tab to drop your real location on the map.");
+        setStatus("Tap Sync GPS on the Live tab to drop your real location on the map.");
         return;
       }
       try {
@@ -1926,6 +1939,10 @@ function bind() {
   ui.raceMode.addEventListener("click", onRaceModeClick);
   ui.undoAuto.addEventListener("click", () => undoAutoLog());
   ui.alerts.addEventListener("click", () => onAlertsClick());
+  ui.simToggle.addEventListener("click", () => {
+    const open = ui.liveDrawer.classList.toggle("hidden") === false;
+    ui.simToggle.setAttribute("aria-pressed", open ? "true" : "false");
+  });
   ui.testAlert.addEventListener("click", () => onTestAlert());
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && state.raceMode) {
