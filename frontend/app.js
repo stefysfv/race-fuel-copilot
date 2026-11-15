@@ -63,6 +63,12 @@ const state = {
   autoLogAt: 0,
   lastAutoLog: null,
   audioCtx: null,
+  setupPane: "configure",
+  legView: 0,
+  autoGps: false,
+  gpsDragging: false,
+  lastGpsAt: 0,
+  autoGpsError: "",
 };
 
 const ui = {
@@ -110,6 +116,13 @@ const ui = {
   aidList: document.querySelector("#aid-list"),
   aidDrawer: document.querySelector("#aid-drawer"),
   placeAid: document.querySelector("#place-aid"),
+  configurePane: document.querySelector("#configure-pane"),
+  packingPane: document.querySelector("#packing-pane"),
+  paneConfigure: document.querySelector("#pane-configure"),
+  panePacking: document.querySelector("#pane-packing"),
+  legSwitch: document.querySelector("#leg-switch"),
+  autoGps: document.querySelector("#auto-gps"),
+  crewModal: document.querySelector("#crew-modal"),
 };
 
 let mapView = null;
@@ -303,6 +316,8 @@ async function loadRaces() {
 
 async function buildPlan(event) {
   event.preventDefault();
+  state.autoGps = true;
+  armGpsWatch();
   ui.build.disabled = true;
   try {
     const targetMin = readTargetMin();
@@ -326,6 +341,7 @@ async function buildPlan(event) {
       ? `Plan ready. The closest effort pace the engine allows finishes in ${formatDuration(plan.predicted_duration_min)}.`
       : "Plan ready. Packing splits are below.");
     renderPacking();
+    showSetupPane("packing");
     renderLive();
     drawMap();
     await persist();
@@ -355,47 +371,43 @@ function setupSummaryLine() {
   ui.setupSummaryText.replaceChildren(name, meta);
 }
 
-function collapseSetup() {
-  if (!state.packedPlan) {
-    return;
+function showSetupPane(pane) {
+  const packing = pane === "packing";
+  state.setupPane = packing ? "packing" : "configure";
+  ui.configurePane.classList.toggle("hidden", packing);
+  ui.packingPane.classList.toggle("hidden", !packing);
+  ui.paneConfigure.setAttribute("aria-selected", packing ? "false" : "true");
+  ui.panePacking.setAttribute("aria-selected", packing ? "true" : "false");
+  if (!packing) {
+    ui.form.classList.remove("hidden");
   }
-  setupSummaryLine();
-  ui.setupSummary.classList.remove("hidden");
-  ui.setupSummary.classList.remove("is-open");
-  ui.setupSummary.setAttribute("aria-expanded", "false");
-  ui.setupSummary.querySelector(".edit-label").textContent = "Edit Setup ▾";
-  ui.form.classList.add("hidden");
+}
+
+function collapseSetup() {
+  if (state.packedPlan) {
+    setupSummaryLine();
+    showSetupPane("packing");
+  }
 }
 
 function showSetupForm() {
-  ui.form.classList.remove("hidden");
-  ui.setupSummary.classList.add("hidden");
-  ui.setupSummary.classList.remove("is-open");
-  ui.setupSummary.setAttribute("aria-expanded", "false");
+  showSetupPane("configure");
 }
 
 function toggleSetup() {
-  if (!state.packedPlan) {
-    showSetupForm();
-    return;
-  }
-  ui.setupSummary.classList.remove("hidden");
-  const open = ui.form.classList.toggle("hidden") === false;
-  ui.setupSummary.classList.toggle("is-open", open);
-  ui.setupSummary.setAttribute("aria-expanded", open ? "true" : "false");
-  ui.setupSummary.querySelector(".edit-label").textContent = open ? "Edit Setup ▴" : "Edit Setup ▾";
+  showSetupPane(state.setupPane === "packing" ? "configure" : "packing");
 }
 
 function renderPacking() {
   const plan = state.packedPlan;
   ui.packing.replaceChildren();
   ui.warnings.replaceChildren();
+  ui.legSwitch.replaceChildren();
   if (!plan) {
     ui.summary.classList.add("hidden");
     ui.exportCard.disabled = true;
-    ui.exportCard.classList.add("hidden");
-    ui.raceCard.classList.add("hidden");
-    showSetupForm();
+    ui.packing.classList.remove("is-all");
+    closeCrewModal();
     return;
   }
   const athlete = plan.athlete;
@@ -406,36 +418,67 @@ function renderPacking() {
     item.textContent = warning;
     ui.warnings.append(item);
   }
-  for (const leg of plan.aid_legs) {
-    const card = document.createElement("article");
-    card.className = "pack-card";
-    const chips = leg.pack.map((item) => `<li>${chipLabel(item)}</li>`).join("");
-    const eat = eatLabel(leg);
-    card.innerHTML = `
-      <div class="pack-top">
-        <h2>${leg.from_name} → ${leg.to_name} <span class="km">(${leg.distance_km.toFixed(1)} km)</span></h2>
-        <span class="time-badge">${compactHours(leg.predicted_minutes)} · +${legGain(leg)}m</span>
-      </div>
-      <div class="macros">
-        <span>${grouped(leg.carbs_g)}g Carbs</span>
-        <span>${grouped(leg.fluid_ml)}ml Fluid</span>
-        <span>${grouped(leg.sodium_mg)}mg Na</span>
-      </div>
-      <div class="pack-split">
-        <div>
-          <p class="kicker">Pack in vest</p>
-          <ul class="chip-list">${chips || "<li>—</li>"}</ul>
-        </div>
-        <div>
-          <p class="kicker">Eat at station</p>
-          <p class="eat-note">${eat}</p>
-        </div>
-      </div>`;
-    ui.packing.append(card);
+  const legs = plan.aid_legs;
+  if (state.legView !== "all" && (state.legView < 0 || state.legView >= legs.length)) {
+    state.legView = 0;
+  }
+  legs.forEach((leg, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "tab");
+    const from = Math.round(leg.from_km);
+    const to = Math.round(leg.to_km);
+    button.textContent = `Leg ${index + 1} (${from}–${to}km)`;
+    button.setAttribute("aria-selected", state.legView === index ? "true" : "false");
+    button.addEventListener("click", () => {
+      state.legView = index;
+      renderPacking();
+    });
+    ui.legSwitch.append(button);
+  });
+  const all = document.createElement("button");
+  all.type = "button";
+  all.textContent = "All";
+  all.setAttribute("role", "tab");
+  all.setAttribute("aria-selected", state.legView === "all" ? "true" : "false");
+  all.addEventListener("click", () => {
+    state.legView = "all";
+    renderPacking();
+  });
+  ui.legSwitch.append(all);
+  const shown = state.legView === "all" ? legs : (legs[state.legView] ? [legs[state.legView]] : []);
+  ui.packing.classList.toggle("is-all", state.legView === "all");
+  for (const leg of shown) {
+    ui.packing.append(packCard(leg));
   }
   ui.exportCard.disabled = false;
-  ui.exportCard.classList.remove("hidden");
-  collapseSetup();
+}
+
+function packCard(leg) {
+  const card = document.createElement("article");
+  card.className = "pack-card";
+  const chips = leg.pack.map((item) => `<li>${chipLabel(item)}</li>`).join("");
+  card.innerHTML = `
+    <div class="pack-top">
+      <h2>${leg.from_name} → ${leg.to_name} <span class="km">(${leg.distance_km.toFixed(1)} km)</span></h2>
+      <span class="time-badge">${compactHours(leg.predicted_minutes)} · +${legGain(leg)}m</span>
+    </div>
+    <div class="macros">
+      <span>${grouped(leg.carbs_g)}g Carbs</span>
+      <span>${grouped(leg.fluid_ml)}ml Fluid</span>
+      <span>${grouped(leg.sodium_mg)}mg Na</span>
+    </div>
+    <div class="pack-split">
+      <div>
+        <p class="kicker">Pack in vest</p>
+        <ul class="chip-list">${chips || "<li>—</li>"}</ul>
+      </div>
+      <div>
+        <p class="kicker">Eat at station</p>
+        <p class="eat-note">${eatLabel(leg)}</p>
+      </div>
+    </div>`;
+  return card;
 }
 
 function grouped(value) {
@@ -706,7 +749,7 @@ function undoAutoLog() {
   persist();
 }
 
-const RECAL_EVERY_MS = 45000;
+const RECAL_EVERY_MS = 30000;
 
 function paintRaceControls() {
   const racing = state.raceMode;
@@ -740,22 +783,19 @@ function onRaceModeClick() {
     startClock();
   }
   paintGps("Acquiring iPhone GPS...", "");
-  state.watchId = navigator.geolocation.watchPosition(onRaceGps, onRaceGpsError, {
-    enableHighAccuracy: true,
-    timeout: 20000,
-    maximumAge: 5000,
-  });
+  state.autoGps = true;
+  armGpsWatch();
   requestWakeLock();
   paintRaceControls();
   setStatus("Race Mode on. GPS is tracking.");
 }
 
 function stopRaceMode() {
-  if (state.watchId != null && navigator.geolocation) {
-    navigator.geolocation.clearWatch(state.watchId);
-  }
-  state.watchId = null;
   state.raceMode = false;
+  if (!state.autoGps && state.watchId != null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(state.watchId);
+    state.watchId = null;
+  }
   state.pendingAuto = null;
   state.autoLogAt = 0;
   releaseWakeLock();
@@ -763,17 +803,55 @@ function stopRaceMode() {
   setStatus("Race Mode off.");
 }
 
+function armGpsWatch() {
+  if (state.gpsDragging) {
+    return;
+  }
+  if (!navigator.geolocation) {
+    state.autoGpsError = "GPS unavailable · permission denied";
+    paintAutoGps();
+    return;
+  }
+  if (state.watchId != null) {
+    return;
+  }
+  state.autoGps = true;
+  state.autoGpsError = "";
+  state.watchId = navigator.geolocation.watchPosition(onRaceGps, onRaceGpsError, {
+    enableHighAccuracy: true,
+    timeout: 20000,
+    maximumAge: 5000,
+  });
+}
+
 function onRaceGps(pos) {
+  state.lastGpsAt = Date.now();
+  state.autoGpsError = "";
+  if (state.gpsDragging || !state.packedPlan) {
+    paintAutoGps();
+    return;
+  }
   const lat = pos.coords.latitude;
   const lon = pos.coords.longitude;
   const accuracy = pos.coords.accuracy;
   state.realGps = { latitude: lat, longitude: lon, accuracy };
+  showRealDot();
+  let offCourseM = 0;
+  try {
+    offCourseM = snapToSegments(state.packedPlan.segments, lat, lon).offCourseM;
+  } catch (error) {
+    offCourseM = 0;
+  }
   paintGps(`GPS Locked: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(accuracy)}m)`, "ok");
+  if (offCourseM > 250) {
+    paintOffCourse(offCourseM);
+    return;
+  }
+  paintOffCourse(0);
   if (state.sim.playing) {
     stopPlay(false);
   }
   state.sim.active = false;
-  showRealDot();
   noteAidDistance(lat, lon);
   const now = Date.now();
   if (state.recalBusy || (state.lastRecalAt && now - state.lastRecalAt < RECAL_EVERY_MS)) {
@@ -795,11 +873,44 @@ function onRaceGps(pos) {
 
 function onRaceGpsError(err) {
   const now = Date.now();
+  const denied = err && (err.code === 1 || err.code === 2);
+  state.autoGpsError = denied ? "GPS unavailable · permission denied" : "GPS unavailable · waiting for a fix";
+  paintAutoGps();
   if (now - state.lastGpsErrorAt < 15000) {
     return;
   }
   state.lastGpsErrorAt = now;
   onGpsError(err);
+}
+
+function paintAutoGps() {
+  if (!ui.autoGps) {
+    return;
+  }
+  ui.autoGps.classList.remove("ok", "warn");
+  if (!state.packedPlan) {
+    ui.autoGps.textContent = "Auto-GPS starts when a plan is ready";
+    return;
+  }
+  const ago = state.lastGpsAt ? Math.max(0, Math.round((Date.now() - state.lastGpsAt) / 1000)) : null;
+  const offCourse = Boolean(state.snap && state.snap.offCourseM > 250) || !ui.offCourse.classList.contains("hidden");
+  if (offCourse && ago != null) {
+    ui.autoGps.classList.add("warn");
+    ui.autoGps.textContent = `🟠 Off course · Updated ${ago}s ago`;
+    return;
+  }
+  if (state.autoGpsError) {
+    ui.autoGps.classList.add("warn");
+    ui.autoGps.textContent = `🟠 ${state.autoGpsError}`;
+    return;
+  }
+  if (ago == null) {
+    ui.autoGps.classList.add("warn");
+    ui.autoGps.textContent = "🟠 Auto-GPS waiting for a fix";
+    return;
+  }
+  ui.autoGps.classList.add("ok");
+  ui.autoGps.textContent = `🟢 Auto-GPS Active · Updated ${ago}s ago`;
 }
 
 function noteAidDistance(latitude, longitude) {
@@ -1067,6 +1178,7 @@ function paintOffCourse(metres) {
   if (!(metres > 250)) {
     ui.offCourse.classList.add("hidden");
     ui.offCourse.textContent = "";
+    paintAutoGps();
     return;
   }
   const km = metres / 1000;
@@ -1074,6 +1186,7 @@ function paintOffCourse(metres) {
   const trail = /vitosha/i.test(state.packedPlan?.race_name || "") ? "the Vitosha trail" : "the race trail";
   ui.offCourse.classList.remove("hidden");
   ui.offCourse.textContent = `OFF-COURSE WARNING · ${km.toFixed(digits)} km from ${trail}`;
+  paintAutoGps();
 }
 
 function showRealDot() {
@@ -1723,7 +1836,7 @@ function exportRaceCard() {
     </tr>`;
   }).join("");
   const preference = state.fuelPreference.replaceAll("_", " ");
-  ui.raceCard.classList.remove("hidden");
+  ui.crewModal.classList.remove("hidden");
   ui.raceCard.innerHTML = `
     <h2>${plan.race_name}</h2>
     <p class="mt-1">Predicted ${formatDuration(plan.predicted_duration_min)} · ${preference} · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)} / ${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg</p>
@@ -1733,7 +1846,10 @@ function exportRaceCard() {
     </table>
     <button id="print-card" class="thumb-btn mt-3" type="button">Print</button>`;
   ui.raceCard.querySelector("#print-card").addEventListener("click", () => window.print());
-  ui.raceCard.scrollIntoView({ block: "start" });
+}
+
+function closeCrewModal() {
+  ui.crewModal.classList.add("hidden");
 }
 
 function bind() {
@@ -1794,7 +1910,7 @@ function bind() {
     showTab("map");
     requestAnimationFrame(() => {
       if (!state.realGps) {
-        setStatus("Tap Update GPS on the Live tab to drop your real location on the map.");
+        setStatus("Tap Sync Now on the Live tab to drop your real location on the map.");
         return;
       }
       try {
@@ -1818,13 +1934,30 @@ function bind() {
   });
   document.querySelector("#add-locker").addEventListener("click", addCustomItem);
   ui.exportCard.addEventListener("click", exportRaceCard);
+  document.querySelector("#close-crew").addEventListener("click", closeCrewModal);
+  ui.crewModal.addEventListener("click", (event) => {
+    if (event.target === ui.crewModal) {
+      closeCrewModal();
+    }
+  });
+  ui.paneConfigure.addEventListener("click", () => showSetupPane("configure"));
+  ui.panePacking.addEventListener("click", () => showSetupPane("packing"));
   for (const button of document.querySelectorAll(".fuel-pref")) {
     button.addEventListener("click", () => setFuelPreference(button.dataset.preference));
   }
   ui.weight.addEventListener("input", renderLocker);
   for (const range of document.querySelectorAll("[data-desk-range]")) {
+    range.addEventListener("pointerdown", () => {
+      state.gpsDragging = true;
+    });
     range.addEventListener("input", onDeskRange);
   }
+  document.addEventListener("pointerup", () => {
+    state.gpsDragging = false;
+  });
+  document.addEventListener("pointercancel", () => {
+    state.gpsDragging = false;
+  });
   for (const button of document.querySelectorAll("[data-drift]")) {
     button.addEventListener("click", () => applyDrift(Number(button.dataset.drift)));
   }
@@ -1854,7 +1987,14 @@ async function init() {
   }
   renderLocker();
   renderPacking();
+  if (state.packedPlan) {
+    showSetupPane("packing");
+    state.autoGps = true;
+    armGpsWatch();
+  }
   renderLive();
+  paintAutoGps();
+  setInterval(paintAutoGps, 1000);
   ensureTicker();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});

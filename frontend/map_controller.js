@@ -148,7 +148,7 @@ export function createMapView(mapElement, chartCanvas) {
           {
             label: "Elevation (m)",
             data: elevation,
-            borderColor: "#10B981",
+            borderColor: "#FF5500",
             segment: {
               borderColor: (context) => ZONE[segments[Math.min(context.p0DataIndex, segments.length - 1)].zone],
             },
@@ -184,14 +184,14 @@ export function createMapView(mapElement, chartCanvas) {
         scales: {
           x: {
             type: "linear",
-            ticks: { color: "#8B95A5", maxTicksLimit: 6, font: { size: 10 } },
+            ticks: { color: "#64748B", maxTicksLimit: 6, font: { size: 10 } },
             title: { display: false },
-            grid: { color: "rgba(255,255,255,0.06)" },
+            grid: { color: "rgba(15,23,42,0.06)" },
           },
           y: {
-            ticks: { color: "#8B95A5", maxTicksLimit: 4, font: { size: 10 } },
+            ticks: { color: "#64748B", maxTicksLimit: 4, font: { size: 10 } },
             title: { display: false },
-            grid: { color: "rgba(255,255,255,0.06)" },
+            grid: { color: "rgba(15,23,42,0.06)" },
           },
         },
       },

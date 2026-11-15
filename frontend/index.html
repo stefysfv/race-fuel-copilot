@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#090D14">
+  <meta name="theme-color" content="#F2F4F7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Fuel Co-Pilot">
   <title>Race Fuel Co-Pilot</title>
   <link rel="manifest" href="/manifest.json">
@@ -23,7 +23,8 @@
       theme: {
         extend: {
           colors: {
-            ink: "#090D14",
+            ink: "#111827",
+            accent: "#FF5500",
             zone: { green: "#10B981", yellow: "#F59E0B", red: "#EF4444" }
           }
         }
@@ -39,7 +40,13 @@
       <p id="app-status" class="status" role="status"></p>
     </header>
 
+    <main id="app-main">
     <section id="tab-setup" aria-label="Setup and packing">
+      <div class="pane-switch" role="tablist" aria-label="Setup views">
+        <button id="pane-configure" type="button" role="tab" aria-selected="true" aria-controls="configure-pane">⚙️ Configure</button>
+        <button id="pane-packing" type="button" role="tab" aria-selected="false" aria-controls="packing-pane">🎒 Packing Plan</button>
+      </div>
+      <div id="configure-pane">
       <button id="setup-summary" class="setup-summary hidden" type="button" aria-expanded="false">
         <span id="setup-summary-text"></span>
         <span class="edit-label">Edit Setup ▾</span>
@@ -118,15 +125,17 @@
 
         <button id="build-plan" class="thumb-btn primary" type="submit">Build plan</button>
       </form>
-
-      <div class="pack-head">
-        <p class="kicker">Packing</p>
-        <button id="export-card" class="text-btn hidden" type="button" disabled>Export Crew / Race Card</button>
       </div>
-      <section id="plan-summary" class="micro hidden" aria-live="polite"></section>
-      <ul id="warnings"></ul>
-      <div id="packing-list"></div>
-      <section id="race-card" class="race-card hidden" aria-label="Printable race card"></section>
+
+      <div id="packing-pane" class="hidden">
+        <div class="pack-toolbar">
+          <div id="leg-switch" class="leg-pills" role="tablist" aria-label="Aid legs"></div>
+          <button id="export-card" class="text-btn" type="button" disabled>Export Crew Card</button>
+        </div>
+        <section id="plan-summary" class="micro hidden" aria-live="polite"></section>
+        <ul id="warnings"></ul>
+        <div id="packing-list"></div>
+      </div>
     </section>
 
     <section id="tab-map" class="hidden" aria-label="Topo map and elevation">
@@ -166,6 +175,8 @@
     </section>
 
     <section id="tab-live" class="hidden" aria-label="Live race co-pilot">
+      <p id="auto-gps" class="auto-gps" role="status">Auto-GPS starts when a plan is ready</p>
+      <div class="live-body">
       <p id="toast" class="toast" role="status"></p>
       <div class="race-tools">
         <button id="race-mode" class="thumb-btn primary" type="button" aria-pressed="false">▶ Start Hands-Free Race Mode</button>
@@ -215,21 +226,30 @@
       </div>
       <p id="caffeine-readout" class="micro"></p>
       <p id="live-message" class="micro"></p>
+      </div>
       <div class="action-bar">
         <button id="log-intake" class="thumb-btn primary" type="button" disabled>✓ Log Intake</button>
         <div class="action-row">
-          <button id="update-gps" class="thumb-btn secondary" type="button" disabled>📍 Update GPS</button>
+          <button id="update-gps" class="thumb-btn secondary" type="button" disabled>↻ Sync Now</button>
           <button id="gi-rescue" class="thumb-btn danger" type="button" disabled>⚠️ GI Rescue</button>
         </div>
       </div>
     </section>
-  </div>
+    </main>
 
-  <nav class="tab-bar" aria-label="Primary">
+    <nav class="tab-bar" aria-label="Primary">
     <button id="nav-setup" type="button" aria-current="page">Setup</button>
     <button id="nav-map" type="button">Map</button>
     <button id="nav-live" type="button">Live</button>
   </nav>
+  </div>
+
+  <div id="crew-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Crew card">
+    <div class="modal-sheet">
+      <button id="close-crew" class="text-btn" type="button">✕ Close</button>
+      <section id="race-card" class="race-card" aria-label="Printable race card"></section>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
