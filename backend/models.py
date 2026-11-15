@@ -106,6 +106,22 @@ class LockerItem(APIModel):
     kind: str = Field(default="gel", pattern=r"^(gel|liquid|bar)$")
 
 
+class CustomFoodItem(APIModel):
+    """A renamed portion, or a food that is not in the built-in menu.
+
+    `key` matches a vest or station chip (`chocolate`, `sandwich`, …).
+    Leave it blank to add a brand-new food. Empty lists are the default, so
+    a plan that never customizes a portion keeps the catalog names and the
+    30 g feed windows.
+    """
+
+    key: str = Field(default="", max_length=40)
+    name: str = Field(min_length=1, max_length=60)
+    carbs_g: float = Field(gt=0, le=120)
+    sodium_mg: float = Field(default=0, ge=0, le=2000)
+    flavor: str = Field(default="Sweet", pattern=r"^(Sweet|Savoury/Salty)$")
+
+
 class AthleteInput(APIModel):
     """Personal targets for one race plan.
 
@@ -159,6 +175,16 @@ class AthleteInput(APIModel):
     station_foods: list[str] = Field(
         default_factory=lambda: ["sandwich", "watermelon", "cucumber", "chips", "cola_broth"],
         description="Foods offered at stations with food. Unknown keys are ignored.",
+    )
+    custom_vest_items: list[CustomFoodItem] = Field(
+        default_factory=list,
+        max_length=24,
+        description="Renamed vest portions and extra vest foods. Empty keeps the catalog.",
+    )
+    custom_station_items: list[CustomFoodItem] = Field(
+        default_factory=list,
+        max_length=24,
+        description="Renamed aid-station portions and extra station foods. Empty keeps the 28 g plate.",
     )
     carb_multiplier: float = Field(
         default=1.0,

@@ -341,6 +341,72 @@ def test_selected_vest_and_station_foods_change_the_plan() -> None:
     assert leg.vest_carbs_g == pytest.approx(leg.carbs_g - leg.station_carbs_g)
 
 
+def test_custom_food_portions_keep_the_runners_name_and_grams() -> None:
+    named = build_plan(
+        course_points([(8_000, 0.0)]),
+        AthleteInput(
+            flat_pace_min_per_km=8.0,
+            carbs_g_per_hour=60,
+            vest_foods=["chocolate"],
+            custom_vest_items=[
+                {
+                    "key": "chocolate",
+                    "name": "Milka Chocolate",
+                    "carbs_g": 30,
+                    "sodium_mg": 20,
+                    "flavor": "Sweet",
+                }
+            ],
+        ),
+    )
+    greens = [
+        stop
+        for stop in named.fuel_stops
+        if stop.zone is DigestiveZone.green and stop.carbs_g > 0 and not stop.at_aid_station
+    ]
+    assert greens
+    assert all(stop.product == "Milka Chocolate" for stop in greens)
+    assert all(stop.carbs_g == pytest.approx(30) for stop in greens)
+    assert any(item.item == "Milka Chocolate" for leg in named.aid_legs for item in leg.pack)
+
+    points = course_points([(20_000, 0.0)])
+    course = prepare_course(points)
+    pin = location_at_distance(course, 12_000)
+    plated = build_plan(
+        points,
+        AthleteInput(
+            flat_pace_min_per_km=8.0,
+            station_foods=["chocolate", "cola_broth"],
+            custom_station_items=[
+                {"key": "chocolate", "name": "Trail Mix", "carbs_g": 22, "flavor": "Sweet"},
+                {"key": "cola_broth", "name": "Warm Broth", "carbs_g": 18, "flavor": "Savoury/Salty"},
+            ],
+        ),
+        [
+            AidStation(
+                name="Hut",
+                distance_km=12.0,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        ],
+    )
+    leg = next(item for item in plated.aid_legs if item.to_name == "Hut")
+    assert "Trail Mix" in leg.station_meal
+    assert "Warm Broth" in leg.station_meal
+    assert leg.station_carbs_g == pytest.approx(40)
+    plate = next(stop for stop in plated.fuel_stops if stop.at_aid_station)
+    assert plate.product == "Aid station plate"
+    assert plate.carbs_g == pytest.approx(40)
+
+    untouched = AthleteInput(flat_pace_min_per_km=8.0)
+    assert untouched.custom_vest_items == []
+    assert untouched.custom_station_items == []
+
+
 def test_gut_calibration_scales_carbs_and_tightens_climbs() -> None:
     points = course_points([(5_000, 0.0)])
     base = build_plan(points, AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60))

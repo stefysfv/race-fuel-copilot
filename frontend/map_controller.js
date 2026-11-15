@@ -10,7 +10,7 @@ const ZONE = {
 };
 
 const TILES = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
-const ATTRIBUTION = "Map data © OpenStreetMap contributors, SRTM | Map style © OpenTopoMap (CC-BY-SA)";
+const ATTRIBUTION = "© OpenTopoMap · OSM";
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -51,6 +51,7 @@ function elevationAt(segments, distanceKm) {
 
 export function createMapView(mapElement, chartCanvas) {
   const map = L.map(mapElement, { zoomControl: true, attributionControl: true });
+  map.attributionControl.setPrefix(false);
   L.tileLayer(TILES, { maxZoom: 17, attribution: ATTRIBUTION }).addTo(map);
   map.setView([42.56, 23.29], 12);
 

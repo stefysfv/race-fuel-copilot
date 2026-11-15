@@ -47,6 +47,7 @@ from backend.models import (
     DigestiveZone,
     FuelForm,
     FuelStop,
+    CustomFoodItem,
     LockerItem,
     PackItem,
     PlanTotals,
@@ -124,6 +125,7 @@ class _MenuItem:
     sodium_mg: float
     flavor: str
     kind: str  # gel, liquid, or solid
+    uses_portion: bool = False  # True when the runner set this name and carb count
 
 
 VEST_MENU: dict[str, _MenuItem] = {
@@ -157,6 +159,87 @@ def _menu_items(keys: list[str], catalog: dict[str, _MenuItem]) -> list[_MenuIte
     return [catalog[key] for key in keys if key in catalog]
 
 
+def _kind_for_custom(name: str) -> str:
+    """Guess gel, liquid, or solid from a name the runner typed."""
+
+    lowered = name.casefold()
+    if "gel" in lowered:
+        return "gel"
+    if any(word in lowered for word in ("drink", "cola", "broth", "mix", "flask")):
+        return "liquid"
+    return "solid"
+
+
+def _overlay_menu_item(base: _MenuItem, custom: CustomFoodItem) -> _MenuItem:
+    """Replace the catalog name and carb grams with the runner's portion.
+
+    Sodium stays on the catalog value when the custom row sends 0, because
+    the setup screen edits the label and the carbs, not the salt.
+    """
+
+    sodium = custom.sodium_mg if custom.sodium_mg > 0 else base.sodium_mg
+    return _MenuItem(
+        base.key,
+        custom.name.strip() or base.name,
+        custom.carbs_g,
+        sodium,
+        custom.flavor or base.flavor,
+        base.kind,
+        True,
+    )
+
+
+def _resolved_foods(
+    keys: list[str],
+    catalog: dict[str, _MenuItem],
+    customs: list[CustomFoodItem],
+) -> list[_MenuItem]:
+    """Catalog chips, plus renames and extra foods the runner typed.
+
+    A custom item whose `key` is in the catalog replaces that chip. Any other
+    item is an extra food, included only when the runner still has it selected.
+    An empty custom list leaves every chip on its catalog name and grams, and
+    `uses_portion` stays false so feed windows remain 30 g.
+    """
+
+    overrides: dict[str, CustomFoodItem] = {}
+    extras: list[CustomFoodItem] = []
+    for item in customs:
+        key = item.key.strip()
+        if key in catalog and key not in overrides:
+            overrides[key] = item
+        else:
+            extras.append(item)
+
+    resolved: list[_MenuItem] = []
+    seen: set[str] = set()
+    for base in _menu_items(keys, catalog):
+        seen.add(base.key)
+        custom = overrides.get(base.key)
+        resolved.append(_overlay_menu_item(base, custom) if custom else base)
+
+    selected = set(keys)
+    for index, extra in enumerate(extras):
+        key = extra.key.strip() or f"custom-{index}"
+        if key in seen:
+            continue
+        if extra.key.strip() and extra.key.strip() not in selected:
+            continue
+        seen.add(key)
+        resolved.append(
+            _MenuItem(
+                key,
+                extra.name.strip(),
+                extra.carbs_g,
+                extra.sodium_mg,
+                extra.flavor,
+                _kind_for_custom(extra.name),
+                True,
+            )
+        )
+    return resolved
+
+
 def _green_max_for(athlete: AthleteInput) -> float:
     """Sensitive guts lose solid-food green once the climb passes +3.5%."""
 
@@ -179,10 +262,17 @@ def station_plate(athlete: AthleteInput) -> tuple[float, str]:
 
     The default menu stays at 28 g so existing packing checks keep their vest
     split. A custom menu uses the pair closest to 31 g, clamped to 28–35 g.
+    Edited portions skip that clamp and use the runner's gram counts.
     """
 
-    chosen = _menu_items(athlete.station_foods, STATION_MENU)
-    if len(chosen) < 2 or tuple(athlete.station_foods) == DEFAULT_STATION_KEYS:
+    chosen = _resolved_foods(athlete.station_foods, STATION_MENU, athlete.custom_station_items)
+    customized = bool(athlete.custom_station_items)
+    if customized and len(chosen) == 1:
+        item = chosen[0]
+        return item.carbs_g, f"{item.name} ({item.carbs_g:.0f}g)"
+    if not customized and (len(chosen) < 2 or tuple(athlete.station_foods) == DEFAULT_STATION_KEYS):
+        return AID_BITE_CARBS_G, AID_PLATE
+    if len(chosen) < 2:
         return AID_BITE_CARBS_G, AID_PLATE
     best: tuple[float, _MenuItem, _MenuItem] | None = None
     for index, first in enumerate(chosen):
@@ -192,7 +282,7 @@ def station_plate(athlete: AthleteInput) -> tuple[float, str]:
                 best = (total, first, second)
     assert best is not None
     raw, first, second = best
-    carbs = min(35.0, max(28.0, raw))
+    carbs = min(120.0, max(1.0, raw)) if customized else min(35.0, max(28.0, raw))
     return carbs, f"{first.name} + {second.name} ({carbs:.0f}g)"
 
 
@@ -591,6 +681,9 @@ def build_aid_legs(
                     athlete.locker,
                     leg_stops,
                     athlete.fuel_preference,
+                    _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
+                    if athlete.custom_vest_items
+                    else None,
                 ),
                 note="",
             )
@@ -999,9 +1092,22 @@ def _pick_item(items: list[_MenuItem], when: float) -> _MenuItem:
     return items[int(when // 30) % len(items)]
 
 
-def _apply_named_food(dose: _Dose, item: _MenuItem, note: str) -> tuple[str, str]:
-    """Attach a menu item without changing the carb grams already chosen."""
+def _apply_named_food(
+    dose: _Dose,
+    item: _MenuItem,
+    note: str,
+    *,
+    portion_scale: float = 1.0,
+) -> tuple[str, str]:
+    """Attach a menu item.
 
+    Catalog foods keep the carb grams the window already chose (usually 30 g).
+    A portion the runner edited replaces those grams, so the live prompt says
+    "Milka Chocolate (22g)" instead of the generic window.
+    """
+
+    if item.uses_portion:
+        dose.carbs_g = max(1.0, float(round(item.carbs_g * portion_scale)))
     if item.kind == "solid":
         dose.form = FuelForm.real_food
     elif item.kind == "liquid":
@@ -1032,17 +1138,17 @@ def _apply_food_preference(
     if dose.carbs_g <= 0 or dose.form in {FuelForm.rescue_sip, FuelForm.sip, FuelForm.micro_dose}:
         return "", ""
 
-    foods = _menu_items(athlete.vest_foods, VEST_MENU)
+    foods = _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
     if not foods:
         foods = [VEST_MENU["gel_25"]]
     if zone == DigestiveZone.green and when >= _savoury_minute(athlete, finish_min):
-        savoury = [item for item in foods if item.key in SAVOURY_VEST_KEYS]
+        savoury = [item for item in foods if item.flavor == "Savoury/Salty" or item.key in SAVOURY_VEST_KEYS]
         return _apply_named_food(dose, _pick_item(savoury or foods, when), "Take ")
     if zone == DigestiveZone.green:
         return _apply_named_food(dose, _pick_item(foods, when), "Take ")
     if zone == DigestiveZone.yellow:
         soft = [item for item in foods if item.kind in {"gel", "liquid"}] or foods[:1]
-        return _apply_named_food(dose, _pick_item(soft, when), "Half portion: ")
+        return _apply_named_food(dose, _pick_item(soft, when), "Half portion: ", portion_scale=0.5)
     return "", ""
 
 
@@ -1181,6 +1287,64 @@ def _apply_locker(
     return "", 0.0, dose.reason + blocked
 
 
+def _pack_named_portions(
+    carbs_g: float,
+    fluid_ml: float,
+    sodium_mg: float,
+    locker: list[LockerItem],
+    foods: list[_MenuItem],
+    stops: list[FuelStop] | None,
+) -> list[PackItem]:
+    """Pack the runner's named portions until the vest carb total is covered.
+
+    Caffeinated locker gels are counted from the stops that actually use them.
+    The rest of the vest is split across the selected foods, one portion at a time.
+    """
+
+    items: list[PackItem] = []
+    covered = 0.0
+    for product in locker:
+        if product.kind != "gel" or product.caffeine_mg <= 0:
+            continue
+        count = sum(1 for stop in (stops or []) if stop.product == product.name and stop.caffeine_mg > 0)
+        if count <= 0:
+            continue
+        items.append(
+            PackItem(
+                item=product.name,
+                quantity=count,
+                detail=f"{product.carbs_g:.0f} g carbs and {product.caffeine_mg:.0f} mg caffeine each.",
+            )
+        )
+        covered += count * product.carbs_g
+
+    remaining = max(0.0, carbs_g - covered)
+    portions = [food for food in foods if food.carbs_g > 0]
+    counts = [0 for _ in portions]
+    guard = 0
+    index = 0
+    while portions and remaining >= 1 and guard < 500:
+        slot = index % len(portions)
+        counts[slot] += 1
+        remaining -= portions[slot].carbs_g
+        index += 1
+        guard += 1
+    for food, count in zip(portions, counts, strict=True):
+        if count <= 0:
+            continue
+        items.append(
+            PackItem(
+                item=food.name,
+                quantity=count,
+                detail=f"{food.carbs_g:.0f} g carbs each.",
+            )
+        )
+    if remaining >= 1 and not portions:
+        items.extend(_pack_plain(remaining, 0, 0))
+    items.extend(_pack_plain(0, fluid_ml, sodium_mg))
+    return items
+
+
 def _pack_items(
     carbs_g: float,
     fluid_ml: float,
@@ -1188,13 +1352,17 @@ def _pack_items(
     locker: list[LockerItem] | None = None,
     stops: list[FuelStop] | None = None,
     preference: str = "gels_first",
+    named_foods: list[_MenuItem] | None = None,
 ) -> list[PackItem]:
     """Turn an already-buffered vest total into food, flasks, and salt.
 
     `carbs_g` is what goes in the vest after any aid-station plate is subtracted.
     An empty locker follows `preference`. A locker still packs the runner's own items.
+    Named portions are used only when the runner sent custom vest foods.
     """
 
+    if named_foods:
+        return _pack_named_portions(carbs_g, fluid_ml, sodium_mg, locker or [], named_foods, stops)
     if not locker:
         return _pack_for_preference(carbs_g, fluid_ml, sodium_mg, preference)
 

@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/style.css?v=6">
+  <link rel="stylesheet" href="/style.css?v=7">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -32,7 +32,7 @@
     };
   </script>
 </head>
-<body>
+<body data-tab="setup">
   <div class="shell app-shell">
     <header class="brand">
       <div class="brand-lockup">
@@ -72,7 +72,6 @@
           <button id="source-race" class="sr-only" type="button" role="radio" aria-checked="true">Saved race</button>
           <select id="race-select" aria-label="Race"></select>
           <button id="source-gpx" class="icon-btn liquid-pill" type="button" aria-label="Upload GPX">GPX</button>
-          <button id="edit-stations" class="edit-stations" type="button">+ Edit Stations</button>
         </div>
         <input id="gpx-file" class="file-input" type="file" accept=".gpx,application/gpx+xml,.xml" aria-label="GPX file">
         <p id="gpx-name" class="micro"></p>
@@ -98,7 +97,7 @@
 
         <div class="seg-grid">
           <div>
-            <span class="kicker">Carb target</span>
+            <span class="kicker">Carb target (g/h)</span>
             <div class="seg" role="radiogroup" aria-label="Carb target">
               <button class="gut liquid-pill" type="button" role="radio" data-carbs="45" aria-checked="false">45</button>
               <button class="gut liquid-pill" type="button" role="radio" data-carbs="60" aria-checked="true">60</button>
@@ -106,7 +105,7 @@
             </div>
           </div>
           <div>
-            <span class="kicker">Style</span>
+            <span class="kicker">Fueling style</span>
             <div class="seg" role="radiogroup" aria-label="Fuel style">
               <button class="fuel-pref liquid-pill" type="button" role="radio" data-preference="gels_first" aria-checked="true">Gels</button>
               <button class="fuel-pref liquid-pill" type="button" role="radio" data-preference="balanced_real_food" aria-checked="false">Balanced</button>
@@ -118,6 +117,14 @@
         <details id="vest-drawer" class="drawer liquid-glass">
           <summary>Vest Food &amp; Fuel</summary>
           <div id="vest-foods" class="food-grid"></div>
+          <p class="micro food-editor-title">Active Items &amp; Custom Food</p>
+          <div id="vest-active" class="food-editor"></div>
+          <div class="custom-food-add">
+            <input id="vest-custom-name" type="text" maxlength="60" placeholder="Food name" aria-label="Custom vest food name">
+            <input id="vest-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom vest food carbs in grams">
+            <button id="vest-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
+            <button id="vest-custom-add" type="button" aria-label="Add custom vest food">+</button>
+          </div>
           <p id="caffeine-cap" class="micro"></p>
           <div id="locker-presets" class="pill-row"></div>
           <ul id="locker-list"></ul>
@@ -132,9 +139,17 @@
         <details id="station-drawer" class="drawer liquid-glass">
           <summary>Aid Station Menu</summary>
           <div id="station-foods" class="food-grid"></div>
+          <p class="micro food-editor-title">Active Items &amp; Custom Food</p>
+          <div id="station-active" class="food-editor"></div>
+          <div class="custom-food-add">
+            <input id="station-custom-name" type="text" maxlength="60" placeholder="Food name" aria-label="Custom aid station food name">
+            <input id="station-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom aid station food carbs in grams">
+            <button id="station-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
+            <button id="station-custom-add" type="button" aria-label="Add custom aid station food">+</button>
+          </div>
         </details>
 
-        <details id="aid-drawer" class="drawer hidden">
+        <details id="aid-drawer" class="drawer">
           <summary>Custom Aid Stations</summary>
           <div class="aid-add">
             <input id="aid-name" type="text" maxlength="80" placeholder="Station" aria-label="Aid station name">
@@ -195,7 +210,6 @@
         <div class="live-chips">
           <button id="race-mode" class="liquid-pill chip-toggle" type="button" aria-pressed="false">Race Mode</button>
           <button id="enable-alerts" class="liquid-pill chip-toggle" type="button" aria-pressed="false">Audio</button>
-          <button id="test-alert" class="liquid-pill chip-toggle" type="button">Test Voice</button>
         </div>
       </div>
       <div class="live-body">
@@ -220,8 +234,8 @@
               <p id="next-aid" class="num">—</p>
             </div>
           </div>
+          <p id="caffeine-readout" class="hero-caffeine"></p>
         </div>
-        <p id="caffeine-readout" class="micro"></p>
         <p id="live-message" class="micro"></p>
       </div>
       <div class="action-bar">
@@ -230,8 +244,11 @@
           <button id="update-gps" class="liquid-pill action-pill" type="button" disabled>Sync GPS</button>
           <button id="gi-rescue" class="liquid-pill action-pill" type="button" disabled>GI Rescue</button>
         </div>
-        <button id="undo-autolog" class="finish-link hidden" type="button">Undo last auto-log</button>
-        <button id="open-gut-live" class="finish-link" type="button">Finish Run · Post-Race Gut Check</button>
+        <div class="finish-row">
+          <button id="test-alert" class="finish-link" type="button">Test Voice</button>
+          <button id="undo-autolog" class="finish-link hidden" type="button">Undo last auto-log</button>
+          <button id="open-gut-live" class="finish-link" type="button">Finish Run · Post-Race Gut Check</button>
+        </div>
       </div>
     </section>
     </main>
@@ -290,6 +307,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=6"></script>
+  <script type="module" src="/app.js?v=7"></script>
 </body>
 </html>

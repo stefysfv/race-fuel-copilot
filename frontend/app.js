@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=6";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=7";
 
 const PRESETS = [
   { name: "Standard Gel", carbs_g: 25, caffeine_mg: 0, kind: "gel" },
@@ -38,8 +38,9 @@ const state = {
   customAids: [],
   vestFoods: new Set(["gel_25", "drink_30", "bar", "sandwich", "dates"]),
   stationFoods: new Set(["sandwich", "watermelon", "cucumber", "chips", "cola_broth"]),
+  foodEdits: { vest: {}, station: {} },
+  customFoods: { vest: [], station: [] },
   gut: { carb_multiplier: 1, climb_sensitivity: "normal", early_savoury: false, saved: false },
-  editStations: false,
   packedPlan: null,
   livePlan: null,
   logged: [],
@@ -219,6 +220,8 @@ function readAthlete(pace) {
     fuel_preference: state.fuelPreference,
     vest_foods: [...state.vestFoods],
     station_foods: [...state.stationFoods],
+    custom_vest_items: customFoodPayload("vest"),
+    custom_station_items: customFoodPayload("station"),
     carb_multiplier: state.gut.saved ? state.gut.carb_multiplier : 1,
     climb_sensitivity: state.gut.saved ? state.gut.climb_sensitivity : "normal",
     early_savoury: state.gut.saved ? state.gut.early_savoury : false,
@@ -298,9 +301,7 @@ function applyTargetDefault() {
 }
 
 function paintAidDrawer() {
-  const show = state.source === "gpx" || state.editStations || state.customAids.length > 0;
-  ui.aidDrawer?.classList.toggle("hidden", !show);
-  if (show && state.source === "gpx" && ui.aidDrawer) {
+  if (state.source === "gpx" && ui.aidDrawer) {
     ui.aidDrawer.open = true;
   }
 }
@@ -551,7 +552,10 @@ function eatLabel(leg) {
 }
 
 function shortIntake(stop) {
-  if (stop.at_aid_station) return `Aid plate · ${Math.round(stop.carbs_g)}g`;
+  if (stop.at_aid_station) {
+    if (stop.reason && !stop.reason.startsWith("Aid Station Plate")) return stop.reason;
+    return `Aid plate · ${Math.round(stop.carbs_g)}g`;
+  }
   if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) return "Water and salt sip";
   if (stop.form === "micro_dose" || stop.form === "liquid") return `Liquid ${Math.round(stop.carbs_g)}g · small sips`;
   const name = stop.product || "Gel";
@@ -1962,60 +1966,282 @@ function closeCrewModal() {
 }
 
 const VEST_MENU = [
-  ["gel_25", "Standard Gel"],
-  ["iso_gel_22", "Isotonic Gel"],
-  ["drink_30", "Drink Mix"],
-  ["sandwich", "Mini Sandwich"],
-  ["bar", "Oat Bar"],
-  ["dates", "Medjool Dates"],
-  ["chocolate", "Chocolate"],
-  ["chips", "Salted Chips"],
+  { key: "gel_25", label: "Standard Gel", carbs: 25, sodium: 50, flavor: "Sweet" },
+  { key: "iso_gel_22", label: "Isotonic Gel", carbs: 22, sodium: 40, flavor: "Sweet" },
+  { key: "drink_30", label: "Drink Mix", carbs: 30, sodium: 250, flavor: "Sweet" },
+  { key: "sandwich", label: "Sandwich", carbs: 32, sodium: 280, flavor: "Savoury/Salty" },
+  { key: "bar", label: "Oat Bar", carbs: 35, sodium: 120, flavor: "Sweet" },
+  { key: "dates", label: "Dates", carbs: 28, sodium: 10, flavor: "Sweet" },
+  { key: "chocolate", label: "Chocolate", carbs: 22, sodium: 30, flavor: "Sweet" },
+  { key: "chips", label: "Salted Chips", carbs: 20, sodium: 320, flavor: "Savoury/Salty" },
 ];
 const STATION_MENU = [
-  ["sandwich", "Sandwich quarters"],
-  ["watermelon", "Watermelon"],
-  ["cucumber", "Cucumber and crackers"],
-  ["chips", "Salted chips"],
-  ["chocolate", "Chocolate"],
-  ["apple", "Apple wedges"],
-  ["dates", "Pitted dates"],
-  ["banana", "Banana"],
-  ["cola_broth", "Cola or broth"],
+  { key: "sandwich", label: "Sandwich", carbs: 30, sodium: 250, flavor: "Savoury/Salty" },
+  { key: "watermelon", label: "Watermelon", carbs: 18, sodium: 5, flavor: "Sweet" },
+  { key: "cucumber", label: "Cucumber", carbs: 12, sodium: 350, flavor: "Savoury/Salty" },
+  { key: "chips", label: "Chips", carbs: 22, sodium: 300, flavor: "Savoury/Salty" },
+  { key: "chocolate", label: "Chocolate", carbs: 24, sodium: 20, flavor: "Sweet" },
+  { key: "apple", label: "Apple", carbs: 18, sodium: 2, flavor: "Sweet" },
+  { key: "dates", label: "Dates", carbs: 28, sodium: 5, flavor: "Sweet" },
+  { key: "banana", label: "Banana", carbs: 22, sodium: 1, flavor: "Sweet" },
+  { key: "cola_broth", label: "Cola or broth", carbs: 18, sodium: 200, flavor: "Sweet" },
 ];
 
 function listen(selector, event, handler) {
   document.querySelector(selector)?.addEventListener(event, handler);
 }
 
-function foodChips(menu, selected) {
-  return menu.map(([key, label]) => {
-    const pressed = selected.has(key) ? "true" : "false";
-    return `<button type="button" class="liquid-pill" data-food="${key}" aria-pressed="${pressed}">${label}</button>`;
-  }).join("");
+function escapeAttr(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[character]));
+}
+
+function clampCarbs(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 1;
+  return Math.min(120, Math.max(1, Math.round(number)));
+}
+
+function menuFor(which) {
+  return which === "vest" ? VEST_MENU : STATION_MENU;
+}
+
+function selectedFoods(which) {
+  return which === "vest" ? state.vestFoods : state.stationFoods;
+}
+
+function catalogFood(which, key) {
+  return menuFor(which).find((item) => item.key === key) || null;
+}
+
+function customFood(which, key) {
+  return state.customFoods[which].find((item) => item.key === key) || null;
+}
+
+function foodRecord(which, key) {
+  const custom = customFood(which, key);
+  if (custom) return custom;
+  const base = catalogFood(which, key);
+  if (!base) return null;
+  const edit = state.foodEdits[which][key];
+  return {
+    key,
+    name: (edit?.name || base.label).trim() || base.label,
+    carbs_g: edit?.carbs_g ?? base.carbs,
+    sodium_mg: base.sodium,
+    flavor: base.flavor,
+  };
+}
+
+function customFoodPayload(which) {
+  const items = [];
+  for (const food of menuFor(which)) {
+    if (!selectedFoods(which).has(food.key)) continue;
+    const record = foodRecord(which, food.key);
+    if (!record?.name) continue;
+    items.push({
+      key: food.key,
+      name: record.name,
+      carbs_g: clampCarbs(record.carbs_g),
+      sodium_mg: food.sodium,
+      flavor: food.flavor,
+    });
+  }
+  for (const food of state.customFoods[which]) {
+    if (!selectedFoods(which).has(food.key)) continue;
+    const name = String(food.name || "").trim();
+    if (!name) continue;
+    items.push({
+      key: food.key,
+      name,
+      carbs_g: clampCarbs(food.carbs_g),
+      sodium_mg: 0,
+      flavor: food.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
+    });
+  }
+  return items;
+}
+
+function foodChipText(which, key) {
+  const record = foodRecord(which, key);
+  if (!record) return key;
+  return `${record.name} · ${clampCarbs(record.carbs_g)}g`;
+}
+
+function foodChips(which) {
+  const selected = selectedFoods(which);
+  const catalog = menuFor(which).map((food) => {
+    const pressed = selected.has(food.key) ? "true" : "false";
+    return `<button type="button" class="liquid-pill" data-food="${food.key}" aria-pressed="${pressed}">${escapeAttr(foodChipText(which, food.key))}</button>`;
+  });
+  const extras = state.customFoods[which].map((food) => {
+    const pressed = selected.has(food.key) ? "true" : "false";
+    return `<button type="button" class="liquid-pill" data-food="${escapeAttr(food.key)}" aria-pressed="${pressed}">${escapeAttr(foodChipText(which, food.key))}</button>`;
+  });
+  return catalog.concat(extras).join("");
+}
+
+function editorRow(which, key) {
+  const record = foodRecord(which, key);
+  if (!record) return "";
+  return `<div class="food-edit" data-edit="${which}" data-key="${escapeAttr(key)}">
+    <input data-name type="text" maxlength="60" value="${escapeAttr(record.name)}" aria-label="Food name">
+    <span class="carb-step">
+      <button type="button" data-step="-1" aria-label="Fewer carbs">−</button>
+      <input data-carbs type="number" inputmode="decimal" min="1" max="120" step="1" value="${clampCarbs(record.carbs_g)}" aria-label="Carbs in grams">
+      <span>g</span>
+      <button type="button" data-step="1" aria-label="More carbs">+</button>
+    </span>
+  </div>`;
 }
 
 function renderFoods() {
   const vest = document.querySelector("#vest-foods");
   const station = document.querySelector("#station-foods");
-  if (vest) vest.innerHTML = foodChips(VEST_MENU, state.vestFoods);
-  if (station) station.innerHTML = foodChips(STATION_MENU, state.stationFoods);
+  if (vest) vest.innerHTML = foodChips("vest");
+  if (station) station.innerHTML = foodChips("station");
+  renderActiveFoods();
+}
+
+function renderActiveFoods() {
+  for (const which of ["vest", "station"]) {
+    const root = document.querySelector(which === "vest" ? "#vest-active" : "#station-active");
+    if (!root) continue;
+    const keys = [
+      ...menuFor(which).map((food) => food.key),
+      ...state.customFoods[which].map((food) => food.key),
+    ].filter((key) => selectedFoods(which).has(key));
+    root.innerHTML = keys.map((key) => editorRow(which, key)).join("");
+  }
+}
+
+function saveMenu() {
+  try {
+    localStorage.setItem("fuel-menu", JSON.stringify({
+      vest: [...state.vestFoods],
+      station: [...state.stationFoods],
+      edits: state.foodEdits,
+      custom: state.customFoods,
+    }));
+  } catch {
+    /* private mode can block storage */
+  }
+}
+
+function setFoodName(which, key, name) {
+  const custom = customFood(which, key);
+  if (custom) {
+    custom.name = name;
+    return;
+  }
+  const base = catalogFood(which, key);
+  if (!base) return;
+  const previous = state.foodEdits[which][key];
+  state.foodEdits[which][key] = {
+    name,
+    carbs_g: previous?.carbs_g ?? base.carbs,
+  };
+}
+
+function setFoodCarbs(which, key, carbs) {
+  const next = clampCarbs(carbs);
+  const custom = customFood(which, key);
+  if (custom) {
+    custom.carbs_g = next;
+    return next;
+  }
+  const base = catalogFood(which, key);
+  if (!base) return next;
+  const previous = state.foodEdits[which][key];
+  state.foodEdits[which][key] = {
+    name: previous?.name || base.label,
+    carbs_g: next,
+  };
+  return next;
+}
+
+function paintChipLabel(which, key) {
+  const root = document.querySelector(which === "vest" ? "#vest-foods" : "#station-foods");
+  const button = root?.querySelector(`[data-food="${CSS.escape(key)}"]`);
+  if (button) button.textContent = foodChipText(which, key);
 }
 
 function toggleFood(event, which) {
   const button = event.target.closest?.("[data-food]");
   if (!button) return;
-  const bag = which === "vest" ? state.vestFoods : state.stationFoods;
-  if (bag.has(button.dataset.food)) bag.delete(button.dataset.food);
-  else bag.add(button.dataset.food);
-  button.setAttribute("aria-pressed", bag.has(button.dataset.food) ? "true" : "false");
-  try {
-    localStorage.setItem("fuel-menu", JSON.stringify({
-      vest: [...state.vestFoods],
-      station: [...state.stationFoods],
-    }));
-  } catch {
-    /* private mode can block storage */
+  const bag = selectedFoods(which);
+  const key = button.dataset.food;
+  if (bag.has(key)) bag.delete(key);
+  else bag.add(key);
+  button.setAttribute("aria-pressed", bag.has(key) ? "true" : "false");
+  renderActiveFoods();
+  saveMenu();
+}
+
+function onFoodEditorClick(event, which) {
+  const step = event.target.closest?.("[data-step]");
+  if (!step) return;
+  const row = step.closest("[data-edit]");
+  if (!row || row.dataset.edit !== which) return;
+  const key = row.dataset.key;
+  const record = foodRecord(which, key);
+  if (!record) return;
+  const next = setFoodCarbs(which, key, Number(record.carbs_g) + Number(step.dataset.step));
+  const input = row.querySelector("[data-carbs]");
+  if (input) input.value = String(next);
+  paintChipLabel(which, key);
+  saveMenu();
+}
+
+function onFoodEditorInput(event, which) {
+  const row = event.target.closest?.("[data-edit]");
+  if (!row || row.dataset.edit !== which) return;
+  const key = row.dataset.key;
+  if (event.target.matches("[data-name]")) setFoodName(which, key, event.target.value);
+  if (event.target.matches("[data-carbs]")) setFoodCarbs(which, key, event.target.value);
+  paintChipLabel(which, key);
+  saveMenu();
+}
+
+function addCustomFood(which) {
+  const nameInput = document.querySelector(which === "vest" ? "#vest-custom-name" : "#station-custom-name");
+  const carbInput = document.querySelector(which === "vest" ? "#vest-custom-carbs" : "#station-custom-carbs");
+  const flavorButton = document.querySelector(which === "vest" ? "#vest-custom-flavor" : "#station-custom-flavor");
+  const name = nameInput?.value.trim() || "";
+  const carbs = Number(carbInput?.value);
+  if (!name || !(carbs >= 1 && carbs <= 120)) {
+    setStatus("A custom food needs a name and 1–120 g of carbs.");
+    return;
   }
+  if (state.customFoods[which].length >= 12) {
+    setStatus("That menu already has 12 custom foods.");
+    return;
+  }
+  const key = `custom-${which}-${Date.now()}`;
+  state.customFoods[which].push({
+    key,
+    name,
+    carbs_g: clampCarbs(carbs),
+    flavor: flavorButton?.dataset.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
+  });
+  selectedFoods(which).add(key);
+  if (nameInput) nameInput.value = "";
+  if (carbInput) carbInput.value = "";
+  renderFoods();
+  saveMenu();
+}
+
+function toggleFoodFlavor(which) {
+  const button = document.querySelector(which === "vest" ? "#vest-custom-flavor" : "#station-custom-flavor");
+  if (!button) return;
+  const savoury = button.dataset.flavor !== "Savoury/Salty";
+  button.dataset.flavor = savoury ? "Savoury/Salty" : "Sweet";
+  button.textContent = savoury ? "Savoury" : "Sweet";
 }
 
 function loadStoredPreferences() {
@@ -2030,8 +2256,29 @@ function loadStoredPreferences() {
       };
     }
     const menu = JSON.parse(localStorage.getItem("fuel-menu") || "null");
-    if (Array.isArray(menu?.vest)) state.vestFoods = new Set(menu.vest);
-    if (Array.isArray(menu?.station)) state.stationFoods = new Set(menu.station);
+    if (Array.isArray(menu?.vest)) state.vestFoods = new Set(menu.vest.filter((key) => typeof key === "string"));
+    if (Array.isArray(menu?.station)) state.stationFoods = new Set(menu.station.filter((key) => typeof key === "string"));
+    for (const which of ["vest", "station"]) {
+      const edits = menu?.edits?.[which];
+      if (edits && typeof edits === "object") {
+        state.foodEdits[which] = {};
+        for (const [key, value] of Object.entries(edits)) {
+          if (!value || typeof value.name !== "string") continue;
+          state.foodEdits[which][key] = { name: value.name, carbs_g: clampCarbs(value.carbs_g) };
+        }
+      }
+      if (Array.isArray(menu?.custom?.[which])) {
+        state.customFoods[which] = menu.custom[which]
+          .filter((item) => item && typeof item.key === "string" && typeof item.name === "string")
+          .slice(0, 12)
+          .map((item) => ({
+            key: item.key,
+            name: item.name,
+            carbs_g: clampCarbs(item.carbs_g),
+            flavor: item.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
+          }));
+      }
+    }
   } catch {
     /* keep the defaults */
   }
@@ -2172,11 +2419,14 @@ function bind() {
   listen("#close-crew", "click", closeCrewModal);
   listen("#close-crew-bottom", "click", closeCrewModal);
   listen("#open-gut-live", "click", openGutModal);
-  listen("#edit-stations", "click", () => {
-    state.editStations = true;
-    paintAidDrawer();
-    if (ui.aidDrawer) ui.aidDrawer.open = true;
-  });
+  listen("#vest-custom-add", "click", () => addCustomFood("vest"));
+  listen("#station-custom-add", "click", () => addCustomFood("station"));
+  listen("#vest-custom-flavor", "click", () => toggleFoodFlavor("vest"));
+  listen("#station-custom-flavor", "click", () => toggleFoodFlavor("station"));
+  document.querySelector("#vest-active")?.addEventListener("click", (event) => onFoodEditorClick(event, "vest"));
+  document.querySelector("#station-active")?.addEventListener("click", (event) => onFoodEditorClick(event, "station"));
+  document.querySelector("#vest-active")?.addEventListener("input", (event) => onFoodEditorInput(event, "vest"));
+  document.querySelector("#station-active")?.addEventListener("input", (event) => onFoodEditorInput(event, "station"));
   listen("#close-gut", "click", closeGutModal);
   listen("#close-gut-bottom", "click", closeGutModal);
   listen("#save-gut", "click", saveGut);

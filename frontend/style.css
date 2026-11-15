@@ -284,20 +284,14 @@ input, select {
   align-items: stretch;
   gap: 10px;
 }
-.course-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; }
-.course-row select { flex: 1; min-width: 0; }
-.edit-stations {
-  flex: none;
-  height: auto;
-  min-height: 0;
-  padding: 0 2px;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
+.course-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
 }
+.course-row select { width: 100%; min-width: 0; }
 .icon-btn {
   flex: none;
   width: 40px;
@@ -343,14 +337,24 @@ input, select {
 .setup-grid .time-pair input { width: 34px; min-width: 34px; flex: none; }
 .time-pair span { color: var(--muted); font-weight: 800; }
 
-.seg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
 .seg button {
   height: 34px;
   padding: 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+}
+.seg-grid .seg button {
+  height: 38px;
+  white-space: nowrap;
+  font-size: 13px;
 }
 
 .drawer { padding: 10px 12px 12px; border-radius: var(--glass-radius); }
@@ -445,6 +449,71 @@ input, select {
   font-weight: 700;
 }
 .food-grid button[aria-pressed="true"] { color: #fff; background: #0f1115; }
+.food-editor-title { margin-top: 10px; }
+.food-editor { display: grid; gap: 6px; width: 100%; }
+.food-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.food-edit input[data-name] {
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.carb-step { display: flex; align-items: center; gap: 4px; }
+.carb-step input {
+  width: 46px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  text-align: center;
+  font-size: 13px;
+}
+.carb-step span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.carb-step button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 17, 21, 0.06);
+  color: #0f1115;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: none;
+}
+.custom-food-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(52px, 0.55fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  margin-top: 8px;
+}
+.custom-food-add input { min-width: 0; width: 100%; height: 36px; min-height: 36px; padding: 0 8px; font-size: 13px; }
+.flavor-toggle {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.custom-food-add button[id$="-add"] {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: #0f1115;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  box-shadow: inset 0 1.5px 2px rgba(255, 255, 255, 0.35);
+}
 .gut-pill { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: 12px; font-weight: 700; }
 .gut-questions { display: grid; gap: 12px; }
 .gut-questions .seg { grid-template-columns: 1fr; }
@@ -536,7 +605,8 @@ body[data-tab="map"] #tab-map {
 body[data-tab="live"] #tab-live {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px;
   overflow: hidden;
 }
 body[data-tab="setup"] #tab-setup { overflow: hidden; }
@@ -616,12 +686,12 @@ body[data-tab="setup"] #configure-pane {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
   flex: none;
   width: 100%;
 }
-.live-chips { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
+.live-chips { display: flex; align-items: center; gap: 6px; flex: none; }
 .live-chips .chip-toggle {
   height: 34px;
   min-height: 34px;
@@ -633,18 +703,23 @@ body[data-tab="setup"] #configure-pane {
 .status-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
+  height: 34px;
   margin: 0;
-  padding: 8px 12px;
+  padding: 0 10px;
   color: var(--ink);
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.1;
 }
-#auto-gps-text { min-width: 0; }
+#auto-gps-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .status-dot {
   width: 6px;
   height: 6px;
@@ -669,13 +744,32 @@ body[data-tab="setup"] #configure-pane {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: 8px;
 }
 .live-drawer { display: grid; gap: 8px; padding: 12px; }
 .live-drawer .desk-sim { padding: 0; background: none; border: 0; box-shadow: none; }
 .gps-banner, .off-course { display: none !important; }
 
-.hero { padding: 16px 14px 10px; text-align: center; }
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+  padding: 16px 14px 12px;
+  text-align: center;
+}
+.hero-caffeine {
+  margin: 12px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 17, 21, 0.08);
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.hero-caffeine:empty { display: none; border: 0; margin: 0; padding: 0; }
 .countdown {
   display: block;
   width: 100%;
@@ -751,6 +845,14 @@ body[data-tab="setup"] #configure-pane {
   pointer-events: none;
 }
 .toast.hidden, #live-message:empty, #caffeine-readout:empty { display: none; }
+.finish-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px 12px;
+}
+.finish-row .finish-link { margin: 0; }
 #race-mode { width: auto; min-height: 0; }
 .finish-link {
   display: block;
@@ -769,6 +871,19 @@ body[data-tab="setup"] #configure-pane {
   text-align: center;
 }
 .action-bar { flex: none; display: grid; gap: 8px; }
+.leaflet-control-attribution {
+  font-size: 9px !important;
+  line-height: 1.1 !important;
+  padding: 2px 6px !important;
+  background: rgba(255, 255, 255, 0.65) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 8px 0 0 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 .tab-bar {
