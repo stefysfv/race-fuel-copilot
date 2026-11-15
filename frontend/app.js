@@ -35,6 +35,8 @@ const state = {
   gpxName: "",
   carbs: 60,
   aidStations: [],
+  customAids: [],
+  placeAid: false,
   packedPlan: null,
   livePlan: null,
   logged: [],
@@ -101,6 +103,13 @@ const ui = {
   undoAuto: document.querySelector("#undo-autolog"),
   alerts: document.querySelector("#enable-alerts"),
   testAlert: document.querySelector("#test-alert"),
+  aidName: document.querySelector("#aid-name"),
+  aidKm: document.querySelector("#aid-km"),
+  aidFood: document.querySelector("#aid-food"),
+  aidCutoff: document.querySelector("#aid-cutoff"),
+  aidList: document.querySelector("#aid-list"),
+  aidDrawer: document.querySelector("#aid-drawer"),
+  placeAid: document.querySelector("#place-aid"),
 };
 
 let mapView = null;
@@ -192,16 +201,33 @@ function readAthlete(pace) {
 }
 
 function courseBody(athlete) {
+  const body = { athlete };
+  if (state.customAids.length) {
+    body.aid_stations = state.customAids.map((station) => {
+      const row = {
+        name: station.name,
+        distance_km: station.distance_km,
+        has_water: station.has_water !== false,
+        has_food: Boolean(station.has_food),
+      };
+      if (station.cutoff_hours) {
+        row.cutoff_hours = station.cutoff_hours;
+      }
+      return row;
+    });
+  }
   if (state.source === "gpx") {
     if (!state.gpxXml.trim()) {
       throw new Error("Choose a GPX file first.");
     }
-    return { gpx_xml: state.gpxXml, athlete };
+    body.gpx_xml = state.gpxXml;
+    return body;
   }
   if (!state.raceId) {
     throw new Error("Choose a race first.");
   }
-  return { race_id: state.raceId, athlete };
+  body.race_id = state.raceId;
+  return body;
 }
 
 async function postJson(path, body) {
@@ -242,6 +268,9 @@ function setSource(source) {
   document.querySelector("#source-race").setAttribute("aria-checked", source === "race" ? "true" : "false");
   document.querySelector("#source-gpx").setAttribute("aria-checked", source === "gpx" ? "true" : "false");
   ui.raceSelect.disabled = source !== "race";
+  if (source === "gpx" && ui.aidDrawer) {
+    ui.aidDrawer.open = true;
+  }
 }
 
 function setCarbs(grams) {
@@ -289,7 +318,9 @@ async function buildPlan(event) {
     state.giRescue = false;
     state.snap = null;
     resetSim();
-    state.aidStations = state.source === "race" ? (selectedRace()?.aid_stations || []) : [];
+    state.aidStations = plan.aid_stations?.length
+      ? plan.aid_stations
+      : (state.source === "race" ? (selectedRace()?.aid_stations || []) : []);
     const missed = Math.abs(plan.predicted_duration_min - targetMin) > 1;
     setStatus(missed
       ? `Plan ready. The closest effort pace the engine allows finishes in ${formatDuration(plan.predicted_duration_min)}.`
@@ -1183,6 +1214,9 @@ async function sendFix(latitude, longitude, giRescue, source = "sim") {
   try {
     const result = await postJson("/api/recalibrate", body);
     state.livePlan = result.remaining;
+    if (result.remaining.aid_stations?.length) {
+      state.aidStations = result.remaining.aid_stations;
+    }
     state.logged = [];
     if (source === "gps") {
       state.headsUp.clear();
@@ -1240,6 +1274,7 @@ async function persist() {
       minutes: ui.minutes.value,
       targetEdited: state.targetEdited,
       aidStations: state.aidStations,
+      customAids: state.customAids,
       packedPlan: state.packedPlan,
       livePlan: state.livePlan,
       locker: state.locker,
@@ -1266,6 +1301,8 @@ function restore(session) {
   state.carbs = session.carbs || 60;
   state.targetEdited = Boolean(session.targetEdited);
   state.aidStations = session.aidStations || [];
+  state.customAids = Array.isArray(session.customAids) ? session.customAids : [];
+  renderCustomAids();
   state.packedPlan = session.packedPlan;
   state.livePlan = session.livePlan;
   state.logged = session.logged || [];
@@ -1572,6 +1609,88 @@ function addCustomItem() {
   renderLocker();
 }
 
+function renderCustomAids() {
+  ui.aidList.replaceChildren();
+  for (const [index, station] of state.customAids.entries()) {
+    const chip = document.createElement("li");
+    chip.className = "pill aid-chip";
+    const food = station.has_food ? " · Food" : "";
+    const label = document.createElement("span");
+    label.textContent = `${station.name} · ${Number(station.distance_km).toFixed(1)}km${food}`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "✕";
+    remove.setAttribute("aria-label", `Remove ${station.name}`);
+    remove.addEventListener("click", () => {
+      state.customAids.splice(index, 1);
+      renderCustomAids();
+      persist();
+    });
+    chip.append(label, remove);
+    ui.aidList.append(chip);
+  }
+}
+
+function addCustomAid({ name, distanceKm, hasFood, cutoffHours }) {
+  const clean = name.trim();
+  if (!clean) {
+    setStatus("Name the aid station.");
+    return;
+  }
+  if (!Number.isFinite(distanceKm) || distanceKm < 0) {
+    setStatus("Enter the station kilometer.");
+    return;
+  }
+  const station = {
+    name: clean,
+    distance_km: Math.round(distanceKm * 1000) / 1000,
+    has_water: true,
+    has_food: Boolean(hasFood),
+    cutoff_hours: cutoffHours > 0 ? cutoffHours : null,
+  };
+  const existing = state.customAids.findIndex((item) => item.name.toLowerCase() === clean.toLowerCase());
+  if (existing >= 0) {
+    state.customAids[existing] = station;
+  } else {
+    state.customAids.push(station);
+  }
+  renderCustomAids();
+  ui.aidDrawer.open = true;
+  setStatus(`${clean} added at ${station.distance_km.toFixed(1)} km. Build the plan to pack it.`);
+  persist();
+}
+
+function onAddAidClick() {
+  const cutoff = Number(ui.aidCutoff.value);
+  addCustomAid({
+    name: ui.aidName.value,
+    distanceKm: Number(ui.aidKm.value),
+    hasFood: ui.aidFood.checked,
+    cutoffHours: Number.isFinite(cutoff) ? cutoff : null,
+  });
+  ui.aidName.value = "";
+  ui.aidKm.value = "";
+  ui.aidCutoff.value = "";
+  ui.aidFood.checked = false;
+}
+
+function onMapAidPick(latitude, longitude) {
+  if (!state.packedPlan?.segments?.length) {
+    setStatus("Build a plan before placing a station.");
+    return;
+  }
+  const snap = snapToSegments(state.packedPlan.segments, latitude, longitude);
+  const km = snap.distanceM / 1000;
+  const typed = ui.aidName.value.trim();
+  addCustomAid({
+    name: typed || `Aid ${km.toFixed(1)}`,
+    distanceKm: km,
+    hasFood: ui.aidFood.checked,
+    cutoffHours: Number(ui.aidCutoff.value),
+  });
+  ui.aidName.value = "";
+}
+
 function setFuelPreference(value) {
   state.fuelPreference = value || "gels_first";
   for (const button of document.querySelectorAll(".fuel-pref")) {
@@ -1628,6 +1747,20 @@ function bind() {
     setSource("race");
     state.raceId = ui.raceSelect.value;
     applyTargetDefault();
+  });
+  document.querySelector("#add-aid").addEventListener("click", onAddAidClick);
+  ui.placeAid.addEventListener("click", () => {
+    state.placeAid = !state.placeAid;
+    ui.placeAid.setAttribute("aria-pressed", state.placeAid ? "true" : "false");
+    try {
+      mapApi().setPickHandler(state.placeAid ? onMapAidPick : null);
+    } catch (error) {
+      state.placeAid = false;
+      ui.placeAid.setAttribute("aria-pressed", "false");
+      setStatus(error.message);
+      return;
+    }
+    setStatus(state.placeAid ? "Tap the route to drop an aid station." : "");
   });
   ui.gpxFile.addEventListener("change", async () => {
     const file = ui.gpxFile.files?.[0];

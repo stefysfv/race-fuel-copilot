@@ -385,6 +385,37 @@ body[data-tab="live"] #tab-live {
 }
 .glass-left { left: 10px; }
 .glass-right { right: 10px; }
+.glass-place {
+  top: auto;
+  bottom: 52px;
+  left: 10px;
+  height: auto;
+  min-height: 32px;
+  max-width: calc(100% - 20px);
+}
+.glass-place[aria-pressed="true"] { color: var(--green); border-color: var(--green); }
+.aid-add { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.aid-add input { width: auto; flex: 1; min-width: 64px; height: 34px; min-height: 34px; }
+.aid-add .check { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.aid-add button {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--green);
+  color: #042117;
+  font-size: 20px;
+  font-weight: 800;
+}
+.aid-chip { display: inline-flex; align-items: center; gap: 6px; }
+.aid-chip button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 800;
+  padding: 0;
+}
 .map-canvas .leaflet-top { top: 48px; }
 
 .map-desk {

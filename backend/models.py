@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 
 class APIModel(BaseModel):
@@ -154,15 +154,32 @@ class AthleteInput(APIModel):
     )
 
 
+class CustomAidInput(APIModel):
+    """An aid station typed by the runner, before it is snapped to the track.
+
+    `distance_km` is the kilometer they mean. The engine moves it to the
+    nearest GPX trackpoint and fills in latitude, longitude, and elevation.
+    """
+
+    name: str = Field(min_length=1, max_length=80)
+    distance_km: float = Field(ge=0, le=500)
+    has_water: bool = True
+    has_food: bool = False
+    cutoff_hours: float | None = Field(default=None, gt=0, le=72)
+
+
 class GeneratePlanRequest(APIModel):
     """Body for `POST /api/generate-plan`.
 
     Send a stored `race_id` or a raw GPX document, not both.
+    `aid_stations` is optional. A GPX upload has no catalog stations, so this
+    list is the whole resupply plan. On a stored race these are added on top.
     """
 
     race_id: str | None = None
     gpx_xml: str | None = None
     athlete: AthleteInput = Field(default_factory=AthleteInput)
+    aid_stations: list[CustomAidInput] = Field(default_factory=list, max_length=40)
 
     @model_validator(mode="after")
     def exactly_one_course_source(self) -> GeneratePlanRequest:
@@ -186,7 +203,9 @@ class RecalibrateRequest(APIModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     elapsed_min: float = Field(ge=0, lt=60 * 48)
-    gi_rescue: bool = False
+    # `gi_distress` is the same switch. The live app sends `gi_rescue`.
+    gi_rescue: bool = Field(default=False, validation_alias=AliasChoices("gi_rescue", "gi_distress"))
+    aid_stations: list[CustomAidInput] = Field(default_factory=list, max_length=40)
 
     @model_validator(mode="after")
     def exactly_one_course_source(self) -> RecalibrateRequest:
@@ -312,6 +331,7 @@ class RacePlan(APIModel):
     segments: list[Segment]
     fuel_stops: list[FuelStop]
     aid_legs: list[AidLeg]
+    aid_stations: list[AidStation] = Field(default_factory=list)
     totals: PlanTotals
     warnings: list[str]
 

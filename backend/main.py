@@ -26,9 +26,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.fuel_engine import generate_plan, generate_plan_for_race, get_race, load_race_catalog, recalibrate
-from backend.gpx_parser import attach_track, parse_gpx_xml
-from backend.models import GeneratePlanRequest, Race, RaceCatalog, RacePlan, RecalibrateRequest, RecalibrateResponse
+from backend.fuel_engine import generate_plan, get_race, load_race_catalog, recalibrate, snap_custom_aids
+from backend.gpx_parser import attach_track, parse_gpx_xml, prepare_course
+from backend.models import AidStation, GeneratePlanRequest, Race, RaceCatalog, RacePlan, RecalibrateRequest, RecalibrateResponse
 
 app = FastAPI(
     title="Trail & Ultra Race Fueling Co-Pilot",
@@ -60,20 +60,37 @@ def _race_with_track(race_id: str) -> Race:
     return attach_track(get_race(race_id))
 
 
+def _merge_aids(catalog: list[AidStation], custom: list[AidStation]) -> list[AidStation]:
+    """Keep catalog stations, then add typed ones that do not reuse a name."""
+
+    taken = {station.name.casefold() for station in catalog}
+    return [*catalog, *[station for station in custom if station.name.casefold() not in taken]]
+
+
+def _plan_course(body: GeneratePlanRequest | RecalibrateRequest) -> tuple[str, str, float, list[AidStation], list]:
+    """Resolve a race or a GPX upload, and snap any custom aid stations onto it."""
+
+    if body.race_id:
+        race = _race_with_track(body.race_id)
+        course = prepare_course(race.profile)
+        custom = snap_custom_aids(course, body.aid_stations)
+        return race.id, race.name, race.distance_km, _merge_aids(race.aid_stations, custom), race.profile
+    profile = parse_gpx_xml(body.gpx_xml or "")
+    course = prepare_course(profile)
+    return "uploaded", "Uploaded GPX", 0.0, snap_custom_aids(course, body.aid_stations), profile
+
+
 @app.post("/api/generate-plan", response_model=RacePlan)
 def create_plan(body: GeneratePlanRequest) -> RacePlan:
     """Build a full-race fueling plan."""
 
     try:
-        if body.race_id:
-            return generate_plan_for_race(_race_with_track(body.race_id), body.athlete)
-        profile = parse_gpx_xml(body.gpx_xml or "")
-        distance_km = 0.0
+        race_id, race_name, distance_km, stations, profile = _plan_course(body)
         return generate_plan(
-            race_id="uploaded",
-            race_name="Uploaded GPX",
+            race_id=race_id,
+            race_name=race_name,
             declared_distance_km=distance_km,
-            aid_stations=[],
+            aid_stations=stations,
             profile=profile,
             athlete=body.athlete,
         )
@@ -88,26 +105,12 @@ def recalibrate_plan(body: RecalibrateRequest) -> RecalibrateResponse:
     """Snap a GPS fix to the track and return the plan for the ground still ahead."""
 
     try:
-        if body.race_id:
-            race = _race_with_track(body.race_id)
-            return recalibrate(
-                race_id=race.id,
-                race_name=race.name,
-                declared_distance_km=race.distance_km,
-                aid_stations=race.aid_stations,
-                profile=race.profile,
-                athlete=body.athlete,
-                latitude=body.latitude,
-                longitude=body.longitude,
-                elapsed_min=body.elapsed_min,
-                gi_rescue=body.gi_rescue,
-            )
-        profile = parse_gpx_xml(body.gpx_xml or "")
+        race_id, race_name, distance_km, stations, profile = _plan_course(body)
         return recalibrate(
-            race_id="uploaded",
-            race_name="Uploaded GPX",
-            declared_distance_km=0.0,
-            aid_stations=[],
+            race_id=race_id,
+            race_name=race_name,
+            declared_distance_km=distance_km,
+            aid_stations=stations,
             profile=profile,
             athlete=body.athlete,
             latitude=body.latitude,

@@ -61,6 +61,14 @@ export function createMapView(mapElement, chartCanvas) {
   let runner = null;
   let chart = null;
   let lastBounds = null;
+  let pickHandler = null;
+
+  map.on("click", (event) => {
+    if (!pickHandler) {
+      return;
+    }
+    pickHandler(event.latlng.lat, event.latlng.lng);
+  });
 
   function setCourse({ segments, aidStations, fuelStops }) {
     routeLayer.clearLayers();
@@ -242,5 +250,9 @@ export function createMapView(mapElement, chartCanvas) {
     }
   }
 
-  return { setCourse, setRunner, setRealLocation, centerOnMe, resize };
+  function setPickHandler(handler) {
+    pickHandler = handler;
+  }
+
+  return { setCourse, setRunner, setRealLocation, centerOnMe, resize, setPickHandler };
 }

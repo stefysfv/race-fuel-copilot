@@ -43,6 +43,7 @@ from backend.models import (
     AidLeg,
     AidStation,
     AthleteInput,
+    CustomAidInput,
     DigestiveZone,
     FuelForm,
     FuelStop,
@@ -316,6 +317,7 @@ def generate_plan(
         segments=timed,
         fuel_stops=stops,
         aid_legs=legs,
+        aid_stations=stations,
         totals=_totals(stops, athlete),
         warnings=warnings,
     )
@@ -504,6 +506,34 @@ def build_aid_legs(
             )
         )
     return legs
+
+
+def snap_custom_aids(course: list[CoursePoint], stations: list[CustomAidInput]) -> list[AidStation]:
+    """Move each typed kilometer onto the nearest GPX trackpoint.
+
+    The trackpoint supplies latitude, longitude, elevation, and the kilometer
+    the packing list will actually use.
+    """
+
+    if not course:
+        raise ValueError("A course needs track points before aid stations can be snapped")
+    snapped: list[AidStation] = []
+    for station in stations:
+        target_m = station.distance_km * 1000.0
+        point = min(course, key=lambda sample: abs(sample.distance_m - target_m))
+        snapped.append(
+            AidStation(
+                name=station.name.strip(),
+                distance_km=point.distance_m / 1000.0,
+                lat=point.lat,
+                lon=point.lon,
+                elevation_m=point.elevation_m,
+                has_water=station.has_water,
+                has_food=station.has_food,
+                cutoff_hours=station.cutoff_hours,
+            )
+        )
+    return snapped
 
 
 def snap_to_track(points: list[CoursePoint], latitude: float, longitude: float) -> tuple[CoursePoint, float, int]:

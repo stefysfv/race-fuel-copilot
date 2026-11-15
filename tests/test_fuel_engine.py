@@ -13,10 +13,10 @@ import math
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.fuel_engine import RED_MICRO_DOSE_G, classify_zone, generate_plan, sweat_rates
+from backend.fuel_engine import RED_MICRO_DOSE_G, classify_zone, generate_plan, snap_custom_aids, sweat_rates
+from backend.models import AidStation, AthleteInput, CustomAidInput, DigestiveZone, FuelForm, TrackPoint
 from backend.gpx_parser import location_at_distance, prepare_course
 from backend.main import app
-from backend.models import AidStation, AthleteInput, DigestiveZone, FuelForm, TrackPoint
 
 EARTH_RADIUS_M = 6_371_000.0
 METERS_PER_DEG_LAT = EARTH_RADIUS_M * math.pi / 180.0
@@ -154,14 +154,14 @@ def test_red_window_is_a_micro_dose_and_the_next_window_has_no_debt() -> None:
 
 def test_hot_weather_sweat_exceeds_cool_weather_for_70kg() -> None:
     cool_ml, cool_na = sweat_rates(10.0, 70.0)
-    hot_ml, hot_na = sweat_rates(30.0, 70.0)
+    hot_ml, hot_na = sweat_rates(28.0, 70.0)
     assert cool_ml == pytest.approx(465.0)
     assert hot_ml == pytest.approx(875.0)
     assert hot_ml > cool_ml
     assert hot_na > cool_na
 
     cool = build_plan(course_points([(3_000, 0.0)]), AthleteInput(weight_kg=70, temperature_c=10))
-    hot = build_plan(course_points([(3_000, 0.0)]), AthleteInput(weight_kg=70, temperature_c=30))
+    hot = build_plan(course_points([(3_000, 0.0)]), AthleteInput(weight_kg=70, temperature_c=28))
     assert hot.athlete.fluid_ml_per_hour > cool.athlete.fluid_ml_per_hour
     assert hot.athlete.sodium_mg_per_hour > cool.athlete.sodium_mg_per_hour
 
@@ -210,6 +210,13 @@ def test_long_race_turns_savoury_and_plates_food_stations() -> None:
     assert plates[0].product == "Aid station plate"
     assert plates[0].form is FuelForm.real_food
     assert plates[0].carbs_g == pytest.approx(28.0)
+    food_leg = next(leg for leg in plan.aid_legs if leg.to_name == "Food hut")
+    water_leg = next(leg for leg in plan.aid_legs if leg.to_name == "Water only")
+    assert food_leg.station_carbs_g == pytest.approx(28.0)
+    assert food_leg.vest_carbs_g == pytest.approx(food_leg.carbs_g - 28.0)
+    assert food_leg.vest_carbs_g < food_leg.carbs_g
+    assert water_leg.station_carbs_g == 0
+    assert water_leg.vest_carbs_g == pytest.approx(water_leg.carbs_g)
     assert all(stop.product != "Water only" for stop in plan.fuel_stops)
 
 
@@ -227,7 +234,7 @@ def test_recalibrate_gi_rescue_pauses_solids_then_halves_two_doses() -> None:
         "elapsed_min": elapsed,
     }
 
-    rescued = client.post("/api/recalibrate", json={**body, "gi_rescue": True})
+    rescued = client.post("/api/recalibrate", json={**body, "gi_distress": True})
     normal = client.post("/api/recalibrate", json={**body, "gi_rescue": False})
     assert rescued.status_code == 200, rescued.text
     assert normal.status_code == 200, normal.text
@@ -260,3 +267,32 @@ def test_recalibrate_gi_rescue_pauses_solids_then_halves_two_doses() -> None:
     assert rescued_feeds[1]["carbs_g"] == pytest.approx(normal_feeds[1]["carbs_g"] / 2, abs=0.2)
     assert rescued_feeds[2]["carbs_g"] == pytest.approx(normal_feeds[2]["carbs_g"], abs=0.2)
     assert "Half-size" in rescued_feeds[0]["reason"]
+
+
+def test_custom_aid_station_snaps_to_the_nearest_trackpoint() -> None:
+    points = course_points([(6_000, 2.0)])
+    course = prepare_course(points)
+    snapped = snap_custom_aids(
+        course,
+        [CustomAidInput(name="Bezbog", distance_km=2.03, has_food=True, cutoff_hours=6.5)],
+    )
+    nearest = min(course, key=lambda point: abs(point.distance_m - 2_030))
+    assert snapped[0].name == "Bezbog"
+    assert snapped[0].lat == nearest.lat
+    assert snapped[0].lon == nearest.lon
+    assert snapped[0].elevation_m == nearest.elevation_m
+    assert snapped[0].distance_km == pytest.approx(nearest.distance_m / 1000.0)
+    assert snapped[0].has_food is True
+    assert snapped[0].cutoff_hours == pytest.approx(6.5)
+
+    response = client.post(
+        "/api/generate-plan",
+        json={
+            "gpx_xml": to_gpx(points),
+            "athlete": AthleteInput(flat_pace_min_per_km=8.0).model_dump(),
+            "aid_stations": [{"name": "Bezbog", "distance_km": 2.03, "has_water": True, "has_food": True, "cutoff_hours": 6.5}],
+        },
+    )
+    assert response.status_code == 200, response.text
+    names = [leg["to_name"] for leg in response.json()["aid_legs"]]
+    assert "Bezbog" in names
