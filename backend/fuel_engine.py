@@ -84,7 +84,10 @@ CLIMB_LOOKAHEAD_MIN = 20.0
 MAJOR_CLIMB_GRADE = 8.0
 # After 3.5 hours, green feeds in the second half leave the sweet gels behind.
 PALATE_FATIGUE_MIN = 210.0
-AID_FOOD_MIN_MINUTE = 75.0
+SAVOURY_START_MIN = 150.0
+EARLY_SAVOURY_MIN = 90.0
+AID_FOOD_MIN_MINUTE = 60.0
+SENSITIVE_GREEN_MAX = 3.5
 AID_BITE_CARBS_G = 28.0
 FLAT_GREEN_GRADE = 3.0
 AID_PLATE = "Aid Station Plate: 2 pieces banana / salted potatoes / orange wedges + broth/cola"
@@ -109,6 +112,88 @@ OFF_COURSE_M = 75.0
 GAP_MODEL_NAME = "minetti_2002"
 
 METERS_PER_DEG_LAT = 111_320.0
+
+
+@dataclass(frozen=True)
+class _MenuItem:
+    """One vest or aid-station food the runner can tick in setup."""
+
+    key: str
+    name: str
+    carbs_g: float
+    sodium_mg: float
+    flavor: str
+    kind: str  # gel, liquid, or solid
+
+
+VEST_MENU: dict[str, _MenuItem] = {
+    "gel_25": _MenuItem("gel_25", "Standard Gel", 25, 50, "Sweet", "gel"),
+    "iso_gel_22": _MenuItem("iso_gel_22", "Isotonic Gel", 22, 40, "Sweet", "gel"),
+    "drink_30": _MenuItem("drink_30", "Drink Mix", 30, 250, "Sweet", "liquid"),
+    "sandwich": _MenuItem("sandwich", "Mini Sandwich", 32, 280, "Savoury/Salty", "solid"),
+    "bar": _MenuItem("bar", "Oat Bar", 35, 120, "Sweet", "solid"),
+    "dates": _MenuItem("dates", "Medjool Dates", 28, 10, "Sweet", "solid"),
+    "chocolate": _MenuItem("chocolate", "Chocolate Squares", 22, 30, "Sweet", "solid"),
+    "chips": _MenuItem("chips", "Salted Chips", 20, 320, "Savoury/Salty", "solid"),
+}
+STATION_MENU: dict[str, _MenuItem] = {
+    "sandwich": _MenuItem("sandwich", "Sandwich quarters", 30, 250, "Savoury/Salty", "solid"),
+    "watermelon": _MenuItem("watermelon", "Watermelon", 18, 5, "Sweet", "solid"),
+    "cucumber": _MenuItem("cucumber", "Salted cucumber and crackers", 12, 350, "Savoury/Salty", "solid"),
+    "chips": _MenuItem("chips", "Salted chips", 22, 300, "Savoury/Salty", "solid"),
+    "chocolate": _MenuItem("chocolate", "Chocolate pieces", 24, 20, "Sweet", "solid"),
+    "apple": _MenuItem("apple", "Apple wedges", 18, 2, "Sweet", "solid"),
+    "dates": _MenuItem("dates", "Pitted dates", 28, 5, "Sweet", "solid"),
+    "banana": _MenuItem("banana", "Banana pieces", 22, 1, "Sweet", "solid"),
+    "cola_broth": _MenuItem("cola_broth", "Cola or warm broth", 18, 200, "Sweet", "liquid"),
+}
+DEFAULT_STATION_KEYS = ("sandwich", "watermelon", "cucumber", "chips", "cola_broth")
+SAVOURY_VEST_KEYS = frozenset({"sandwich", "chips"})
+
+
+def _menu_items(keys: list[str], catalog: dict[str, _MenuItem]) -> list[_MenuItem]:
+    """Keep catalog foods in the order the runner selected them."""
+
+    return [catalog[key] for key in keys if key in catalog]
+
+
+def _green_max_for(athlete: AthleteInput) -> float:
+    """Sensitive guts lose solid-food green once the climb passes +3.5%."""
+
+    if athlete.climb_sensitivity == "sensitive":
+        return SENSITIVE_GREEN_MAX
+    return GREEN_MAX_GRADE
+
+
+def _scaled_athlete(athlete: AthleteInput) -> AthleteInput:
+    """Apply the gut quiz carb multiplier. 1.0 leaves the typed target alone."""
+
+    factor = min(1.25, max(0.75, athlete.carb_multiplier))
+    if abs(factor - 1.0) < 1e-9:
+        return athlete
+    return athlete.model_copy(update={"carbs_g_per_hour": athlete.carbs_g_per_hour * factor})
+
+
+def station_plate(athlete: AthleteInput) -> tuple[float, str]:
+    """Carbs and the words for one aid-station plate.
+
+    The default menu stays at 28 g so existing packing checks keep their vest
+    split. A custom menu uses the pair closest to 31 g, clamped to 28–35 g.
+    """
+
+    chosen = _menu_items(athlete.station_foods, STATION_MENU)
+    if len(chosen) < 2 or tuple(athlete.station_foods) == DEFAULT_STATION_KEYS:
+        return AID_BITE_CARBS_G, AID_PLATE
+    best: tuple[float, _MenuItem, _MenuItem] | None = None
+    for index, first in enumerate(chosen):
+        for second in chosen[index + 1 :]:
+            total = first.carbs_g + second.carbs_g
+            if best is None or abs(total - 31.0) < abs(best[0] - 31.0):
+                best = (total, first, second)
+    assert best is not None
+    raw, first, second = best
+    carbs = min(35.0, max(28.0, raw))
+    return carbs, f"{first.name} + {second.name} ({carbs:.0f}g)"
 
 
 @dataclass(frozen=True)
@@ -151,17 +236,18 @@ def gap_cost_factor(grade_percent: float) -> float:
     return metabolic_cost_j_per_kg_m(grade_percent / 100.0) / FLAT_COST_J_PER_KG_M
 
 
-def classify_zone(grade_percent: float) -> DigestiveZone:
+def classify_zone(grade_percent: float, green_max: float = GREEN_MAX_GRADE) -> DigestiveZone:
     """Map net segment grade to a digestive safety zone.
 
-    Green:  -8% <= grade <= +5%. A gel is reasonable here.
-    Yellow: +5% < grade <= +10%, or -12% <= grade < -8%. Liquids and a half dose.
+    Green:  -8% <= grade <= green_max (default +5%). A gel is reasonable here.
+    Yellow: above that line through +10%, or -12% <= grade < -8%. Liquids and a half dose.
     Red:    grade > +10% or grade < -12%. No full gel. A 15 g micro-dose at most.
+    A sensitive gut passes green_max=3.5 so moderate climbs leave the green zone.
     """
 
-    if GREEN_MIN_GRADE <= grade_percent <= GREEN_MAX_GRADE:
+    if GREEN_MIN_GRADE <= grade_percent <= green_max:
         return DigestiveZone.green
-    uphill_yellow = GREEN_MAX_GRADE < grade_percent <= YELLOW_UPHILL_MAX
+    uphill_yellow = green_max < grade_percent <= YELLOW_UPHILL_MAX
     downhill_yellow = YELLOW_DOWNHILL_MIN <= grade_percent < GREEN_MIN_GRADE
     if uphill_yellow or downhill_yellow:
         return DigestiveZone.yellow
@@ -217,6 +303,7 @@ def build_timed_segments(
         raise ValueError("pace_ratio must be positive")
 
     clock_min = 0.0
+    green_max = _green_max_for(athlete)
     timed: list[Segment] = []
     for segment in course_segments:
         factor = gap_cost_factor(segment.grade_percent)
@@ -241,7 +328,7 @@ def build_timed_segments(
                 elevation_gain_m=segment.elevation_gain_m,
                 elevation_loss_m=segment.elevation_loss_m,
                 grade_percent=segment.grade_percent,
-                zone=classify_zone(segment.grade_percent),
+                zone=classify_zone(segment.grade_percent, green_max),
                 cost_factor=factor,
                 predicted_minutes=minutes,
                 start_minute=start_minute,
@@ -278,7 +365,7 @@ def generate_plan(
     if not timed:
         raise ValueError("No course remaining from this point")
 
-    athlete = _with_sweat_rates(athlete)
+    athlete = _scaled_athlete(_with_sweat_rates(athlete))
     stops = schedule_fuel(
         timed,
         course,
@@ -290,7 +377,7 @@ def generate_plan(
 
     total_m = course[-1].distance_m
     stations = _stations_on_course(aid_stations, total_m, warnings)
-    stops = _insert_aid_bites(stops, stations, timed)
+    stops = _insert_aid_bites(stops, stations, timed, athlete)
     legs = build_aid_legs(
         stations,
         timed,
@@ -389,6 +476,8 @@ def schedule_fuel(
         )
         caffeine_used += caffeine_mg
         # A caffeinated gel stays a gel. Every other green feed can rotate onto real food.
+        food_name = ""
+        flavor = "Sweet"
         if caffeine_mg > 0:
             flavor = "Sweet"
         else:
@@ -476,9 +565,10 @@ def build_aid_legs(
         arrival = next((station for station in stations if station.name == to_name), None)
         station_carbs = 0.0
         station_meal = ""
+        plate_carbs, plate_label = station_plate(athlete)
         if arrival is not None and arrival.has_food and end_min >= AID_FOOD_MIN_MINUTE:
-            station_carbs = min(AID_BITE_CARBS_G, carbs_g)
-            station_meal = AID_PLATE
+            station_carbs = min(plate_carbs, carbs_g)
+            station_meal = plate_label
         vest_carbs = max(0.0, carbs_g - station_carbs)
         legs.append(
             AidLeg(
@@ -891,10 +981,35 @@ def _segment_index_at(segments: list[Segment], distance_m: float) -> int:
     return 0
 
 
-def _rotating(names: tuple[str, ...], when: float) -> str:
-    """Pick the next food in a rotation so the same sweet thing is not repeated."""
+def _savoury_minute(athlete: AthleteInput, finish_min: float) -> float:
+    """When green feeds should leave the sweet rotation.
 
-    return names[int(when // 30) % len(names)]
+    The gut quiz can start that at 1.5 h. Otherwise it starts at 2.5 h, and a
+    race longer than 3.5 h still switches by 3.5 h or halfway, whichever the
+    clock reaches first among those marks.
+    """
+
+    start = EARLY_SAVOURY_MIN if athlete.early_savoury else SAVOURY_START_MIN
+    if finish_min > PALATE_FATIGUE_MIN:
+        start = min(start, max(PALATE_FATIGUE_MIN, finish_min / 2.0))
+    return start
+
+
+def _pick_item(items: list[_MenuItem], when: float) -> _MenuItem:
+    return items[int(when // 30) % len(items)]
+
+
+def _apply_named_food(dose: _Dose, item: _MenuItem, note: str) -> tuple[str, str]:
+    """Attach a menu item without changing the carb grams already chosen."""
+
+    if item.kind == "solid":
+        dose.form = FuelForm.real_food
+    elif item.kind == "liquid":
+        dose.form = FuelForm.liquid
+    else:
+        dose.form = FuelForm.gel
+    dose.reason += f" Flavor: {item.flavor}. {note}{item.name}."
+    return item.name, item.flavor
 
 
 def _apply_food_preference(
@@ -906,50 +1021,28 @@ def _apply_food_preference(
     finish_min: float,
     athlete: AthleteInput,
 ) -> tuple[str, str]:
-    """Name a real food or a gel, and mark the flavor.
+    """Name a vest food from the runner's menu, and mark the flavor.
 
-    Red micro-doses and rescue sips stay as they are. A race longer than
-    3.5 hours moves green feeds onto savoury food once the clock is past
-    both 3.5 hours and halfway.
+    Red micro-doses and rescue sips stay liquid. Green rotates the selected
+    vest foods. After the savoury mark, green feeds prefer sandwich and chips.
+    Yellow stays on gels and drink mix from that same menu.
     """
 
+    del grade_percent
     if dose.carbs_g <= 0 or dose.form in {FuelForm.rescue_sip, FuelForm.sip, FuelForm.micro_dose}:
         return "", ""
 
-    savoury_time = finish_min > PALATE_FATIGUE_MIN and when >= max(PALATE_FATIGUE_MIN, finish_min / 2.0)
-    if zone == DigestiveZone.green and savoury_time:
-        name = _rotating(("Salted rice cake", "Pretzels or chips", "PB and jam bite", "Boiled potato"), when)
-        dose.form = FuelForm.real_food
-        dose.reason += f" Flavor: Savoury/Salty. Take {name}."
-        return name, "Savoury/Salty"
-
-    preference = athlete.fuel_preference
-    if zone == DigestiveZone.green and preference == "real_food_heavy":
-        name = _rotating(("Energy bar", "Salted rice cake", "Fruit or dates", "Boiled potato"), when)
-        dose.form = FuelForm.real_food
-        dose.reason += f" Flavor: Sweet. Take {name}."
-        return name, "Sweet"
-    if zone == DigestiveZone.green and preference == "balanced_real_food":
-        options = (
-            ("Gel", FuelForm.gel, "Sweet"),
-            ("Energy bar", FuelForm.real_food, "Sweet"),
-            ("Fruit or dates", FuelForm.real_food, "Sweet"),
-            ("Salted rice cake", FuelForm.real_food, "Savoury/Salty"),
-        )
-        name, form, flavor = options[int(when // 30) % len(options)]
-        dose.form = form
-        dose.reason += f" Flavor: {flavor}. Take {name}."
-        return name, flavor
-    if zone == DigestiveZone.green and preference == "gels_first" and abs(grade_percent) <= FLAT_GREEN_GRADE:
-        dose.form = FuelForm.real_food
-        dose.reason += " Flavor: Sweet. Flat green, so take an energy bar."
-        return "Energy bar", "Sweet"
-    if zone == DigestiveZone.yellow and preference == "real_food_heavy":
-        dose.reason += " Flavor: Sweet. Isotonic gel, sipped."
-        return "Isotonic gel", "Sweet"
-    if zone == DigestiveZone.green and dose.form == FuelForm.gel:
-        dose.reason += " Flavor: Sweet."
-        return "", "Sweet"
+    foods = _menu_items(athlete.vest_foods, VEST_MENU)
+    if not foods:
+        foods = [VEST_MENU["gel_25"]]
+    if zone == DigestiveZone.green and when >= _savoury_minute(athlete, finish_min):
+        savoury = [item for item in foods if item.key in SAVOURY_VEST_KEYS]
+        return _apply_named_food(dose, _pick_item(savoury or foods, when), "Take ")
+    if zone == DigestiveZone.green:
+        return _apply_named_food(dose, _pick_item(foods, when), "Take ")
+    if zone == DigestiveZone.yellow:
+        soft = [item for item in foods if item.kind in {"gel", "liquid"}] or foods[:1]
+        return _apply_named_food(dose, _pick_item(soft, when), "Half portion: ")
     return "", ""
 
 
@@ -957,15 +1050,17 @@ def _insert_aid_bites(
     stops: list[FuelStop],
     stations: list[AidStation],
     segments: list[Segment],
+    athlete: AthleteInput,
 ) -> list[FuelStop]:
-    """Add a plate at each food station after 75 minutes, and lighten a nearby vest snack.
+    """Add a plate at each food station after 60 minutes, and lighten a nearby vest snack.
 
     The plate is eaten while stopped, so a red grade at the pin does not
-    turn it into a climbing micro-dose.
+    turn it into a climbing micro-dose. Its carbs come from the station menu.
     """
 
     if not segments:
         return stops
+    plate_carbs, plate_label = station_plate(athlete)
     bites: list[FuelStop] = []
     for station in stations:
         if not station.has_food:
@@ -992,11 +1087,11 @@ def _insert_aid_bites(
                 segment_index=segment.index,
                 grade_percent=segment.grade_percent,
                 zone=segment.zone,
-                carbs_g=AID_BITE_CARBS_G,
+                carbs_g=plate_carbs,
                 fluid_ml=150.0,
                 sodium_mg=200.0,
                 form=FuelForm.real_food,
-                reason=AID_PLATE,
+                reason=plate_label,
                 product="Aid station plate",
                 flavor="Savoury/Salty",
                 at_aid_station=True,
@@ -1007,15 +1102,15 @@ def _insert_aid_bites(
                 continue
             if abs(stop.scheduled_minute - minute) > 15:
                 continue
-            stop.carbs_g = max(0.0, stop.carbs_g - AID_BITE_CARBS_G)
+            stop.carbs_g = max(0.0, stop.carbs_g - plate_carbs)
             stop.caffeine_mg = 0.0
             if stop.carbs_g < 5:
                 stop.carbs_g = 0.0
                 stop.form = FuelForm.sip
                 stop.product = ""
-                stop.reason = f"Skip the vest snack. {AID_PLATE}"
+                stop.reason = f"Skip the vest snack. {plate_label}"
             else:
-                stop.reason += f" The aid-station plate covers {AID_BITE_CARBS_G:.0f} g of this window."
+                stop.reason += f" The aid-station plate covers {plate_carbs:.0f} g of this window."
             break
     merged = stops + bites
     merged.sort(key=lambda stop: (stop.scheduled_minute, stop.distance_km))

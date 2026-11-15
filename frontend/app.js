@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=6";
 
 const PRESETS = [
   { name: "Standard Gel", carbs_g: 25, caffeine_mg: 0, kind: "gel" },
@@ -36,7 +36,10 @@ const state = {
   carbs: 60,
   aidStations: [],
   customAids: [],
-  placeAid: false,
+  vestFoods: new Set(["gel_25", "drink_30", "bar", "sandwich", "dates"]),
+  stationFoods: new Set(["sandwich", "watermelon", "cucumber", "chips", "cola_broth"]),
+  gut: { carb_multiplier: 1, climb_sensitivity: "normal", early_savoury: false, saved: false },
+  editStations: false,
   packedPlan: null,
   livePlan: null,
   logged: [],
@@ -117,7 +120,6 @@ const ui = {
   aidCutoff: document.querySelector("#aid-cutoff"),
   aidList: document.querySelector("#aid-list"),
   aidDrawer: document.querySelector("#aid-drawer"),
-  placeAid: document.querySelector("#place-aid"),
   configurePane: document.querySelector("#configure-pane"),
   packingPane: document.querySelector("#packing-pane"),
   paneConfigure: document.querySelector("#pane-configure"),
@@ -125,8 +127,6 @@ const ui = {
   legSwitch: document.querySelector("#leg-switch"),
   autoGps: document.querySelector("#auto-gps"),
   autoGpsText: document.querySelector("#auto-gps-text"),
-  simToggle: document.querySelector("#sim-toggle"),
-  liveDrawer: document.querySelector("#live-drawer"),
   crewModal: document.querySelector("#crew-modal"),
 };
 
@@ -143,12 +143,23 @@ function mapApi() {
   return mapView;
 }
 
+let toastTimer = 0;
+
 function setStatus(message) {
   const text = message || "";
-  ui.status.textContent = text;
-  if (ui.toast) {
-    ui.toast.textContent = text;
+  if (ui.status) ui.status.textContent = "";
+  if (!ui.toast) return;
+  window.clearTimeout(toastTimer);
+  if (!text) {
+    ui.toast.textContent = "";
+    ui.toast.classList.add("hidden");
+    return;
   }
+  ui.toast.textContent = text;
+  ui.toast.classList.remove("hidden");
+  toastTimer = window.setTimeout(() => {
+    ui.toast.classList.add("hidden");
+  }, 3000);
 }
 
 function formatClock(minutes) {
@@ -206,6 +217,11 @@ function readAthlete(pace) {
     carbs_g_per_hour: state.carbs,
     flat_pace_min_per_km: pace,
     fuel_preference: state.fuelPreference,
+    vest_foods: [...state.vestFoods],
+    station_foods: [...state.stationFoods],
+    carb_multiplier: state.gut.saved ? state.gut.carb_multiplier : 1,
+    climb_sensitivity: state.gut.saved ? state.gut.climb_sensitivity : "normal",
+    early_savoury: state.gut.saved ? state.gut.early_savoury : false,
   };
   if (state.locker.length) {
     athlete.locker = state.locker.map((item) => ({
@@ -281,14 +297,20 @@ function applyTargetDefault() {
   ui.minutes.value = String(preset.minutes);
 }
 
-function setSource(source) {
-  state.source = source;
-  document.querySelector("#source-race").setAttribute("aria-checked", source === "race" ? "true" : "false");
-  document.querySelector("#source-gpx").setAttribute("aria-checked", source === "gpx" ? "true" : "false");
-  ui.raceSelect.disabled = source !== "race";
-  if (source === "gpx" && ui.aidDrawer) {
+function paintAidDrawer() {
+  const show = state.source === "gpx" || state.editStations || state.customAids.length > 0;
+  ui.aidDrawer?.classList.toggle("hidden", !show);
+  if (show && state.source === "gpx" && ui.aidDrawer) {
     ui.aidDrawer.open = true;
   }
+}
+
+function setSource(source) {
+  state.source = source;
+  document.querySelector("#source-race")?.setAttribute("aria-checked", source === "race" ? "true" : "false");
+  document.querySelector("#source-gpx")?.setAttribute("aria-checked", source === "gpx" ? "true" : "false");
+  if (ui.raceSelect) ui.raceSelect.disabled = source !== "race";
+  paintAidDrawer();
 }
 
 function setCarbs(grams) {
@@ -296,6 +318,7 @@ function setCarbs(grams) {
   for (const button of document.querySelectorAll(".gut")) {
     button.setAttribute("aria-checked", Number(button.dataset.carbs) === grams ? "true" : "false");
   }
+  renderGutPill();
 }
 
 async function loadRaces() {
@@ -384,7 +407,8 @@ function showSetupPane(pane) {
   ui.paneConfigure.setAttribute("aria-selected", packing ? "false" : "true");
   ui.panePacking.setAttribute("aria-selected", packing ? "true" : "false");
   if (!packing) {
-    ui.form.classList.remove("hidden");
+    ui.form?.classList.remove("hidden");
+    if (ui.configurePane) ui.configurePane.scrollTop = 0;
   }
 }
 
@@ -679,7 +703,7 @@ function showTab(name) {
   document.body.dataset.tab = name;
   if (name === "map") {
     drawMap();
-    requestAnimationFrame(() => mapView?.resize());
+    setTimeout(() => mapView?.resize(), 60);
   }
   if (name === "live") {
     renderLive();
@@ -759,11 +783,10 @@ function undoAutoLog() {
 const RECAL_EVERY_MS = 30000;
 
 function paintRaceControls() {
-  const racing = state.raceMode;
-  ui.raceMode.setAttribute("aria-pressed", racing ? "true" : "false");
-  ui.raceMode.textContent = racing ? "Stop Race Mode" : "Race Mode";
-  ui.alerts.setAttribute("aria-pressed", state.alerts ? "true" : "false");
-  ui.undoAuto.classList.toggle("hidden", state.lastAutoLog == null);
+  ui.raceMode?.setAttribute("aria-pressed", state.raceMode ? "true" : "false");
+  if (ui.raceMode) ui.raceMode.textContent = "Race Mode";
+  ui.alerts?.setAttribute("aria-pressed", state.alerts ? "true" : "false");
+  ui.undoAuto?.classList.toggle("hidden", state.lastAutoLog == null);
 }
 
 function onRaceModeClick() {
@@ -1032,7 +1055,9 @@ function primeAudio() {
   if (window.speechSynthesis) {
     const unlock = new SpeechSynthesisUtterance(" ");
     unlock.volume = 0;
-    window.speechSynthesis.speak(unlock);
+    if (applyEnglishVoice(unlock)) {
+      window.speechSynthesis.speak(unlock);
+    }
   }
   return state.audioCtx;
 }
@@ -1058,14 +1083,84 @@ function playChime() {
   });
 }
 
+const FEMALE_VOICE_NAMES = [
+  "Ava",
+  "Samantha",
+  "Allison",
+  "Victoria",
+  "Karen",
+  "Moira",
+  "Serena",
+  "Tessa",
+  "Zira",
+  "Aria",
+  "Jenny",
+  "Sonia",
+  "Libby",
+  "Google UK English Female",
+  "Google US English",
+  "Female",
+];
+
+function preloadEnglishVoices() {
+  const synth = window.speechSynthesis;
+  if (!synth) return;
+  synth.getVoices();
+  synth.onvoiceschanged = () => {
+    synth.getVoices();
+  };
+}
+
+function getEnglishFemaleVoice() {
+  const synth = window.speechSynthesis;
+  if (!synth) return null;
+  const voices = synth.getVoices() || [];
+  const english = voices.filter((voice) => String(voice.lang || "").toLowerCase().startsWith("en"));
+  for (const name of FEMALE_VOICE_NAMES) {
+    const needle = name.toLowerCase();
+    const match = english.find((voice) => voice.name.toLowerCase().includes(needle));
+    if (match) return match;
+  }
+  return english.find((voice) => voice.lang.toLowerCase().startsWith("en-us"))
+    || english.find((voice) => voice.lang.toLowerCase().startsWith("en-gb"))
+    || english[0]
+    || null;
+}
+
+function applyEnglishVoice(utterance) {
+  const voice = getEnglishFemaleVoice();
+  if (!voice || !String(voice.lang || "").toLowerCase().startsWith("en")) {
+    return false;
+  }
+  utterance.voice = voice;
+  utterance.lang = voice.lang;
+  const named = FEMALE_VOICE_NAMES.some((name) => voice.name.toLowerCase().includes(name.toLowerCase()));
+  if (!named) utterance.pitch = 1.12;
+  return true;
+}
+
+function sanitizeSpeech(text) {
+  return String(text)
+    .replace(/×/g, " ")
+    .replace(/±/g, " ")
+    .replace(/−/g, "-")
+    .replace(/(^|[\s(])-(\d)/g, "$1minus $2")
+    .replace(/(^|[\s(])\+(\d)/g, "$1plus $2")
+    .replace(/[^\x00-\x7F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function speak(text) {
   if (!window.speechSynthesis || !text) {
     return;
   }
+  const spoken = sanitizeSpeech(text);
+  if (!spoken) return;
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
+  const utter = new SpeechSynthesisUtterance(spoken);
   utter.rate = 1;
+  if (!applyEnglishVoice(utter)) return;
   window.speechSynthesis.speak(utter);
 }
 
@@ -1713,7 +1808,8 @@ function renderLocker() {
   }
   const weight = Number(ui.weight.value);
   const cap = Number.isFinite(weight) ? Math.round(weight * 5) : 0;
-  document.querySelector("#caffeine-cap").textContent = `Cap ${cap} mg`;
+  const capLine = document.querySelector("#caffeine-cap");
+  if (capLine) capLine.textContent = `Cap ${cap} mg`;
 }
 
 function addCustomItem() {
@@ -1858,40 +1954,169 @@ function exportRaceCard() {
       <tbody>${rows}</tbody>
     </table>
     <button id="print-card" class="thumb-btn mt-3" type="button">Print</button>`;
-  ui.raceCard.querySelector("#print-card").addEventListener("click", () => window.print());
+  ui.raceCard.querySelector("#print-card")?.addEventListener("click", () => window.print());
 }
 
 function closeCrewModal() {
   ui.crewModal.classList.add("hidden");
 }
 
+const VEST_MENU = [
+  ["gel_25", "Standard Gel"],
+  ["iso_gel_22", "Isotonic Gel"],
+  ["drink_30", "Drink Mix"],
+  ["sandwich", "Mini Sandwich"],
+  ["bar", "Oat Bar"],
+  ["dates", "Medjool Dates"],
+  ["chocolate", "Chocolate"],
+  ["chips", "Salted Chips"],
+];
+const STATION_MENU = [
+  ["sandwich", "Sandwich quarters"],
+  ["watermelon", "Watermelon"],
+  ["cucumber", "Cucumber and crackers"],
+  ["chips", "Salted chips"],
+  ["chocolate", "Chocolate"],
+  ["apple", "Apple wedges"],
+  ["dates", "Pitted dates"],
+  ["banana", "Banana"],
+  ["cola_broth", "Cola or broth"],
+];
+
+function listen(selector, event, handler) {
+  document.querySelector(selector)?.addEventListener(event, handler);
+}
+
+function foodChips(menu, selected) {
+  return menu.map(([key, label]) => {
+    const pressed = selected.has(key) ? "true" : "false";
+    return `<button type="button" class="liquid-pill" data-food="${key}" aria-pressed="${pressed}">${label}</button>`;
+  }).join("");
+}
+
+function renderFoods() {
+  const vest = document.querySelector("#vest-foods");
+  const station = document.querySelector("#station-foods");
+  if (vest) vest.innerHTML = foodChips(VEST_MENU, state.vestFoods);
+  if (station) station.innerHTML = foodChips(STATION_MENU, state.stationFoods);
+}
+
+function toggleFood(event, which) {
+  const button = event.target.closest?.("[data-food]");
+  if (!button) return;
+  const bag = which === "vest" ? state.vestFoods : state.stationFoods;
+  if (bag.has(button.dataset.food)) bag.delete(button.dataset.food);
+  else bag.add(button.dataset.food);
+  button.setAttribute("aria-pressed", bag.has(button.dataset.food) ? "true" : "false");
+  try {
+    localStorage.setItem("fuel-menu", JSON.stringify({
+      vest: [...state.vestFoods],
+      station: [...state.stationFoods],
+    }));
+  } catch {
+    /* private mode can block storage */
+  }
+}
+
+function loadStoredPreferences() {
+  try {
+    const gut = JSON.parse(localStorage.getItem("fuel-gut") || "null");
+    if (gut && typeof gut.carb_multiplier === "number") {
+      state.gut = {
+        carb_multiplier: Math.min(1.25, Math.max(0.75, gut.carb_multiplier)),
+        climb_sensitivity: gut.climb_sensitivity === "sensitive" ? "sensitive" : "normal",
+        early_savoury: Boolean(gut.early_savoury),
+        saved: true,
+      };
+    }
+    const menu = JSON.parse(localStorage.getItem("fuel-menu") || "null");
+    if (Array.isArray(menu?.vest)) state.vestFoods = new Set(menu.vest);
+    if (Array.isArray(menu?.station)) state.stationFoods = new Set(menu.station);
+  } catch {
+    /* keep the defaults */
+  }
+}
+
+function renderGutPill() {
+  const pill = document.querySelector("#gut-pill");
+  const text = document.querySelector("#gut-pill-text");
+  if (!pill || !text) return;
+  if (!state.gut.saved) {
+    pill.classList.add("hidden");
+    return;
+  }
+  const rate = Math.round(state.carbs * state.gut.carb_multiplier);
+  const parts = [`Gut Calibrated: ${rate}g/h`];
+  if (state.gut.early_savoury) parts.push("Early Savoury");
+  if (state.gut.climb_sensitivity === "sensitive") parts.push("Strict Climbs");
+  text.textContent = parts.join(" · ");
+  pill.classList.remove("hidden");
+}
+
+function openGutModal() {
+  const modal = document.querySelector("#gut-modal");
+  modal?.classList.remove("hidden");
+  const gut = state.gut;
+  markGut("volume", gut.saved ? String(gut.carb_multiplier) : "1");
+  markGut("climb", gut.saved ? gut.climb_sensitivity : "normal");
+  markGut("sweet", gut.saved && gut.early_savoury ? "early" : "ok");
+}
+
+function markGut(group, value) {
+  for (const button of document.querySelectorAll(`[data-gut="${group}"]`)) {
+    if (button.dataset.value === value) button.setAttribute("aria-checked", "true");
+    else button.removeAttribute("aria-checked");
+  }
+}
+
+function closeGutModal() {
+  document.querySelector("#gut-modal")?.classList.add("hidden");
+}
+
+function saveGut() {
+  const volume = document.querySelector('[data-gut="volume"][aria-checked="true"]');
+  const climb = document.querySelector('[data-gut="climb"][aria-checked="true"]');
+  const sweet = document.querySelector('[data-gut="sweet"][aria-checked="true"]');
+  const multiplier = Math.min(1.25, Math.max(0.75, Number(volume?.dataset.value || 1)));
+  state.gut = {
+    carb_multiplier: multiplier,
+    climb_sensitivity: climb?.dataset.value === "sensitive" ? "sensitive" : "normal",
+    early_savoury: sweet?.dataset.value === "early",
+    saved: true,
+  };
+  try {
+    localStorage.setItem("fuel-gut", JSON.stringify(state.gut));
+  } catch {
+    /* the pill still shows for this visit */
+  }
+  renderGutPill();
+  closeGutModal();
+}
+
+function resetGut() {
+  state.gut = { carb_multiplier: 1, climb_sensitivity: "normal", early_savoury: false, saved: false };
+  try {
+    localStorage.removeItem("fuel-gut");
+  } catch {
+    /* ignore */
+  }
+  renderGutPill();
+}
+
 function bind() {
-  document.querySelector("#setup-form").addEventListener("submit", buildPlan);
-  document.querySelector("#source-race").addEventListener("click", () => setSource("race"));
-  document.querySelector("#source-gpx").addEventListener("click", () => {
+  listen("#setup-form", "submit", buildPlan);
+  listen("#source-race", "click", () => setSource("race"));
+  listen("#source-gpx", "click", () => {
     setSource("gpx");
     ui.gpxFile.click();
   });
-  ui.raceSelect.addEventListener("change", () => {
+  ui.raceSelect?.addEventListener("change", () => {
     setSource("race");
     state.raceId = ui.raceSelect.value;
     applyTargetDefault();
   });
-  document.querySelector("#add-aid").addEventListener("click", onAddAidClick);
-  ui.placeAid.addEventListener("click", () => {
-    state.placeAid = !state.placeAid;
-    ui.placeAid.setAttribute("aria-pressed", state.placeAid ? "true" : "false");
-    try {
-      mapApi().setPickHandler(state.placeAid ? onMapAidPick : null);
-    } catch (error) {
-      state.placeAid = false;
-      ui.placeAid.setAttribute("aria-pressed", "false");
-      setStatus(error.message);
-      return;
-    }
-    setStatus(state.placeAid ? "Tap the route to drop an aid station." : "");
-  });
-  ui.gpxFile.addEventListener("change", async () => {
+  listen("#add-aid", "click", onAddAidClick);
+  ui.gpxFile?.addEventListener("change", async () => {
     const file = ui.gpxFile.files?.[0];
     if (!file) {
       return;
@@ -1902,24 +2127,21 @@ function bind() {
     setSource("gpx");
   });
   for (const input of [ui.hours, ui.minutes]) {
-    input.addEventListener("input", () => {
+    input?.addEventListener("input", () => {
       state.targetEdited = true;
     });
   }
   for (const button of document.querySelectorAll(".gut")) {
     button.addEventListener("click", () => setCarbs(Number(button.dataset.carbs)));
   }
-  document.querySelector("#nav-setup").addEventListener("click", () => showTab("setup"));
-  document.querySelector("#nav-map").addEventListener("click", () => showTab("map"));
-  document.querySelector("#nav-live").addEventListener("click", () => showTab("live"));
-  ui.countdown.addEventListener("click", startClock);
-  ui.log.addEventListener("click", () => logIntake().catch((error) => setStatus(error.message)));
-  ui.gps.addEventListener("click", onUpdateGpsClick);
-  ui.setupSummary.addEventListener("click", toggleSetup);
-  document.querySelector("#offline-tiles").addEventListener("click", () => {
-    setStatus("Tiles stay on this phone after you view this course.");
-  });
-  document.querySelector("#center-me").addEventListener("click", () => {
+  listen("#nav-setup", "click", () => showTab("setup"));
+  listen("#nav-map", "click", () => showTab("map"));
+  listen("#nav-live", "click", () => showTab("live"));
+  ui.countdown?.addEventListener("click", startClock);
+  ui.log?.addEventListener("click", () => logIntake().catch((error) => setStatus(error.message)));
+  ui.gps?.addEventListener("click", onUpdateGpsClick);
+  ui.setupSummary?.addEventListener("click", toggleSetup);
+  listen("#center-me", "click", () => {
     showTab("map");
     requestAnimationFrame(() => {
       if (!state.realGps) {
@@ -1935,55 +2157,55 @@ function bind() {
       }
     });
   });
-  ui.rescue.addEventListener("click", () => triggerRescue());
-  ui.raceMode.addEventListener("click", onRaceModeClick);
-  ui.undoAuto.addEventListener("click", () => undoAutoLog());
-  ui.alerts.addEventListener("click", () => onAlertsClick());
-  ui.simToggle.addEventListener("click", () => {
-    const open = ui.liveDrawer.classList.toggle("hidden") === false;
-    ui.simToggle.setAttribute("aria-pressed", open ? "true" : "false");
-  });
-  ui.testAlert.addEventListener("click", () => onTestAlert());
+  ui.rescue?.addEventListener("click", () => triggerRescue());
+  ui.raceMode?.addEventListener("click", onRaceModeClick);
+  ui.undoAuto?.addEventListener("click", () => undoAutoLog());
+  ui.alerts?.addEventListener("click", () => onAlertsClick());
+  ui.testAlert?.addEventListener("click", () => onTestAlert());
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && state.raceMode) {
       requestWakeLock();
     }
   });
-  document.querySelector("#add-locker").addEventListener("click", addCustomItem);
-  ui.exportCard.addEventListener("click", exportRaceCard);
-  document.querySelector("#close-crew").addEventListener("click", closeCrewModal);
-  ui.crewModal.addEventListener("click", (event) => {
+  listen("#add-locker", "click", addCustomItem);
+  ui.exportCard?.addEventListener("click", exportRaceCard);
+  listen("#close-crew", "click", closeCrewModal);
+  listen("#close-crew-bottom", "click", closeCrewModal);
+  listen("#open-gut-live", "click", openGutModal);
+  listen("#edit-stations", "click", () => {
+    state.editStations = true;
+    paintAidDrawer();
+    if (ui.aidDrawer) ui.aidDrawer.open = true;
+  });
+  listen("#close-gut", "click", closeGutModal);
+  listen("#close-gut-bottom", "click", closeGutModal);
+  listen("#save-gut", "click", saveGut);
+  listen("#gut-reset", "click", resetGut);
+  document.querySelector("#vest-foods")?.addEventListener("click", (event) => toggleFood(event, "vest"));
+  document.querySelector("#station-foods")?.addEventListener("click", (event) => toggleFood(event, "station"));
+  document.querySelector("#gut-modal")?.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-gut]");
+    if (!button) return;
+    markGut(button.dataset.gut, button.dataset.value);
+  });
+  ui.crewModal?.addEventListener("click", (event) => {
     if (event.target === ui.crewModal) {
       closeCrewModal();
     }
   });
-  ui.paneConfigure.addEventListener("click", () => showSetupPane("configure"));
-  ui.panePacking.addEventListener("click", () => showSetupPane("packing"));
+  ui.paneConfigure?.addEventListener("click", () => showSetupPane("configure"));
+  ui.panePacking?.addEventListener("click", () => showSetupPane("packing"));
   for (const button of document.querySelectorAll(".fuel-pref")) {
     button.addEventListener("click", () => setFuelPreference(button.dataset.preference));
   }
-  ui.weight.addEventListener("input", renderLocker);
-  for (const range of document.querySelectorAll("[data-desk-range]")) {
-    range.addEventListener("pointerdown", () => {
-      state.gpsDragging = true;
-    });
-    range.addEventListener("input", onDeskRange);
-  }
-  document.addEventListener("pointerup", () => {
-    state.gpsDragging = false;
-  });
-  document.addEventListener("pointercancel", () => {
-    state.gpsDragging = false;
-  });
-  for (const button of document.querySelectorAll("[data-drift]")) {
-    button.addEventListener("click", () => applyDrift(Number(button.dataset.drift)));
-  }
-  for (const button of document.querySelectorAll("[data-desk-play]")) {
-    button.addEventListener("click", togglePlay);
-  }
+  ui.weight?.addEventListener("input", renderLocker);
 }
 
 async function init() {
+  preloadEnglishVoices();
+  loadStoredPreferences();
+  renderFoods();
+  renderGutPill();
   bind();
   setCarbs(60);
   setSource("race");

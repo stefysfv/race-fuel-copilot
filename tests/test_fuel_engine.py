@@ -296,3 +296,68 @@ def test_custom_aid_station_snaps_to_the_nearest_trackpoint() -> None:
     assert response.status_code == 200, response.text
     names = [leg["to_name"] for leg in response.json()["aid_legs"]]
     assert "Bezbog" in names
+
+
+def test_selected_vest_and_station_foods_change_the_plan() -> None:
+    chips = build_plan(
+        course_points([(24_000, 0.0)]),
+        AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60, vest_foods=["chips"]),
+    )
+    late = [
+        stop
+        for stop in chips.fuel_stops
+        if stop.scheduled_minute >= 150 and stop.carbs_g > 0 and not stop.at_aid_station
+    ]
+    assert late
+    assert all(stop.product == "Salted Chips" for stop in late)
+    assert all(stop.flavor == "Savoury/Salty" for stop in late)
+    assert all(stop.form is FuelForm.real_food for stop in late)
+
+    points = course_points([(20_000, 0.0)])
+    course = prepare_course(points)
+    pin = location_at_distance(course, 12_000)
+    plated = build_plan(
+        points,
+        AthleteInput(
+            flat_pace_min_per_km=8.0,
+            station_foods=["watermelon", "cucumber"],
+        ),
+        [
+            AidStation(
+                name="Hut",
+                distance_km=12.0,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        ],
+    )
+    leg = next(item for item in plated.aid_legs if item.to_name == "Hut")
+    assert "Watermelon" in leg.station_meal
+    assert "cucumber" in leg.station_meal.lower()
+    assert 28.0 <= leg.station_carbs_g <= 35.0
+    assert leg.vest_carbs_g == pytest.approx(leg.carbs_g - leg.station_carbs_g)
+
+
+def test_gut_calibration_scales_carbs_and_tightens_climbs() -> None:
+    points = course_points([(5_000, 0.0)])
+    base = build_plan(points, AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60))
+    boosted = build_plan(
+        points,
+        AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60, carb_multiplier=1.12),
+    )
+    assert boosted.athlete.carbs_g_per_hour == pytest.approx(67.2)
+    assert sum(leg.carbs_g for leg in boosted.aid_legs) == pytest.approx(
+        sum(leg.carbs_g for leg in base.aid_legs) * 1.12,
+        rel=0.02,
+    )
+
+    climb = course_points([(4_000, 4.0)])
+    normal = build_plan(climb, AthleteInput(flat_pace_min_per_km=8.0, climb_sensitivity="normal"))
+    sensitive = build_plan(climb, AthleteInput(flat_pace_min_per_km=8.0, climb_sensitivity="sensitive"))
+    middle = len(normal.segments) // 2
+    assert classify_zone(4.0) is DigestiveZone.green
+    assert normal.segments[middle].zone is DigestiveZone.green
+    assert sensitive.segments[middle].zone is DigestiveZone.yellow

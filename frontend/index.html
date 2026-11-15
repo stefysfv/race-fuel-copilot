@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=6">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -33,13 +33,18 @@
   </script>
 </head>
 <body>
-  <div class="shell">
+  <div class="shell app-shell">
     <header class="brand">
       <div class="brand-lockup">
-        <div class="brand-orb" aria-hidden="true">
-          <span class="orb-core"></span>
-          <span class="orb-lens"></span>
-          <span class="orb-mark">FC<span>°</span></span>
+        <div class="brand-mark">
+          <img src="logo.png" alt="Logo" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+          <span class="brand-fallback" aria-hidden="true">
+            <svg viewBox="0 0 36 36" width="36" height="36">
+              <rect width="36" height="36" rx="10" fill="#0F1115"></rect>
+              <path d="M7 26 L14 16 L18 21 L23 12 L30 26" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"></path>
+              <path d="M8 29 H28" stroke="#FF5500" stroke-width="1.6" stroke-linecap="round"></path>
+            </svg>
+          </span>
         </div>
         <p class="brand-word">
           <span class="brand-fuel">FUEL</span>
@@ -49,6 +54,7 @@
       </div>
       <p id="app-status" class="status" role="status"></p>
     </header>
+    <p id="toast" class="toast hidden" role="status"></p>
 
     <main id="app-main">
     <section id="tab-setup" aria-label="Setup and packing">
@@ -66,25 +72,26 @@
           <button id="source-race" class="sr-only" type="button" role="radio" aria-checked="true">Saved race</button>
           <select id="race-select" aria-label="Race"></select>
           <button id="source-gpx" class="icon-btn liquid-pill" type="button" aria-label="Upload GPX">GPX</button>
+          <button id="edit-stations" class="edit-stations" type="button">+ Edit Stations</button>
         </div>
         <input id="gpx-file" class="file-input" type="file" accept=".gpx,application/gpx+xml,.xml" aria-label="GPX file">
         <p id="gpx-name" class="micro"></p>
 
         <div class="setup-grid">
-          <label class="field">
-            <span class="kicker">Weight</span>
+          <label class="field liquid-glass">
+            <span class="kicker">Weight (kg)</span>
             <input id="weight" type="number" inputmode="decimal" min="31" max="249" step="0.5" value="70" aria-label="Weight in kilograms" required>
           </label>
-          <label class="field">
-            <span class="kicker">Target</span>
+          <label class="field liquid-glass">
+            <span class="kicker">Target (h:m)</span>
             <span class="time-pair">
               <input id="target-hours" type="number" inputmode="numeric" min="0" max="47" step="1" value="5" aria-label="Target hours" required>
               <span>:</span>
               <input id="target-minutes" type="number" inputmode="numeric" min="0" max="59" step="1" value="30" aria-label="Target minutes" required>
             </span>
           </label>
-          <label class="field">
-            <span class="kicker">Temp</span>
+          <label class="field liquid-glass">
+            <span class="kicker">Temp (°C)</span>
             <input id="temperature" type="number" inputmode="decimal" min="-20" max="45" step="1" value="18" aria-label="Temperature in Celsius" required>
           </label>
         </div>
@@ -108,20 +115,9 @@
           </div>
         </div>
 
-        <details id="aid-drawer" class="drawer">
-          <summary>Custom Aid Stations</summary>
-          <div class="aid-add">
-            <input id="aid-name" type="text" maxlength="80" placeholder="Station" aria-label="Aid station name">
-            <input id="aid-km" type="number" inputmode="decimal" min="0" max="500" step="0.1" placeholder="Km" aria-label="Aid station kilometers">
-            <label class="check"><input id="aid-food" type="checkbox"> Food</label>
-            <input id="aid-cutoff" type="number" inputmode="decimal" min="0.1" max="72" step="0.1" placeholder="Cutoff" aria-label="Cutoff hours">
-            <button id="add-aid" type="button" aria-label="Add aid station">+</button>
-          </div>
-          <ul id="aid-list" class="pill-row"></ul>
-        </details>
-
-        <details class="drawer">
-          <summary>Custom Vest Locker (Optional)</summary>
+        <details id="vest-drawer" class="drawer liquid-glass">
+          <summary>Vest Food &amp; Fuel</summary>
+          <div id="vest-foods" class="food-grid"></div>
           <p id="caffeine-cap" class="micro"></p>
           <div id="locker-presets" class="pill-row"></div>
           <ul id="locker-list"></ul>
@@ -133,16 +129,38 @@
           </div>
         </details>
 
+        <details id="station-drawer" class="drawer liquid-glass">
+          <summary>Aid Station Menu</summary>
+          <div id="station-foods" class="food-grid"></div>
+        </details>
+
+        <details id="aid-drawer" class="drawer hidden">
+          <summary>Custom Aid Stations</summary>
+          <div class="aid-add">
+            <input id="aid-name" type="text" maxlength="80" placeholder="Station" aria-label="Aid station name">
+            <input id="aid-km" type="number" inputmode="decimal" min="0" max="500" step="0.1" placeholder="Km" aria-label="Aid station kilometers">
+            <label class="check"><input id="aid-food" type="checkbox"> Food</label>
+            <input id="aid-cutoff" type="number" inputmode="decimal" min="0.1" max="72" step="0.1" placeholder="Cutoff" aria-label="Cutoff hours">
+            <button id="add-aid" type="button" aria-label="Add aid station">+</button>
+          </div>
+          <ul id="aid-list" class="pill-row"></ul>
+        </details>
+
+        <p id="gut-pill" class="gut-pill liquid-pill hidden">
+          <span id="gut-pill-text"></span>
+          <button id="gut-reset" class="text-btn" type="button">Reset</button>
+        </p>
+
         <button id="build-plan" class="thumb-btn primary liquid-pill" type="submit">Build Plan</button>
       </form>
       </div>
 
       <div id="packing-pane" class="hidden">
-        <div class="pack-toolbar">
-          <div id="leg-switch" class="leg-pills" role="tablist" aria-label="Aid legs"></div>
-          <button id="export-card" class="text-btn liquid-pill" type="button" disabled>Export Crew Card</button>
+        <div class="pack-head">
+          <section id="plan-summary" class="micro hidden" aria-live="polite"></section>
+          <button id="export-card" class="text-btn liquid-pill" type="button" disabled>Export Card</button>
         </div>
-        <section id="plan-summary" class="micro hidden" aria-live="polite"></section>
+        <div id="leg-switch" class="leg-pills" role="tablist" aria-label="Aid legs"></div>
         <ul id="warnings"></ul>
         <div id="packing-list"></div>
       </div>
@@ -151,30 +169,14 @@
     <section id="tab-map" class="hidden" aria-label="Topo map and elevation">
       <p id="map-empty" class="empty-note">Build a plan to draw the course.</p>
       <div id="map-block" class="hidden map-stage">
-        <div class="map-canvas">
+        <div class="map-canvas liquid-glass">
           <div id="map" role="region" aria-label="Race route on OpenTopoMap"></div>
-          <button id="center-me" class="glass glass-left liquid-pill" type="button">Center</button>
-          <button id="offline-tiles" class="glass glass-right liquid-pill" type="button">Tiles</button>
-          <button id="place-aid" class="glass glass-place liquid-pill" type="button" aria-pressed="false">Place station</button>
-          <details class="desk-sim map-desk liquid-glass" data-desk>
-            <summary>Desk simulator</summary>
-            <label class="micro">Distance <span data-desk-km>0.0 km</span>
-              <input data-desk-range type="range" min="0" max="1" step="0.1" value="0">
-            </label>
-            <div class="drift" role="radiogroup" aria-label="Pace drift">
-              <button class="choice liquid-pill" type="button" data-drift="0.9">Fast −10%</button>
-              <button class="choice liquid-pill" type="button" data-drift="1" aria-checked="true">On target</button>
-              <button class="choice liquid-pill" type="button" data-drift="1.15">Slow +15%</button>
-              <button class="choice liquid-pill" type="button" data-drift="1.3">Bonking +30%</button>
-            </div>
-            <button class="liquid-pill" type="button" data-desk-play>Play 60x</button>
-            <p data-desk-elapsed class="micro">Elapsed 0 min · On Target</p>
-          </details>
+          <button id="center-me" class="glass glass-right liquid-pill" type="button">Center on Me</button>
         </div>
-        <div class="chart-pane">
+        <div class="chart-pane liquid-glass">
           <div class="zone-legend">
             <span><i class="swatch green"></i>Green: Solids OK</span>
-            <span><i class="swatch yellow"></i>Yellow: Liquid/Half</span>
+            <span><i class="swatch yellow"></i>Yellow: Half/Liquid</span>
             <span><i class="swatch red"></i>Red: Sip Only</span>
           </div>
           <div id="chart-wrap">
@@ -190,29 +192,13 @@
           <span class="status-dot"></span>
           <span id="auto-gps-text">GPS starts with a plan</span>
         </p>
-        <button id="enable-alerts" class="liquid-pill chip-toggle" type="button" aria-pressed="false">Audio</button>
-        <button id="sim-toggle" class="liquid-pill chip-toggle" type="button" aria-pressed="false" aria-controls="live-drawer">Sim</button>
+        <div class="live-chips">
+          <button id="race-mode" class="liquid-pill chip-toggle" type="button" aria-pressed="false">Race Mode</button>
+          <button id="enable-alerts" class="liquid-pill chip-toggle" type="button" aria-pressed="false">Audio</button>
+          <button id="test-alert" class="liquid-pill chip-toggle" type="button">Test Voice</button>
+        </div>
       </div>
       <div class="live-body">
-        <p id="toast" class="toast" role="status"></p>
-        <div id="live-drawer" class="live-drawer liquid-glass hidden">
-          <button id="race-mode" class="liquid-pill chip-toggle" type="button" aria-pressed="false">Race Mode</button>
-          <button id="undo-autolog" class="text-btn hidden" type="button">Undo last auto-log</button>
-          <button id="test-alert" class="liquid-pill" type="button">Test alert</button>
-          <div class="desk-sim" data-desk>
-            <label class="micro">Distance <span data-desk-km>0.0 km</span>
-              <input data-desk-range type="range" min="0" max="1" step="0.1" value="0">
-            </label>
-            <div class="drift" role="radiogroup" aria-label="Pace drift">
-              <button class="choice liquid-pill" type="button" data-drift="0.9">Fast −10%</button>
-              <button class="choice liquid-pill" type="button" data-drift="1" aria-checked="true">On target</button>
-              <button class="choice liquid-pill" type="button" data-drift="1.15">Slow +15%</button>
-              <button class="choice liquid-pill" type="button" data-drift="1.3">Bonking +30%</button>
-            </div>
-            <button class="liquid-pill" type="button" data-desk-play>Play 60x</button>
-            <p data-desk-elapsed class="micro">Elapsed 0 min · On target</p>
-          </div>
-        </div>
         <p id="gps-banner" class="gps-banner hidden" role="status"></p>
         <p id="off-course" class="off-course hidden" role="alert"></p>
         <div class="hero liquid-glass">
@@ -244,6 +230,8 @@
           <button id="update-gps" class="liquid-pill action-pill" type="button" disabled>Sync GPS</button>
           <button id="gi-rescue" class="liquid-pill action-pill" type="button" disabled>GI Rescue</button>
         </div>
+        <button id="undo-autolog" class="finish-link hidden" type="button">Undo last auto-log</button>
+        <button id="open-gut-live" class="finish-link" type="button">Finish Run · Post-Race Gut Check</button>
       </div>
     </section>
     </main>
@@ -256,14 +244,52 @@
   </div>
 
   <div id="crew-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Crew card">
-    <div class="modal-sheet">
-      <button id="close-crew" class="text-btn liquid-pill" type="button">Close</button>
+    <div class="modal-sheet liquid-glass">
+      <div class="modal-top">
+        <button id="close-crew" class="modal-x" type="button" aria-label="Close">✕</button>
+      </div>
       <section id="race-card" class="race-card" aria-label="Printable race card"></section>
+      <button id="close-crew-bottom" class="thumb-btn" type="button">Close</button>
+    </div>
+  </div>
+
+  <div id="gut-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Post-race gut check">
+    <div class="modal-sheet liquid-glass">
+      <div class="modal-top">
+        <button id="close-gut" class="modal-x" type="button" aria-label="Close">✕</button>
+      </div>
+      <h2>Post-Race Gut Check</h2>
+      <div class="gut-questions">
+        <div>
+          <span class="kicker">Fuel volume</span>
+          <div class="seg" role="radiogroup" aria-label="Fuel volume">
+            <button class="liquid-pill" type="button" data-gut="volume" data-value="0.88">Stuffed / Sloshing (−12% carbs/h)</button>
+            <button class="liquid-pill" type="button" data-gut="volume" data-value="1">Dialed / Perfect (Keep)</button>
+            <button class="liquid-pill" type="button" data-gut="volume" data-value="1.12">Hungry / Low Energy (+12% carbs/h)</button>
+          </div>
+        </div>
+        <div>
+          <span class="kicker">Solids on climbs</span>
+          <div class="seg" role="radiogroup" aria-label="Solids on climbs">
+            <button class="liquid-pill" type="button" data-gut="climb" data-value="sensitive">Heavy on Stomach (Strict Climb Zoning)</button>
+            <button class="liquid-pill" type="button" data-gut="climb" data-value="normal">Digested Well (Normal)</button>
+          </div>
+        </div>
+        <div>
+          <span class="kicker">Sweetness fatigue</span>
+          <div class="seg" role="radiogroup" aria-label="Sweetness fatigue">
+            <button class="liquid-pill" type="button" data-gut="sweet" data-value="early">Sick of Sweet Gels (Early Savoury)</button>
+            <button class="liquid-pill" type="button" data-gut="sweet" data-value="ok">Flavor Balance OK</button>
+          </div>
+        </div>
+      </div>
+      <button id="save-gut" class="thumb-btn primary" type="button">Save gut check</button>
+      <button id="close-gut-bottom" class="thumb-btn" type="button">Close</button>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/app.js?v=6"></script>
 </body>
 </html>

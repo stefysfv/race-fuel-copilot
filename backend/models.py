@@ -152,6 +152,29 @@ class AthleteInput(APIModel):
         max_length=12,
         description="Exact products the runner will carry. Empty keeps the plain 25 g gel.",
     )
+    vest_foods: list[str] = Field(
+        default_factory=lambda: ["gel_25", "drink_30", "bar", "sandwich", "dates"],
+        description="Vest foods the plan may rotate. Unknown keys are ignored.",
+    )
+    station_foods: list[str] = Field(
+        default_factory=lambda: ["sandwich", "watermelon", "cucumber", "chips", "cola_broth"],
+        description="Foods offered at stations with food. Unknown keys are ignored.",
+    )
+    carb_multiplier: float = Field(
+        default=1.0,
+        ge=0.75,
+        le=1.25,
+        description="Scales the hourly carb target after a gut quiz. 1.0 leaves it unchanged.",
+    )
+    climb_sensitivity: str = Field(
+        default="normal",
+        pattern=r"^(normal|sensitive)$",
+        description="sensitive moves the green/yellow climb line from +5% to +3.5%.",
+    )
+    early_savoury: bool = Field(
+        default=False,
+        description="Start savoury foods at 1.5 h instead of 2.5 h.",
+    )
 
 
 class CustomAidInput(APIModel):
