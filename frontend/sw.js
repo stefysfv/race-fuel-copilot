@@ -4,7 +4,7 @@ API writes always go to the network. GET /api/races falls back to the last
 successful response.
 */
 
-const CACHE = "fuel-copilot-v1";
+const CACHE = "fuel-copilot-v2";
 const SHELL = [
   "/",
   "/index.html",
@@ -47,6 +47,20 @@ async function networkFirst(request) {
     throw error;
   }
 }
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) {
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow("/");
+    }),
+  );
+});
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);

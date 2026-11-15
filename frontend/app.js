@@ -46,6 +46,21 @@ const state = {
   fuelPreference: "gels_first",
   realGps: null,
   sim: { active: false, km: 0, drift: 1, elapsed: 0, playing: false, frame: 0, busy: false },
+  raceMode: false,
+  alerts: false,
+  watchId: null,
+  wakeLock: null,
+  wakeWarned: false,
+  lastRecalAt: 0,
+  recalBusy: false,
+  lastGpsErrorAt: 0,
+  headsUp: new Set(),
+  dueFired: new Set(),
+  aidPinged: new Set(),
+  pendingAuto: null,
+  autoLogAt: 0,
+  lastAutoLog: null,
+  audioCtx: null,
 };
 
 const ui = {
@@ -81,6 +96,11 @@ const ui = {
   setupSummaryText: document.querySelector("#setup-summary-text"),
   gpsBanner: document.querySelector("#gps-banner"),
   offCourse: document.querySelector("#off-course"),
+  toast: document.querySelector("#toast"),
+  raceMode: document.querySelector("#race-mode"),
+  undoAuto: document.querySelector("#undo-autolog"),
+  alerts: document.querySelector("#enable-alerts"),
+  testAlert: document.querySelector("#test-alert"),
 };
 
 let mapView = null;
@@ -97,7 +117,11 @@ function mapApi() {
 }
 
 function setStatus(message) {
-  ui.status.textContent = message;
+  const text = message || "";
+  ui.status.textContent = text;
+  if (ui.toast) {
+    ui.toast.textContent = text;
+  }
 }
 
 function formatClock(minutes) {
@@ -483,6 +507,7 @@ function nextAid(elapsed) {
 }
 
 function renderLive() {
+  paintRaceControls();
   const hasPlan = Boolean(state.livePlan);
   ui.log.disabled = !hasPlan;
   ui.gps.disabled = !hasPlan;
@@ -595,14 +620,17 @@ function ensureTicker() {
     return;
   }
   clockTimer = setInterval(() => {
-    if (document.querySelector("#tab-live").classList.contains("hidden")) {
-      return;
+    const liveOpen = !document.querySelector("#tab-live").classList.contains("hidden");
+    if (liveOpen) {
+      renderLive();
     }
-    renderLive();
+    if (state.raceMode || state.alerts) {
+      raceCoachTick();
+    }
   }, 1000);
 }
 
-async function logIntake() {
+async function logIntake(options = {}) {
   const stop = nextStop();
   if (!stop) {
     setStatus("No intake left to log.");
@@ -611,10 +639,389 @@ async function logIntake() {
   if (!state.startedAt) {
     startClock();
   }
+  if (state.pendingAuto === stop.sequence) {
+    state.pendingAuto = null;
+    state.autoLogAt = 0;
+  }
   state.logged.push(stop.sequence);
-  setStatus(`Logged ${stop.carbs_g.toFixed(0)} g at ${stop.distance_km.toFixed(1)} km.`);
+  state.dueFired.add(stop.sequence);
+  if (options.auto) {
+    state.lastAutoLog = stop.sequence;
+    setStatus(`Auto-logged ${stop.carbs_g.toFixed(0)} g at ${stop.distance_km.toFixed(1)} km.`);
+  } else {
+    state.lastAutoLog = null;
+    setStatus(`Logged ${stop.carbs_g.toFixed(0)} g at ${stop.distance_km.toFixed(1)} km.`);
+  }
+  paintRaceControls();
   renderLive();
   await persist();
+}
+
+function undoAutoLog() {
+  if (state.lastAutoLog == null) {
+    return;
+  }
+  const sequence = state.lastAutoLog;
+  const stillThere = state.livePlan?.fuel_stops.some((stop) => stop.sequence === sequence);
+  state.logged = state.logged.filter((item) => item !== sequence);
+  state.dueFired.delete(sequence);
+  state.headsUp.delete(sequence);
+  state.lastAutoLog = null;
+  state.pendingAuto = null;
+  state.autoLogAt = 0;
+  setStatus(stillThere ? "Last auto-log undone." : "That intake was already replaced by a GPS recalibration.");
+  paintRaceControls();
+  renderLive();
+  persist();
+}
+
+const RECAL_EVERY_MS = 45000;
+
+function paintRaceControls() {
+  const racing = state.raceMode;
+  ui.raceMode.setAttribute("aria-pressed", racing ? "true" : "false");
+  ui.raceMode.textContent = racing ? "■ Stop Hands-Free Race Mode" : "▶ Start Hands-Free Race Mode";
+  ui.alerts.setAttribute("aria-pressed", state.alerts ? "true" : "false");
+  ui.undoAuto.classList.toggle("hidden", state.lastAutoLog == null);
+}
+
+function onRaceModeClick() {
+  if (state.raceMode) {
+    stopRaceMode();
+    return;
+  }
+  if (!state.livePlan) {
+    setStatus("Build a plan before Race Mode.");
+    return;
+  }
+  if (!navigator.geolocation) {
+    paintGps("GPS Error (0): This browser has no GPS. Check iPhone Settings > Privacy > Location Services > Safari Websites.", "error");
+    return;
+  }
+  primeAudio();
+  state.raceMode = true;
+  state.lastRecalAt = 0;
+  if (state.sim.playing) {
+    stopPlay(false);
+  }
+  state.sim.active = false;
+  if (!state.startedAt) {
+    startClock();
+  }
+  paintGps("Acquiring iPhone GPS...", "");
+  state.watchId = navigator.geolocation.watchPosition(onRaceGps, onRaceGpsError, {
+    enableHighAccuracy: true,
+    timeout: 20000,
+    maximumAge: 5000,
+  });
+  requestWakeLock();
+  paintRaceControls();
+  setStatus("Race Mode on. GPS is tracking.");
+}
+
+function stopRaceMode() {
+  if (state.watchId != null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(state.watchId);
+  }
+  state.watchId = null;
+  state.raceMode = false;
+  state.pendingAuto = null;
+  state.autoLogAt = 0;
+  releaseWakeLock();
+  paintRaceControls();
+  setStatus("Race Mode off.");
+}
+
+function onRaceGps(pos) {
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+  const accuracy = pos.coords.accuracy;
+  state.realGps = { latitude: lat, longitude: lon, accuracy };
+  paintGps(`GPS Locked: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(accuracy)}m)`, "ok");
+  if (state.sim.playing) {
+    stopPlay(false);
+  }
+  state.sim.active = false;
+  showRealDot();
+  noteAidDistance(lat, lon);
+  const now = Date.now();
+  if (state.recalBusy || (state.lastRecalAt && now - state.lastRecalAt < RECAL_EVERY_MS)) {
+    return;
+  }
+  state.lastRecalAt = now;
+  state.recalBusy = true;
+  if (!state.startedAt) {
+    startClock();
+  }
+  sendFix(lat, lon, false, "gps").catch((error) => {
+    if (error.message !== "No connection to the fueling server.") {
+      setStatus(error.message);
+    }
+  }).finally(() => {
+    state.recalBusy = false;
+  });
+}
+
+function onRaceGpsError(err) {
+  const now = Date.now();
+  if (now - state.lastGpsErrorAt < 15000) {
+    return;
+  }
+  state.lastGpsErrorAt = now;
+  onGpsError(err);
+}
+
+function noteAidDistance(latitude, longitude) {
+  if (!state.alerts || !state.packedPlan || !state.aidStations.length) {
+    return;
+  }
+  let distanceM = state.snap ? state.snap.distanceM : null;
+  try {
+    distanceM = snapToSegments(state.packedPlan.segments, latitude, longitude).distanceM;
+  } catch (error) {
+    if (distanceM == null) {
+      return;
+    }
+  }
+  let nearest = null;
+  for (const aid of state.aidStations) {
+    if (/finish/i.test(aid.name) || state.aidPinged.has(aid.name)) {
+      continue;
+    }
+    const away = aid.distance_km * 1000 - distanceM;
+    if (away > 0 && away < 500 && (!nearest || away < nearest.away)) {
+      nearest = { aid, away };
+    }
+  }
+  if (!nearest) {
+    return;
+  }
+  state.aidPinged.add(nearest.aid.name);
+  announce({
+    title: `Aid · ${nearest.aid.name}`,
+    body: `${Math.round(nearest.away)} m ahead`,
+    speech: `${nearest.aid.name} in ${Math.round(nearest.away)} meters.`,
+    tag: `aid-${nearest.aid.name}`,
+  });
+}
+
+function raceCoachTick() {
+  if (!state.startedAt || state.sim.active || !state.livePlan) {
+    return;
+  }
+  const stop = nextStop();
+  if (!stop) {
+    return;
+  }
+  const remainingSec = (stop.scheduled_minute - elapsedMin()) * 60;
+  if (state.alerts && remainingSec <= 120 && remainingSec >= 90 && !state.headsUp.has(stop.sequence)) {
+    state.headsUp.add(stop.sequence);
+    const name = itemTitle(stop);
+    announce({
+      title: `⏳ Heads up: ${name} in 2 min`,
+      body: shortIntake(stop),
+      speech: `Heads up. ${name} in 2 minutes.`,
+      tag: `headsup-${stop.sequence}`,
+    });
+  }
+  const due = remainingSec <= 0;
+  if (due && (state.raceMode || state.alerts) && !state.dueFired.has(stop.sequence)) {
+    state.dueFired.add(stop.sequence);
+    announce({
+      title: `⛽ FUEL NOW: ${itemTitle(stop)} (${String(stop.zone || "").toUpperCase()})`,
+      body: shortIntake(stop),
+      speech: coachSpeech(stop),
+      tag: `now-${stop.sequence}`,
+    });
+  }
+  if (!state.raceMode || !due) {
+    return;
+  }
+  if (state.pendingAuto !== stop.sequence) {
+    state.pendingAuto = stop.sequence;
+    state.autoLogAt = Date.now() + (remainingSec < -30 ? 0 : 30000);
+  }
+  if (Date.now() >= state.autoLogAt && !state.logged.includes(stop.sequence)) {
+    state.pendingAuto = null;
+    logIntake({ auto: true }).catch((error) => setStatus(error.message));
+  }
+}
+
+function itemTitle(stop) {
+  if (stop.at_aid_station) return "Aid plate";
+  if (stop.form === "micro_dose" || stop.form === "liquid") return "Liquid";
+  if (stop.carbs_g === 0) return "Sip";
+  return stop.product || "Gel";
+}
+
+function coachSpeech(stop) {
+  const grade = Number(stop.grade_percent) || 0;
+  const sign = grade >= 0 ? "plus" : "minus";
+  const zone = String(stop.zone || "green").toLowerCase();
+  const gradeBit = `Grade ${sign} ${Math.abs(grade).toFixed(0)} percent, ${zone} zone.`;
+  if (stop.at_aid_station) {
+    return `Fuel time. Aid station plate, ${Math.round(stop.carbs_g)} grams. ${gradeBit}`;
+  }
+  if (stop.carbs_g === 0) {
+    return `Fuel time. Water and salt sip. ${gradeBit}`;
+  }
+  return `Fuel time. Take ${Math.round(stop.carbs_g)} grams ${stop.product || "gel"}. ${gradeBit}`;
+}
+
+function primeAudio() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) {
+    return null;
+  }
+  if (!state.audioCtx) {
+    state.audioCtx = new Ctx();
+  }
+  if (state.audioCtx.state === "suspended") {
+    state.audioCtx.resume();
+  }
+  if (window.speechSynthesis) {
+    const unlock = new SpeechSynthesisUtterance(" ");
+    unlock.volume = 0;
+    window.speechSynthesis.speak(unlock);
+  }
+  return state.audioCtx;
+}
+
+function playChime() {
+  const ctx = primeAudio();
+  if (!ctx) {
+    return;
+  }
+  const now = ctx.currentTime;
+  [0, 0.18].forEach((offset, index) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = index === 0 ? 880 : 1175;
+    gain.gain.setValueAtTime(0.0001, now + offset);
+    gain.gain.exponentialRampToValueAtTime(0.2, now + offset + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.16);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + offset);
+    osc.stop(now + offset + 0.17);
+  });
+}
+
+function speak(text) {
+  if (!window.speechSynthesis || !text) {
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "en-US";
+  utter.rate = 1;
+  window.speechSynthesis.speak(utter);
+}
+
+function announce(note) {
+  playChime();
+  window.setTimeout(() => speak(note.speech), 400);
+  pushNote(note.title, note.body, note.tag);
+}
+
+async function pushNote(title, body, tag) {
+  if (!("Notification" in window) || Notification.permission !== "granted") {
+    return;
+  }
+  const options = {
+    body,
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: tag || "race-fuel",
+    renotify: true,
+  };
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    await registration.showNotification(title, options);
+  } catch (error) {
+    try {
+      new Notification(title, options);
+    } catch (fallbackError) {
+      setStatus("The alert could not be posted to the lock screen.");
+    }
+  }
+}
+
+async function ensureNotifyPermission() {
+  if (!("Notification" in window)) {
+    return false;
+  }
+  if (Notification.permission === "granted") {
+    return true;
+  }
+  if (Notification.permission === "denied") {
+    return false;
+  }
+  try {
+    return (await Notification.requestPermission()) === "granted";
+  } catch (error) {
+    return false;
+  }
+}
+
+function alertsBlockedMessage() {
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  if (!standalone) {
+    return "On iPhone, add this app to the Home Screen, then enable alerts so they reach the lock screen.";
+  }
+  return "Notifications are blocked. Allow them in iPhone Settings > Notifications.";
+}
+
+async function onAlertsClick() {
+  primeAudio();
+  if (state.alerts) {
+    state.alerts = false;
+    paintRaceControls();
+    setStatus("Race alerts off.");
+    return;
+  }
+  const granted = await ensureNotifyPermission();
+  state.alerts = true;
+  paintRaceControls();
+  setStatus(granted ? "Race alerts on. Lock screen and voice." : alertsBlockedMessage());
+}
+
+async function onTestAlert() {
+  primeAudio();
+  const granted = await ensureNotifyPermission();
+  playChime();
+  window.setTimeout(() => {
+    speak("Fuel time. Take 25 grams gel. Grade plus 4 percent, green zone.");
+  }, 400);
+  if (granted) {
+    await pushNote("⛽ FUEL NOW: Gel (GREEN)", "Test alert. Take 25 grams gel.", "test-alert");
+    setStatus("Test alert sent. Listen for the coach and check the lock screen.");
+    return;
+  }
+  setStatus(`Chime and voice played. ${alertsBlockedMessage()}`);
+}
+
+async function requestWakeLock() {
+  if (!navigator.wakeLock || !state.raceMode) {
+    return;
+  }
+  try {
+    state.wakeLock = await navigator.wakeLock.request("screen");
+  } catch (error) {
+    if (!state.wakeWarned) {
+      state.wakeWarned = true;
+      setStatus("The screen may still sleep. iOS did not grant a wake lock.");
+    }
+  }
+}
+
+function releaseWakeLock() {
+  const lock = state.wakeLock;
+  state.wakeLock = null;
+  if (lock) {
+    lock.release().catch(() => {});
+  }
 }
 
 function paintGps(message, tone) {
@@ -777,6 +1184,13 @@ async function sendFix(latitude, longitude, giRescue, source = "sim") {
     const result = await postJson("/api/recalibrate", body);
     state.livePlan = result.remaining;
     state.logged = [];
+    if (source === "gps") {
+      state.headsUp.clear();
+      state.dueFired.clear();
+      state.pendingAuto = null;
+      state.autoLogAt = 0;
+      state.lastAutoLog = null;
+    }
     state.giRescue = result.gi_rescue_applied;
     state.snap = {
       latitude: result.snap.latitude,
@@ -834,6 +1248,7 @@ async function persist() {
       startedAt: state.startedAt,
       giRescue: state.giRescue,
       snap: state.snap,
+      alerts: state.alerts,
     });
   } catch (error) {
     setStatus("The plan is on screen, but it could not be saved on this phone.");
@@ -860,6 +1275,7 @@ function restore(session) {
   state.startedAt = session.startedAt;
   state.giRescue = Boolean(session.giRescue);
   state.snap = session.snap;
+  state.alerts = Boolean(session.alerts);
   ui.weight.value = session.weight ?? "70";
   ui.temperature.value = session.temperature ?? "18";
   ui.hours.value = session.hours ?? "5";
@@ -996,6 +1412,11 @@ function placeSim(km) {
 let deskScrub = 0;
 
 function onDeskRange(event) {
+  if (state.raceMode) {
+    setStatus("Stop Race Mode to use the desk simulator.");
+    paintDesk();
+    return;
+  }
   if (!state.packedPlan || state.sim.busy) {
     return;
   }
@@ -1016,6 +1437,10 @@ function onDeskRange(event) {
 }
 
 async function applyDrift(factor) {
+  if (state.raceMode) {
+    setStatus("Stop Race Mode to use the desk simulator.");
+    return;
+  }
   if (!state.packedPlan || state.sim.busy || !Number.isFinite(factor)) {
     return;
   }
@@ -1049,6 +1474,10 @@ function stopPlay(recalibrate) {
 }
 
 function togglePlay() {
+  if (state.raceMode) {
+    setStatus("Stop Race Mode to use the desk simulator.");
+    return;
+  }
   if (!state.packedPlan || state.sim.busy) {
     return;
   }
@@ -1245,6 +1674,15 @@ function bind() {
     });
   });
   ui.rescue.addEventListener("click", () => triggerRescue());
+  ui.raceMode.addEventListener("click", onRaceModeClick);
+  ui.undoAuto.addEventListener("click", () => undoAutoLog());
+  ui.alerts.addEventListener("click", () => onAlertsClick());
+  ui.testAlert.addEventListener("click", () => onTestAlert());
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && state.raceMode) {
+      requestWakeLock();
+    }
+  });
   document.querySelector("#add-locker").addEventListener("click", addCustomItem);
   ui.exportCard.addEventListener("click", exportRaceCard);
   for (const button of document.querySelectorAll(".fuel-pref")) {

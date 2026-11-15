@@ -153,6 +153,15 @@
     </section>
 
     <section id="tab-live" class="hidden" aria-label="Live race co-pilot">
+      <p id="toast" class="toast" role="status"></p>
+      <div class="race-tools">
+        <button id="race-mode" class="thumb-btn primary" type="button" aria-pressed="false">▶ Start Hands-Free Race Mode</button>
+        <button id="undo-autolog" class="text-btn hidden" type="button">Undo Last Auto-Log</button>
+        <div class="alert-row">
+          <button id="enable-alerts" class="text-btn" type="button" aria-pressed="false">🔔 Enable Race Alerts (Notifications + Voice)</button>
+          <button id="test-alert" class="text-btn" type="button">🔊 Test Alert</button>
+        </div>
+      </div>
       <details class="desk-sim" data-desk>
         <summary>🧪 Desk Simulator (km slider &amp; pace drift)</summary>
         <label class="micro">Distance <span data-desk-km>0.0 km</span>
