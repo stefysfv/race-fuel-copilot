@@ -1,0 +1,264 @@
+/* Outdoor dark theme. Zone colors match the map polyline and the live badge. */
+
+:root {
+  color-scheme: dark;
+  --ink: #0b0f17;
+  --panel: #121826;
+  --line: rgba(255, 255, 255, 0.14);
+  --text: #f8fafc;
+  --muted: #cbd5e1;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --tab-bar: 4.75rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.hidden {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--ink);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 0.75rem;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  font-size: 16px;
+}
+
+.shell {
+  width: min(40rem, 100%);
+  margin: 0 auto;
+  padding: 1rem 1rem calc(var(--tab-bar) + env(safe-area-inset-bottom) + 1rem);
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.9rem;
+}
+
+.thumb-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 1rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.thumb-btn:disabled {
+  opacity: 0.45;
+}
+
+.countdown {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.25rem 0 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 4.5rem;
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.zone-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0b0f17;
+}
+
+.zone-badge.green { background: var(--green); }
+.zone-badge.yellow { background: var(--yellow); }
+.zone-badge.red { background: var(--red); color: #fff; }
+.zone-badge.idle { background: #334155; color: var(--text); }
+
+.choice {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.choice[aria-checked="true"] {
+  background: var(--green);
+  border-color: var(--green);
+  color: #042117;
+}
+
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+  padding: 0.35rem 0.4rem calc(0.35rem + env(safe-area-inset-bottom));
+  background: rgba(11, 15, 23, 0.96);
+  border-top: 1px solid var(--line);
+  z-index: 30;
+}
+
+.tab-bar button {
+  min-height: 52px;
+  border: 0;
+  border-radius: 0.8rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.tab-bar button[aria-current="page"] {
+  background: #16382c;
+  color: var(--green);
+}
+
+#map {
+  height: 55dvh;
+  min-height: 280px;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #0e1624;
+}
+
+#chart-wrap {
+  position: relative;
+  height: 240px;
+}
+
+.runner-marker {
+  width: 18px;
+  height: 18px;
+  background: var(--green);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.35);
+}
+
+.leaflet-container {
+  background: #0e1624;
+  font-family: inherit;
+}
+
+.status {
+  min-height: 1.25rem;
+}
+
+.desk-sim summary {
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.race-card {
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.race-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.race-card th,
+.race-card td {
+  border-bottom: 1px solid #cbd5e1;
+  padding: 0.45rem 0.3rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.race-card h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+@media print {
+  .tab-bar,
+  #setup-form,
+  #packing-list,
+  #warnings,
+  header,
+  .desk-sim {
+    display: none !important;
+  }
+
+  #race-card {
+    display: block !important;
+    background: white;
+    color: black;
+  }
+}
+
+input[type="range"] {
+  padding: 0;
+  accent-color: var(--green);
+}
+
+.locker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.locker-row button {
+  min-height: 36px;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: #3a2430;
+  color: #fecaca;
+  font-weight: 700;
+}
