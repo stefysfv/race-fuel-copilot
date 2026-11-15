@@ -30,14 +30,18 @@
 </head>
 <body class="bg-ink text-slate-50">
   <div class="shell">
-    <header class="mb-4">
+    <header class="mb-2">
       <p class="text-xs font-bold tracking-wide text-zone-green uppercase">Trail and ultra</p>
-      <h1 class="text-2xl font-extrabold leading-tight">Race Fuel Co-Pilot</h1>
+      <h1 class="text-xl font-extrabold leading-tight">Race Fuel Co-Pilot</h1>
       <p id="app-status" class="status mt-2 text-sm text-slate-300" role="status"></p>
     </header>
 
     <section id="tab-setup" aria-label="Setup and packing">
-      <form id="setup-form" class="panel space-y-4">
+      <button id="setup-summary" class="setup-summary hidden" type="button">
+        <span id="setup-summary-text"></span>
+        <span class="edit-label">Edit</span>
+      </button>
+      <form id="setup-form" class="panel setup-form">
         <fieldset>
           <legend class="mb-2 text-sm font-bold text-slate-200">Course</legend>
           <div class="grid grid-cols-2 gap-2">
@@ -57,67 +61,58 @@
         </label>
         <p id="gpx-name" class="text-sm text-slate-300"></p>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="setup-grid">
           <label class="block text-sm font-semibold" for="weight">
             Weight (kg)
             <input id="weight" class="mt-1" type="number" inputmode="decimal" min="31" max="249" step="0.5" value="70" required>
           </label>
           <label class="block text-sm font-semibold" for="temperature">
-            Temperature (°C)
+            Temp (°C)
             <input id="temperature" class="mt-1" type="number" inputmode="decimal" min="-20" max="45" step="1" value="18" required>
           </label>
+          <label class="block text-sm font-semibold" for="target-hours">
+            Target hours
+            <input id="target-hours" class="mt-1" type="number" inputmode="numeric" min="0" max="47" step="1" value="5" required>
+          </label>
+          <label class="block text-sm font-semibold" for="target-minutes">
+            Target min
+            <input id="target-minutes" class="mt-1" type="number" inputmode="numeric" min="0" max="59" step="1" value="30" required>
+          </label>
+          <fieldset class="span-2">
+            <legend class="text-sm font-semibold">Gut tolerance</legend>
+            <div class="pill-row mt-1" role="radiogroup" aria-label="Gut tolerance">
+              <button class="pill gut" type="button" role="radio" data-carbs="45" aria-checked="false">45 g/h</button>
+              <button class="pill gut" type="button" role="radio" data-carbs="60" aria-checked="true">60 g/h</button>
+              <button class="pill gut" type="button" role="radio" data-carbs="90" aria-checked="false">90 g/h</button>
+            </div>
+          </fieldset>
+          <fieldset class="span-2">
+            <legend class="text-sm font-semibold">Fuel preference</legend>
+            <div class="pill-row mt-1" role="radiogroup" aria-label="Fuel preference">
+              <button class="pill fuel-pref" type="button" role="radio" data-preference="gels_first" aria-checked="true">Race / fast</button>
+              <button class="pill fuel-pref" type="button" role="radio" data-preference="balanced_real_food" aria-checked="false">Ultra standard</button>
+              <button class="pill fuel-pref" type="button" role="radio" data-preference="real_food_heavy" aria-checked="false">Sensitive stomach</button>
+            </div>
+          </fieldset>
         </div>
-
-        <fieldset>
-          <legend class="text-sm font-semibold">Target finish</legend>
-          <div class="mt-1 grid grid-cols-2 gap-3">
-            <label class="block text-sm" for="target-hours">
-              Hours
-              <input id="target-hours" class="mt-1" type="number" inputmode="numeric" min="0" max="47" step="1" value="5" required>
-            </label>
-            <label class="block text-sm" for="target-minutes">
-              Minutes
-              <input id="target-minutes" class="mt-1" type="number" inputmode="numeric" min="0" max="59" step="1" value="30" required>
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend class="text-sm font-semibold">Gut tolerance</legend>
-          <p class="mt-1 text-sm text-slate-300">Carbohydrate the stomach can take in, in grams per hour.</p>
-          <div class="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Gut tolerance">
-            <button class="choice gut" type="button" role="radio" data-carbs="45" aria-checked="false">45 g/h</button>
-            <button class="choice gut" type="button" role="radio" data-carbs="60" aria-checked="true">60 g/h</button>
-            <button class="choice gut" type="button" role="radio" data-carbs="90" aria-checked="false">90 g/h</button>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend class="text-sm font-semibold">Fuel preference</legend>
-          <div class="mt-2 grid grid-cols-1 gap-2" role="radiogroup" aria-label="Fuel preference">
-            <button class="choice fuel-pref" type="button" role="radio" data-preference="gels_first" aria-checked="true">Race / fast — gels first</button>
-            <button class="choice fuel-pref" type="button" role="radio" data-preference="balanced_real_food" aria-checked="false">Ultra standard — mix gels and real food</button>
-            <button class="choice fuel-pref" type="button" role="radio" data-preference="real_food_heavy" aria-checked="false">Sensitive stomach — real food on green</button>
-          </div>
-        </fieldset>
 
         <fieldset>
           <legend class="text-sm font-semibold">Fuel locker</legend>
           <p id="caffeine-cap" class="mt-1 text-sm text-slate-300"></p>
-          <p class="mt-1 text-sm text-slate-300">Leave this empty for a plain 25 g gel. Tap a preset to carry that product, or add your own.</p>
-          <div id="locker-presets" class="mt-2 grid grid-cols-2 gap-2"></div>
+          <p class="mt-1 text-sm text-slate-300">Empty locker uses a plain 25 g gel. Tap a chip to carry that product.</p>
+          <div id="locker-presets" class="pill-row mt-2"></div>
           <ul id="locker-list" class="mt-2 space-y-1 text-sm"></ul>
           <div class="mt-2 grid grid-cols-3 gap-2">
             <input id="custom-name" type="text" maxlength="60" placeholder="Name" aria-label="Custom product name">
             <input id="custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="Carbs g" aria-label="Custom product carbs in grams">
             <input id="custom-caffeine" type="number" inputmode="decimal" min="0" max="400" step="1" placeholder="Caffeine mg" aria-label="Custom product caffeine in milligrams">
           </div>
-          <button id="add-locker" class="choice mt-2" type="button">Add custom item</button>
+          <button id="add-locker" class="pill mt-2" type="button">Add custom item</button>
         </fieldset>
 
         <button id="build-plan" class="thumb-btn bg-zone-green text-ink" type="submit">Build packing plan</button>
-        <button id="export-card" class="thumb-btn mt-3 bg-slate-100 text-ink" type="button" disabled>Export Race Card</button>
       </form>
+      <button id="export-card" class="pill export-card mt-3 hidden" type="button" disabled>Export Race Card</button>
 
       <section id="plan-summary" class="mt-4 hidden panel" aria-live="polite"></section>
       <ul id="warnings" class="mt-3 space-y-2 text-sm text-zone-yellow"></ul>
@@ -149,6 +144,7 @@
           <button class="thumb-btn mt-3 bg-slate-100 text-ink" type="button" data-desk-play>Play 60x</button>
           <p data-desk-elapsed class="mt-2 text-sm text-slate-300">Elapsed 0 min · On Target</p>
         </details>
+        <button id="center-me" class="pill mb-2" type="button">Center on Me</button>
         <div id="map" role="region" aria-label="Race route on OpenTopoMap"></div>
         <div class="panel mt-3">
           <h2 class="mb-2 text-base font-extrabold">Elevation and fuel timeline</h2>
@@ -160,7 +156,7 @@
     </section>
 
     <section id="tab-live" class="hidden" aria-label="Live race co-pilot">
-      <details class="desk-sim panel mb-3 hidden" data-desk open>
+        <details class="desk-sim panel mb-3 hidden" data-desk>
         <summary>Desk Simulator</summary>
         <p class="mt-2 text-sm text-slate-300">Drag the distance or press Play 60x. Pace drift and GI Distress rebuild the plan from that point.</p>
         <label class="mt-2 block text-sm font-semibold">
@@ -193,6 +189,8 @@
         <p id="live-message" class="mt-2 text-sm text-slate-300"></p>
       </div>
 
+      <p id="gps-banner" class="gps-banner hidden" role="status"></p>
+      <p id="off-course" class="off-course hidden" role="alert"></p>
       <div class="mt-3 space-y-3">
         <button id="log-intake" class="thumb-btn bg-zone-green text-ink" type="button" disabled>Log Intake</button>
         <button id="update-gps" class="thumb-btn bg-slate-100 text-ink" type="button" disabled>Update GPS Location</button>

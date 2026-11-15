@@ -130,6 +130,129 @@ select {
   color: #042117;
 }
 
+.setup-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem 0.7rem;
+}
+
+.setup-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+#setup-form input,
+#setup-form select {
+  min-height: 40px;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pill[aria-checked="true"] {
+  background: var(--green);
+  border-color: var(--green);
+  color: #042117;
+}
+
+.setup-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.setup-summary .edit-label {
+  color: var(--green);
+  font-size: 0.85rem;
+}
+
+.export-card {
+  margin-bottom: 0.75rem;
+}
+
+.gps-banner {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.8rem;
+  background: #172033;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.gps-banner.error {
+  background: #3f1d24;
+  color: #fecaca;
+}
+
+.gps-banner.ok {
+  background: #13281f;
+  color: #d1fae5;
+}
+
+.off-course {
+  margin-top: 0.6rem;
+  padding: 0.8rem 0.85rem;
+  border: 2px solid var(--yellow);
+  border-radius: 0.8rem;
+  background: #431407;
+  color: #ffedd5;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.leaflet-div-icon.real-location-wrap {
+  background: transparent;
+  border: 0;
+}
+
+.real-location {
+  width: 16px;
+  height: 16px;
+  margin: 3px;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  animation: gps-pulse 1.6s ease-out infinite;
+}
+
+@keyframes gps-pulse {
+  70% { box-shadow: 0 0 0 14px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
 .tab-bar {
   position: fixed;
   left: 0;

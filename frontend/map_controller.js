@@ -54,6 +54,7 @@ export function createMapView(mapElement, chartCanvas) {
   L.tileLayer(TILES, { maxZoom: 17, attribution: ATTRIBUTION }).addTo(map);
   map.setView([42.56, 23.29], 12);
 
+  let realMarker = null;
   const routeLayer = L.layerGroup().addTo(map);
   const aidLayer = L.layerGroup().addTo(map);
   const fuelLayer = L.layerGroup().addTo(map);
@@ -188,7 +189,7 @@ export function createMapView(mapElement, chartCanvas) {
     });
   }
 
-  function setRunner(latitude, longitude) {
+  function setRunner(latitude, longitude, pan = true) {
     const latLng = [latitude, longitude];
     if (!runner) {
       runner = L.marker(latLng, {
@@ -198,7 +199,36 @@ export function createMapView(mapElement, chartCanvas) {
     } else {
       runner.setLatLng(latLng);
     }
-    map.panTo(latLng);
+    if (pan) {
+      map.panTo(latLng);
+    }
+  }
+
+  function setRealLocation(latitude, longitude) {
+    const latLng = [latitude, longitude];
+    if (!realMarker) {
+      realMarker = L.marker(latLng, {
+        icon: L.divIcon({
+          className: "real-location-wrap",
+          html: '<div class="real-location"></div>',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
+        zIndexOffset: 1000,
+        title: "My Real Location",
+      }).addTo(map);
+      realMarker.bindTooltip("My Real Location", { direction: "top" });
+    } else {
+      realMarker.setLatLng(latLng);
+    }
+  }
+
+  function centerOnMe() {
+    if (!realMarker) {
+      return false;
+    }
+    map.setView(realMarker.getLatLng(), Math.max(map.getZoom(), 14));
+    return true;
   }
 
   function resize() {
@@ -211,5 +241,5 @@ export function createMapView(mapElement, chartCanvas) {
     }
   }
 
-  return { setCourse, setRunner, resize };
+  return { setCourse, setRunner, setRealLocation, centerOnMe, resize };
 }

@@ -44,6 +44,7 @@ const state = {
   targetEdited: false,
   locker: [],
   fuelPreference: "gels_first",
+  realGps: null,
   sim: { active: false, km: 0, drift: 1, elapsed: 0, playing: false, frame: 0, busy: false },
 };
 
@@ -75,6 +76,11 @@ const ui = {
   build: document.querySelector("#build-plan"),
   exportCard: document.querySelector("#export-card"),
   raceCard: document.querySelector("#race-card"),
+  form: document.querySelector("#setup-form"),
+  setupSummary: document.querySelector("#setup-summary"),
+  setupSummaryText: document.querySelector("#setup-summary-text"),
+  gpsBanner: document.querySelector("#gps-banner"),
+  offCourse: document.querySelector("#off-course"),
 };
 
 let mapView = null;
@@ -275,6 +281,29 @@ async function buildPlan(event) {
   }
 }
 
+function setupSummaryLine() {
+  const plan = state.packedPlan;
+  const km = Math.round(plan.distance_km);
+  const label = /vitosha/i.test(plan.race_name) ? `Vitosha ${km}km` : `${plan.race_name} · ${km}km`;
+  const weight = Math.round(Number(plan.athlete.weight_kg));
+  const carbs = Math.round(plan.athlete.carbs_g_per_hour);
+  return `${label} · ${weight}kg · ${carbs}g/h`;
+}
+
+function collapseSetup() {
+  if (!state.packedPlan) {
+    return;
+  }
+  ui.setupSummaryText.textContent = setupSummaryLine();
+  ui.setupSummary.classList.remove("hidden");
+  ui.form.classList.add("hidden");
+}
+
+function showSetupForm() {
+  ui.form.classList.remove("hidden");
+  ui.setupSummary.classList.add("hidden");
+}
+
 function renderPacking() {
   const plan = state.packedPlan;
   ui.packing.replaceChildren();
@@ -282,7 +311,9 @@ function renderPacking() {
   if (!plan) {
     ui.summary.classList.add("hidden");
     ui.exportCard.disabled = true;
+    ui.exportCard.classList.add("hidden");
     ui.raceCard.classList.add("hidden");
+    showSetupForm();
     return;
   }
   const athlete = plan.athlete;
@@ -330,6 +361,8 @@ function renderPacking() {
     ui.packing.append(card);
   }
   ui.exportCard.disabled = false;
+  ui.exportCard.classList.remove("hidden");
+  collapseSetup();
 }
 
 function nextStop() {
@@ -446,8 +479,12 @@ function drawMap() {
       aidStations: state.aidStations,
       fuelStops: (state.livePlan || state.packedPlan).fuel_stops,
     });
+    const farOff = Boolean(state.realGps && state.snap && state.snap.offCourseM > 250);
     if (state.snap) {
-      view.setRunner(state.snap.latitude, state.snap.longitude);
+      view.setRunner(state.snap.latitude, state.snap.longitude, !farOff);
+    }
+    if (state.realGps) {
+      view.setRealLocation(state.realGps.latitude, state.realGps.longitude);
     }
   } catch (error) {
     setStatus(error.message);
@@ -511,37 +548,99 @@ async function logIntake() {
   await persist();
 }
 
-function readGps() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("This browser has no GPS."));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve(position.coords),
-      () => reject(new Error("GPS permission was denied or the fix timed out.")),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 },
-    );
+function paintGps(message, tone) {
+  ui.gpsBanner.textContent = message;
+  ui.gpsBanner.classList.remove("hidden", "error", "ok");
+  if (tone) {
+    ui.gpsBanner.classList.add(tone);
+  }
+}
+
+function paintOffCourse(metres) {
+  if (!(metres > 250)) {
+    ui.offCourse.classList.add("hidden");
+    ui.offCourse.textContent = "";
+    return;
+  }
+  const km = metres / 1000;
+  const digits = km >= 10 ? 0 : 1;
+  const trail = /vitosha/i.test(state.packedPlan?.race_name || "") ? "the Vitosha trail" : "the race trail";
+  ui.offCourse.classList.remove("hidden");
+  ui.offCourse.textContent = `OFF-COURSE WARNING · ${km.toFixed(digits)} km from ${trail}`;
+}
+
+function showRealDot() {
+  if (!state.realGps || !state.packedPlan) {
+    return;
+  }
+  try {
+    mapApi().setRealLocation(state.realGps.latitude, state.realGps.longitude);
+  } catch (error) {
+    setStatus(error.message);
+  }
+}
+
+function wallElapsedMin() {
+  if (!state.startedAt) {
+    return 0;
+  }
+  return (Date.now() - state.startedAt) / 60000;
+}
+
+// iOS only shows the location prompt when getCurrentPosition runs in the tap itself.
+function onUpdateGpsClick() {
+  paintGps("Acquiring iPhone GPS...", "");
+  if (!navigator.geolocation) {
+    paintGps("GPS Error (0): This browser has no GPS. Check iPhone Settings > Privacy > Location Services > Safari Websites.", "error");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 0,
   });
 }
 
-async function updateGps() {
+function onGpsError(err) {
+  const code = err && Number.isFinite(err.code) ? err.code : 0;
+  const message = (err && err.message) || "Location request failed.";
+  paintGps(`GPS Error (${code}): ${message}. Check iPhone Settings > Privacy > Location Services > Safari Websites.`, "error");
+}
+
+function onGpsSuccess(pos) {
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+  state.realGps = { latitude: lat, longitude: lon, accuracy: pos.coords.accuracy };
+  paintGps(`GPS Locked: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(pos.coords.accuracy)}m)`, "ok");
+  if (state.sim.playing) {
+    stopPlay(false);
+  }
+  state.sim.active = false;
   if (!state.startedAt) {
     startClock();
   }
-  ui.gps.disabled = true;
-  try {
-    const coords = await readGps();
-    await sendFix(coords.latitude, coords.longitude, false);
-  } catch (error) {
+  showRealDot();
+  sendFix(lat, lon, false, "gps").catch((error) => {
     if (error.message === "No connection to the fueling server." && state.packedPlan) {
-      setStatus("No connection. The marker will move when a GPS fix is available, and the saved plan stays as it is.");
+      paintGps(`GPS Locked: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(pos.coords.accuracy)}m). No connection, so the plan was not rebuilt.`, "ok");
     } else {
       setStatus(error.message);
     }
-  } finally {
-    ui.gps.disabled = false;
-  }
+  });
+}
+
+function readGps() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(Object.assign(new Error("This browser has no GPS."), { code: 0 }));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    });
+  });
 }
 
 async function triggerRescue() {
@@ -564,10 +663,18 @@ async function triggerRescue() {
     let latitude;
     let longitude;
     try {
-      const coords = await readGps();
-      latitude = coords.latitude;
-      longitude = coords.longitude;
+      const position = await readGps();
+      latitude = position.coords.latitude;
+      longitude = position.coords.longitude;
+      state.realGps = {
+        latitude,
+        longitude,
+        accuracy: position.coords.accuracy,
+      };
+      paintGps(`GPS Locked: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} (±${Math.round(position.coords.accuracy)}m)`, "ok");
+      showRealDot();
     } catch (error) {
+      onGpsError(error);
       const segment = currentSegment();
       if (!segment) {
         throw error;
@@ -578,7 +685,8 @@ async function triggerRescue() {
       ui.liveMessage.textContent = `No GPS fix, so this used your position on the clock. ${ui.liveMessage.textContent}`;
       return;
     }
-    await sendFix(latitude, longitude, true);
+    state.sim.active = false;
+    await sendFix(latitude, longitude, true, "gps");
   } catch (error) {
     setStatus(error.message);
   } finally {
@@ -586,13 +694,14 @@ async function triggerRescue() {
   }
 }
 
-async function sendFix(latitude, longitude, giRescue) {
+async function sendFix(latitude, longitude, giRescue, source = "sim") {
   const athlete = state.livePlan.athlete;
+  const elapsed = source === "gps" ? wallElapsedMin() : elapsedMin();
   const body = {
     ...courseBody(athlete),
     latitude,
     longitude,
-    elapsed_min: Number(elapsedMin().toFixed(3)),
+    elapsed_min: Number(elapsed.toFixed(3)),
     gi_rescue: giRescue,
   };
   try {
@@ -607,8 +716,11 @@ async function sendFix(latitude, longitude, giRescue) {
       offCourseM: result.snap.off_course_m,
       onCourse: result.snap.on_course,
     };
-    if (state.sim.active) {
+    if (source !== "gps" && state.sim.active) {
       state.sim.km = result.snap.distance_along_m / 1000;
+    }
+    if (source === "gps") {
+      paintOffCourse(result.snap.off_course_m);
     }
     ui.liveMessage.textContent = result.message;
     setStatus(result.message);
@@ -618,6 +730,9 @@ async function sendFix(latitude, longitude, giRescue) {
     }
     const snapped = snapToSegments(state.packedPlan.segments, latitude, longitude);
     state.snap = snapped;
+    if (source === "gps") {
+      paintOffCourse(snapped.offCourseM);
+    }
     ui.liveMessage.textContent = snapped.onCourse
       ? "Offline. Snapped to the saved course. The fuel plan was not rebuilt."
       : `Offline and ${Math.round(snapped.offCourseM)} m off the saved course. The fuel plan was not rebuilt.`;
@@ -901,7 +1016,7 @@ function renderLocker() {
   for (const preset of PRESETS) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "choice";
+    button.className = "pill";
     const selected = state.locker.some((item) => item.name === preset.name && item.carbs_g === preset.carbs_g && item.caffeine_mg === preset.caffeine_mg);
     if (selected) {
       button.setAttribute("aria-checked", "true");
@@ -1035,7 +1150,24 @@ function bind() {
   document.querySelector("#nav-live").addEventListener("click", () => showTab("live"));
   ui.countdown.addEventListener("click", startClock);
   ui.log.addEventListener("click", () => logIntake().catch((error) => setStatus(error.message)));
-  ui.gps.addEventListener("click", () => updateGps());
+  ui.gps.addEventListener("click", onUpdateGpsClick);
+  ui.setupSummary.addEventListener("click", showSetupForm);
+  document.querySelector("#center-me").addEventListener("click", () => {
+    showTab("map");
+    requestAnimationFrame(() => {
+      if (!state.realGps) {
+        setStatus("Tap Update GPS on the Live tab to drop your real location on the map.");
+        return;
+      }
+      try {
+        const view = mapApi();
+        view.setRealLocation(state.realGps.latitude, state.realGps.longitude);
+        view.centerOnMe();
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+  });
   ui.rescue.addEventListener("click", () => triggerRescue());
   document.querySelector("#add-locker").addEventListener("click", addCustomItem);
   ui.exportCard.addEventListener("click", exportRaceCard);
