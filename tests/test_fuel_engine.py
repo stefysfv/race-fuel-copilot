@@ -1,0 +1,262 @@
+"""Unit and API tests for the terrain-aware fueling engine.
+
+Duration scales in a straight line with flat GAP pace, so a target finish is
+two plan builds: probe at 8 min/km, then pace = 8 * target / probe duration.
+A red window feeds 15 g and drops the rest. Nothing is added to the next window.
+GI Rescue is the `gi_rescue` flag on `POST /api/recalibrate`.
+"""
+
+from __future__ import annotations
+
+import math
+
+import pytest
+from fastapi.testclient import TestClient
+
+from backend.fuel_engine import RED_MICRO_DOSE_G, classify_zone, generate_plan, sweat_rates
+from backend.gpx_parser import location_at_distance, prepare_course
+from backend.main import app
+from backend.models import AidStation, AthleteInput, DigestiveZone, FuelForm, TrackPoint
+
+EARTH_RADIUS_M = 6_371_000.0
+METERS_PER_DEG_LAT = EARTH_RADIUS_M * math.pi / 180.0
+WINDOW_CARBS_G = 30.0  # 60 g/h over a 30 min feed
+
+client = TestClient(app)
+
+
+def course_points(sections: list[tuple[float, float]], step_m: float = 50.0) -> list[TrackPoint]:
+    """Walk north from a fixed start. Each section is (length_m, grade_percent)."""
+
+    lat = 42.58
+    lon = 23.29
+    elevation = 1500.0
+    points = [TrackPoint(lat=lat, lon=lon, elevation_m=elevation)]
+    for length_m, grade_percent in sections:
+        steps = max(1, int(round(length_m / step_m)))
+        rise_m = (grade_percent / 100.0) * (length_m / steps)
+        dlat = (length_m / steps) / METERS_PER_DEG_LAT
+        for _ in range(steps):
+            lat += dlat
+            elevation += rise_m
+            points.append(TrackPoint(lat=lat, lon=lon, elevation_m=elevation))
+    return points
+
+
+def to_gpx(points: list[TrackPoint]) -> str:
+    rows = "\n".join(
+        f'<trkpt lat="{point.lat:.6f}" lon="{point.lon:.6f}"><ele>{point.elevation_m:.1f}</ele></trkpt>'
+        for point in points
+    )
+    return f'<?xml version="1.0"?><gpx version="1.1"><trk><trkseg>{rows}</trkseg></trk></gpx>'
+
+
+def build_plan(
+    points: list[TrackPoint],
+    athlete: AthleteInput,
+    stations: list[AidStation] | None = None,
+):
+    return generate_plan(
+        race_id="test-course",
+        race_name="Synthetic course",
+        declared_distance_km=0.0,
+        aid_stations=stations or [],
+        profile=points,
+        athlete=athlete,
+    )
+
+
+def pace_for_target(points: list[TrackPoint], target_min: float) -> float:
+    """Same two-call solve the app uses. Duration is linear in flat pace."""
+
+    probe = build_plan(points, AthleteInput(flat_pace_min_per_km=8.0))
+    pace = 8.0 * (target_min / probe.predicted_duration_min)
+    return min(19.9, max(3.51, round(pace, 3)))
+
+
+def minute_at(plan, distance_m: float) -> float:
+    segment = next(
+        item
+        for item in plan.segments
+        if item.start_distance_m <= distance_m <= item.end_distance_m
+    )
+    fraction = (distance_m - segment.start_distance_m) / segment.distance_m
+    return segment.start_minute + fraction * segment.predicted_minutes
+
+
+@pytest.mark.parametrize(
+    ("grade", "zone"),
+    [
+        (-8.0, DigestiveZone.green),
+        (0.0, DigestiveZone.green),
+        (5.0, DigestiveZone.green),
+        (5.1, DigestiveZone.yellow),
+        (10.0, DigestiveZone.yellow),
+        (-8.1, DigestiveZone.yellow),
+        (-12.0, DigestiveZone.yellow),
+        (10.1, DigestiveZone.red),
+        (16.0, DigestiveZone.red),
+        (-12.1, DigestiveZone.red),
+        (-18.0, DigestiveZone.red),
+    ],
+)
+def test_digestive_zone_boundaries(grade: float, zone: DigestiveZone) -> None:
+    assert classify_zone(grade) is zone
+
+
+@pytest.mark.parametrize(
+    ("grade", "zone"),
+    [
+        (0.0, DigestiveZone.green),
+        (7.0, DigestiveZone.yellow),
+        (-10.0, DigestiveZone.yellow),
+        (14.0, DigestiveZone.red),
+        (-15.0, DigestiveZone.red),
+    ],
+)
+def test_constant_grade_course_keeps_its_zone(grade: float, zone: DigestiveZone) -> None:
+    plan = build_plan(course_points([(4_000, grade)]), AthleteInput(flat_pace_min_per_km=8.0))
+    middle = plan.segments[len(plan.segments) // 2]
+    assert middle.zone is zone
+    assert middle.grade_percent == pytest.approx(grade, abs=0.4)
+
+
+def test_target_time_solver_matches_segment_sum() -> None:
+    points = course_points([(5_000, 8.0), (5_000, -4.0), (6_000, 0.0)])
+    target_min = 180.0
+    plan = build_plan(points, AthleteInput(flat_pace_min_per_km=pace_for_target(points, target_min)))
+    segment_sum = sum(segment.predicted_minutes for segment in plan.segments)
+    assert segment_sum == pytest.approx(plan.predicted_duration_min, abs=0.05)
+    assert segment_sum == pytest.approx(target_min, abs=0.5)
+
+
+def test_red_window_is_a_micro_dose_and_the_next_window_has_no_debt() -> None:
+    points = course_points([(8_000, 15.0), (10_000, 0.0)])
+    plan = build_plan(points, AthleteInput(weight_kg=70, carbs_g_per_hour=60, flat_pace_min_per_km=8.0))
+    red_stops = [
+        stop
+        for stop in plan.fuel_stops
+        if stop.zone is DigestiveZone.red and 1.0 < stop.distance_km < 6.5
+    ]
+    assert red_stops, "a sustained 15% climb should contain a red feed"
+    assert all(stop.form is FuelForm.micro_dose for stop in red_stops)
+    assert all(stop.carbs_g == pytest.approx(RED_MICRO_DOSE_G, abs=0.1) for stop in red_stops)
+
+    green_after = [
+        stop
+        for stop in plan.fuel_stops
+        if stop.zone is DigestiveZone.green and stop.distance_km > 8.2 and stop.carbs_g > 0
+    ]
+    assert green_after, "the flat finish should still schedule a green feed"
+    assert green_after[0].carbs_g == pytest.approx(WINDOW_CARBS_G, abs=0.1)
+    assert all(stop.carbs_g <= WINDOW_CARBS_G * 1.5 for stop in plan.fuel_stops)
+
+
+def test_hot_weather_sweat_exceeds_cool_weather_for_70kg() -> None:
+    cool_ml, cool_na = sweat_rates(10.0, 70.0)
+    hot_ml, hot_na = sweat_rates(30.0, 70.0)
+    assert cool_ml == pytest.approx(465.0)
+    assert hot_ml == pytest.approx(875.0)
+    assert hot_ml > cool_ml
+    assert hot_na > cool_na
+
+    cool = build_plan(course_points([(3_000, 0.0)]), AthleteInput(weight_kg=70, temperature_c=10))
+    hot = build_plan(course_points([(3_000, 0.0)]), AthleteInput(weight_kg=70, temperature_c=30))
+    assert hot.athlete.fluid_ml_per_hour > cool.athlete.fluid_ml_per_hour
+    assert hot.athlete.sodium_mg_per_hour > cool.athlete.sodium_mg_per_hour
+
+
+def test_long_race_turns_savoury_and_plates_food_stations() -> None:
+    points = course_points([(32_000, 0.0)])
+    course = prepare_course(points)
+    pin = location_at_distance(course, 12_000)
+    stations = [
+        AidStation(
+            name="Food hut",
+            distance_km=12.0,
+            lat=pin.lat,
+            lon=pin.lon,
+            elevation_m=pin.elevation_m,
+            has_water=True,
+            has_food=True,
+        ),
+        AidStation(
+            name="Water only",
+            distance_km=20.0,
+            lat=pin.lat,
+            lon=pin.lon,
+            elevation_m=pin.elevation_m,
+            has_water=True,
+            has_food=False,
+        ),
+    ]
+    plan = build_plan(
+        points,
+        AthleteInput(weight_kg=70, flat_pace_min_per_km=8.0, carbs_g_per_hour=60),
+        stations,
+    )
+    assert plan.predicted_duration_min > 210
+    late = [
+        stop
+        for stop in plan.fuel_stops
+        if stop.scheduled_minute >= 210 and not stop.at_aid_station and stop.carbs_g > 0
+    ]
+    assert late, "a race past 3.5 h should still have a feed after minute 210"
+    assert all(stop.flavor == "Savoury/Salty" for stop in late)
+    assert any(stop.form is FuelForm.real_food for stop in late)
+
+    plates = [stop for stop in plan.fuel_stops if stop.at_aid_station]
+    assert len(plates) == 1
+    assert plates[0].product == "Aid station plate"
+    assert plates[0].form is FuelForm.real_food
+    assert plates[0].carbs_g == pytest.approx(28.0)
+    assert all(stop.product != "Water only" for stop in plan.fuel_stops)
+
+
+def test_recalibrate_gi_rescue_pauses_solids_then_halves_two_doses() -> None:
+    points = course_points([(25_000, 0.0)])
+    athlete = AthleteInput(weight_kg=70, temperature_c=18, flat_pace_min_per_km=8.0, carbs_g_per_hour=60)
+    baseline = build_plan(points, athlete)
+    snap = location_at_distance(prepare_course(points), 3_000)
+    elapsed = minute_at(baseline, 3_000)
+    body = {
+        "gpx_xml": to_gpx(points),
+        "athlete": athlete.model_dump(),
+        "latitude": snap.lat,
+        "longitude": snap.lon,
+        "elapsed_min": elapsed,
+    }
+
+    rescued = client.post("/api/recalibrate", json={**body, "gi_rescue": True})
+    normal = client.post("/api/recalibrate", json={**body, "gi_rescue": False})
+    assert rescued.status_code == 200, rescued.text
+    assert normal.status_code == 200, normal.text
+    rescued_body = rescued.json()
+    normal_body = normal.json()
+    assert rescued_body["gi_rescue_applied"] is True
+    assert normal_body["gi_rescue_applied"] is False
+
+    early = [
+        stop
+        for stop in rescued_body["remaining"]["fuel_stops"]
+        if elapsed - 0.1 <= stop["ideal_minute"] < elapsed + 20
+    ]
+    assert early, "the first 20 minutes should still schedule sips"
+    assert all(stop["carbs_g"] == 0 for stop in early)
+    assert all(stop["form"] == FuelForm.rescue_sip.value for stop in early)
+    assert all(stop["form"] not in {FuelForm.gel.value, FuelForm.real_food.value} for stop in early)
+
+    def feeds_after_cooldown(payload: dict) -> list[dict]:
+        return [
+            stop
+            for stop in payload["remaining"]["fuel_stops"]
+            if stop["ideal_minute"] >= elapsed + 45 and stop["carbs_g"] > 0 and not stop["at_aid_station"]
+        ]
+
+    rescued_feeds = feeds_after_cooldown(rescued_body)
+    normal_feeds = feeds_after_cooldown(normal_body)
+    assert len(rescued_feeds) >= 3 and len(normal_feeds) >= 3
+    assert rescued_feeds[0]["carbs_g"] == pytest.approx(normal_feeds[0]["carbs_g"] / 2, abs=0.2)
+    assert rescued_feeds[1]["carbs_g"] == pytest.approx(normal_feeds[1]["carbs_g"] / 2, abs=0.2)
+    assert rescued_feeds[2]["carbs_g"] == pytest.approx(normal_feeds[2]["carbs_g"], abs=0.2)
+    assert "Half-size" in rescued_feeds[0]["reason"]
