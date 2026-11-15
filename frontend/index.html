@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0B0F17">
+  <meta name="theme-color" content="#090D14">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,7 +23,7 @@
       theme: {
         extend: {
           colors: {
-            ink: "#0B0F17",
+            ink: "#090D14",
             zone: { green: "#10B981", yellow: "#F59E0B", red: "#EF4444" }
           }
         }
@@ -28,126 +31,120 @@
     };
   </script>
 </head>
-<body class="bg-ink text-slate-50">
+<body>
   <div class="shell">
-    <header class="mb-2">
-      <p class="text-xs font-bold tracking-wide text-zone-green uppercase">Trail and ultra</p>
-      <h1 class="text-xl font-extrabold leading-tight">Race Fuel Co-Pilot</h1>
-      <p id="app-status" class="status mt-2 text-sm text-slate-300" role="status"></p>
+    <header class="brand">
+      <p class="kicker">Trail</p>
+      <h1>Fuel Co-Pilot</h1>
+      <p id="app-status" class="status" role="status"></p>
     </header>
 
     <section id="tab-setup" aria-label="Setup and packing">
-      <button id="setup-summary" class="setup-summary hidden" type="button">
+      <button id="setup-summary" class="setup-summary hidden" type="button" aria-expanded="false">
         <span id="setup-summary-text"></span>
-        <span class="edit-label">Edit</span>
+        <span class="edit-label">Edit Setup ▾</span>
       </button>
-      <form id="setup-form" class="panel setup-form">
-        <fieldset>
-          <legend class="mb-2 text-sm font-bold text-slate-200">Course</legend>
-          <div class="grid grid-cols-2 gap-2">
-            <button id="source-race" class="choice" type="button" role="radio" aria-checked="true">Saved race</button>
-            <button id="source-gpx" class="choice" type="button" role="radio" aria-checked="false">GPX file</button>
-          </div>
-        </fieldset>
-
-        <label class="block text-sm font-semibold" for="race-select">
-          Predefined race
-          <select id="race-select" class="mt-1"></select>
-        </label>
-
-        <label class="block text-sm font-semibold" for="gpx-file">
-          Custom GPX
-          <input id="gpx-file" class="mt-1 py-2" type="file" accept=".gpx,application/gpx+xml,.xml">
-        </label>
-        <p id="gpx-name" class="text-sm text-slate-300"></p>
+      <form id="setup-form" class="setup-form">
+        <div class="course-row">
+          <button id="source-race" class="sr-only" type="button" role="radio" aria-checked="true">Saved race</button>
+          <select id="race-select" aria-label="Race"></select>
+          <button id="source-gpx" class="icon-btn" type="button" aria-label="Upload GPX">GPX</button>
+        </div>
+        <input id="gpx-file" class="file-input" type="file" accept=".gpx,application/gpx+xml,.xml" aria-label="GPX file">
+        <p id="gpx-name" class="micro"></p>
 
         <div class="setup-grid">
-          <label class="block text-sm font-semibold" for="weight">
-            Weight (kg)
-            <input id="weight" class="mt-1" type="number" inputmode="decimal" min="31" max="249" step="0.5" value="70" required>
+          <label class="field">
+            <span class="kicker">Weight</span>
+            <input id="weight" type="number" inputmode="decimal" min="31" max="249" step="0.5" value="70" aria-label="Weight in kilograms" required>
           </label>
-          <label class="block text-sm font-semibold" for="temperature">
-            Temp (°C)
-            <input id="temperature" class="mt-1" type="number" inputmode="decimal" min="-20" max="45" step="1" value="18" required>
+          <label class="field">
+            <span class="kicker">Target</span>
+            <span class="time-pair">
+              <input id="target-hours" type="number" inputmode="numeric" min="0" max="47" step="1" value="5" aria-label="Target hours" required>
+              <span>:</span>
+              <input id="target-minutes" type="number" inputmode="numeric" min="0" max="59" step="1" value="30" aria-label="Target minutes" required>
+            </span>
           </label>
-          <label class="block text-sm font-semibold" for="target-hours">
-            Target hours
-            <input id="target-hours" class="mt-1" type="number" inputmode="numeric" min="0" max="47" step="1" value="5" required>
+          <label class="field">
+            <span class="kicker">Temp</span>
+            <input id="temperature" type="number" inputmode="decimal" min="-20" max="45" step="1" value="18" aria-label="Temperature in Celsius" required>
           </label>
-          <label class="block text-sm font-semibold" for="target-minutes">
-            Target min
-            <input id="target-minutes" class="mt-1" type="number" inputmode="numeric" min="0" max="59" step="1" value="30" required>
-          </label>
-          <fieldset class="span-2">
-            <legend class="text-sm font-semibold">Gut tolerance</legend>
-            <div class="pill-row mt-1" role="radiogroup" aria-label="Gut tolerance">
-              <button class="pill gut" type="button" role="radio" data-carbs="45" aria-checked="false">45 g/h</button>
-              <button class="pill gut" type="button" role="radio" data-carbs="60" aria-checked="true">60 g/h</button>
-              <button class="pill gut" type="button" role="radio" data-carbs="90" aria-checked="false">90 g/h</button>
-            </div>
-          </fieldset>
-          <fieldset class="span-2">
-            <legend class="text-sm font-semibold">Fuel preference</legend>
-            <div class="pill-row mt-1" role="radiogroup" aria-label="Fuel preference">
-              <button class="pill fuel-pref" type="button" role="radio" data-preference="gels_first" aria-checked="true">Race / fast</button>
-              <button class="pill fuel-pref" type="button" role="radio" data-preference="balanced_real_food" aria-checked="false">Ultra standard</button>
-              <button class="pill fuel-pref" type="button" role="radio" data-preference="real_food_heavy" aria-checked="false">Sensitive stomach</button>
-            </div>
-          </fieldset>
         </div>
 
-        <fieldset>
-          <legend class="text-sm font-semibold">Fuel locker</legend>
-          <p id="caffeine-cap" class="mt-1 text-sm text-slate-300"></p>
-          <p class="mt-1 text-sm text-slate-300">Empty locker uses a plain 25 g gel. Tap a chip to carry that product.</p>
-          <div id="locker-presets" class="pill-row mt-2"></div>
-          <ul id="locker-list" class="mt-2 space-y-1 text-sm"></ul>
-          <div class="mt-2 grid grid-cols-3 gap-2">
-            <input id="custom-name" type="text" maxlength="60" placeholder="Name" aria-label="Custom product name">
-            <input id="custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="Carbs g" aria-label="Custom product carbs in grams">
-            <input id="custom-caffeine" type="number" inputmode="decimal" min="0" max="400" step="1" placeholder="Caffeine mg" aria-label="Custom product caffeine in milligrams">
+        <div class="seg-grid">
+          <div>
+            <span class="kicker">Carb target</span>
+            <div class="seg" role="radiogroup" aria-label="Carb target">
+              <button class="gut" type="button" role="radio" data-carbs="45" aria-checked="false">45</button>
+              <button class="gut" type="button" role="radio" data-carbs="60" aria-checked="true">60</button>
+              <button class="gut" type="button" role="radio" data-carbs="90" aria-checked="false">90</button>
+            </div>
           </div>
-          <button id="add-locker" class="pill mt-2" type="button">Add custom item</button>
-        </fieldset>
+          <div>
+            <span class="kicker">Style</span>
+            <div class="seg" role="radiogroup" aria-label="Fuel style">
+              <button class="fuel-pref" type="button" role="radio" data-preference="gels_first" aria-checked="true">Gels</button>
+              <button class="fuel-pref" type="button" role="radio" data-preference="balanced_real_food" aria-checked="false">Balanced</button>
+              <button class="fuel-pref" type="button" role="radio" data-preference="real_food_heavy" aria-checked="false">Real Food</button>
+            </div>
+          </div>
+        </div>
 
-        <button id="build-plan" class="thumb-btn bg-zone-green text-ink" type="submit">Build packing plan</button>
+        <details class="drawer">
+          <summary>Custom Vest Locker (Optional)</summary>
+          <p id="caffeine-cap" class="micro"></p>
+          <div id="locker-presets" class="pill-row"></div>
+          <ul id="locker-list"></ul>
+          <div class="locker-add">
+            <input id="custom-name" type="text" maxlength="60" placeholder="Name" aria-label="Custom product name">
+            <input id="custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="Carbs" aria-label="Custom product carbs in grams">
+            <input id="custom-caffeine" type="number" inputmode="decimal" min="0" max="400" step="1" placeholder="Caff" aria-label="Custom product caffeine in milligrams">
+            <button id="add-locker" type="button" aria-label="Add custom item">+</button>
+          </div>
+        </details>
+
+        <button id="build-plan" class="thumb-btn primary" type="submit">Build plan</button>
       </form>
-      <button id="export-card" class="pill export-card mt-3 hidden" type="button" disabled>Export Race Card</button>
 
-      <section id="plan-summary" class="mt-4 hidden panel" aria-live="polite"></section>
-      <ul id="warnings" class="mt-3 space-y-2 text-sm text-zone-yellow"></ul>
-      <div id="packing-list" class="mt-4 space-y-3"></div>
-      <section id="race-card" class="race-card mt-4 hidden" aria-label="Printable race card"></section>
+      <div class="pack-head">
+        <p class="kicker">Packing</p>
+        <button id="export-card" class="text-btn hidden" type="button" disabled>Export Crew / Race Card</button>
+      </div>
+      <section id="plan-summary" class="micro hidden" aria-live="polite"></section>
+      <ul id="warnings"></ul>
+      <div id="packing-list"></div>
+      <section id="race-card" class="race-card hidden" aria-label="Printable race card"></section>
     </section>
 
     <section id="tab-map" class="hidden" aria-label="Topo map and elevation">
-      <div class="mb-3 flex flex-wrap gap-2 text-sm font-bold">
-        <span class="rounded-full bg-zone-green px-3 py-1 text-ink">Green −8% to +5%</span>
-        <span class="rounded-full bg-zone-yellow px-3 py-1 text-ink">Yellow</span>
-        <span class="rounded-full bg-zone-red px-3 py-1 text-white">Red</span>
-      </div>
-      <p id="map-empty" class="panel text-slate-200">Build a plan on Setup to draw the course.</p>
-      <div id="map-block" class="hidden">
-        <details class="desk-sim panel mb-3 hidden" data-desk>
-          <summary>Desk Simulator</summary>
-          <p class="mt-2 text-sm text-slate-300">Drag the distance or press Play 60x. Pace drift and GI Distress rebuild the plan from that point.</p>
-          <label class="mt-2 block text-sm font-semibold">
-            Distance <span data-desk-km>0.0 km</span>
-            <input class="mt-1" data-desk-range type="range" min="0" max="1" step="0.1" value="0">
-          </label>
-          <div class="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Pace drift">
-            <button class="choice" type="button" data-drift="0.9">Fast -10%</button>
-            <button class="choice" type="button" data-drift="1" aria-checked="true">On Target</button>
-            <button class="choice" type="button" data-drift="1.15">Slow +15%</button>
-            <button class="choice" type="button" data-drift="1.3">Bonking +30%</button>
+      <p id="map-empty" class="empty-note">Build a plan to draw the course.</p>
+      <div id="map-block" class="hidden map-stage">
+        <div class="map-canvas">
+          <div id="map" role="region" aria-label="Race route on OpenTopoMap"></div>
+          <button id="center-me" class="glass glass-left" type="button">📍 Center on Me</button>
+          <button id="offline-tiles" class="glass glass-right" type="button">⬇️ Offline Tiles</button>
+          <details class="desk-sim map-desk" data-desk>
+            <summary>🧪 Desk Simulator</summary>
+            <label class="micro">Distance <span data-desk-km>0.0 km</span>
+              <input data-desk-range type="range" min="0" max="1" step="0.1" value="0">
+            </label>
+            <div class="drift" role="radiogroup" aria-label="Pace drift">
+              <button class="choice" type="button" data-drift="0.9">Fast -10%</button>
+              <button class="choice" type="button" data-drift="1" aria-checked="true">On Target</button>
+              <button class="choice" type="button" data-drift="1.15">Slow +15%</button>
+              <button class="choice" type="button" data-drift="1.3">Bonking +30%</button>
+            </div>
+            <button class="thumb-btn secondary" type="button" data-desk-play>Play 60x</button>
+            <p data-desk-elapsed class="micro">Elapsed 0 min · On Target</p>
+          </details>
+        </div>
+        <div class="chart-pane">
+          <div class="zone-legend">
+            <span><i class="swatch green"></i>Green: Solids OK</span>
+            <span><i class="swatch yellow"></i>Yellow: Liquid/Half</span>
+            <span><i class="swatch red"></i>Red: Sip Only</span>
           </div>
-          <button class="thumb-btn mt-3 bg-slate-100 text-ink" type="button" data-desk-play>Play 60x</button>
-          <p data-desk-elapsed class="mt-2 text-sm text-slate-300">Elapsed 0 min · On Target</p>
-        </details>
-        <button id="center-me" class="pill mb-2" type="button">Center on Me</button>
-        <div id="map" role="region" aria-label="Race route on OpenTopoMap"></div>
-        <div class="panel mt-3">
-          <h2 class="mb-2 text-base font-extrabold">Elevation and fuel timeline</h2>
           <div id="chart-wrap">
             <canvas id="elevation-chart" aria-label="Elevation profile with fuel stops"></canvas>
           </div>
@@ -156,53 +153,60 @@
     </section>
 
     <section id="tab-live" class="hidden" aria-label="Live race co-pilot">
-        <details class="desk-sim panel mb-3 hidden" data-desk>
-        <summary>Desk Simulator</summary>
-        <p class="mt-2 text-sm text-slate-300">Drag the distance or press Play 60x. Pace drift and GI Distress rebuild the plan from that point.</p>
-        <label class="mt-2 block text-sm font-semibold">
-          Distance <span data-desk-km>0.0 km</span>
-          <input class="mt-1" data-desk-range type="range" min="0" max="1" step="0.1" value="0">
+      <details class="desk-sim" data-desk>
+        <summary>🧪 Desk Simulator (km slider &amp; pace drift)</summary>
+        <label class="micro">Distance <span data-desk-km>0.0 km</span>
+          <input data-desk-range type="range" min="0" max="1" step="0.1" value="0">
         </label>
-        <div class="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Pace drift">
+        <div class="drift" role="radiogroup" aria-label="Pace drift">
           <button class="choice" type="button" data-drift="0.9">Fast -10%</button>
           <button class="choice" type="button" data-drift="1" aria-checked="true">On Target</button>
           <button class="choice" type="button" data-drift="1.15">Slow +15%</button>
           <button class="choice" type="button" data-drift="1.3">Bonking +30%</button>
         </div>
-        <button class="thumb-btn mt-3 bg-slate-100 text-ink" type="button" data-desk-play>Play 60x</button>
-        <p data-desk-elapsed class="mt-2 text-sm text-slate-300">Elapsed 0 min · On Target</p>
+        <button class="thumb-btn secondary" type="button" data-desk-play>Play 60x</button>
+        <p data-desk-elapsed class="micro">Elapsed 0 min · On Target</p>
       </details>
-      <div class="panel text-center">
-        <p class="text-sm font-bold uppercase tracking-wide text-slate-300">Next intake</p>
+      <div class="status-row">
+        <p id="gps-banner" class="gps-banner hidden" role="status"></p>
+        <p id="off-course" class="off-course hidden" role="alert"></p>
+      </div>
+      <div class="hero">
+        <p class="kicker">Next intake in</p>
         <button id="countdown" class="countdown" type="button">--:--</button>
-        <p id="clock-caption" class="text-sm text-slate-300">Build a plan, then tap the timer to start the race clock.</p>
-        <p id="intake-detail" class="mt-3 text-left text-base leading-snug text-slate-100"></p>
+        <p id="intake-detail" class="intake"></p>
+        <p id="clock-caption" class="flavor"></p>
       </div>
-
-      <div class="mt-3 panel">
-        <div class="flex items-center justify-between gap-3">
-          <span id="zone-badge" class="zone-badge idle">No plan</span>
-          <p id="grade-readout" class="text-right text-lg font-extrabold tabular-nums">—</p>
+      <div class="telemetry">
+        <div>
+          <span class="kicker">Grade</span>
+          <p id="grade-readout" class="num">—</p>
         </div>
-        <p id="next-aid" class="mt-3 text-base font-semibold leading-snug">Next aid station appears after a plan is built.</p>
-        <p id="caffeine-readout" class="mt-2 text-sm font-semibold text-slate-200"></p>
-        <p id="live-message" class="mt-2 text-sm text-slate-300"></p>
+        <div>
+          <span class="kicker">Zone</span>
+          <span id="zone-badge" class="zone-badge idle">—</span>
+        </div>
+        <div>
+          <span class="kicker">Next aid</span>
+          <p id="next-aid" class="num">—</p>
+        </div>
       </div>
-
-      <p id="gps-banner" class="gps-banner hidden" role="status"></p>
-      <p id="off-course" class="off-course hidden" role="alert"></p>
-      <div class="mt-3 space-y-3">
-        <button id="log-intake" class="thumb-btn bg-zone-green text-ink" type="button" disabled>Log Intake</button>
-        <button id="update-gps" class="thumb-btn bg-slate-100 text-ink" type="button" disabled>Update GPS Location</button>
-        <button id="gi-rescue" class="thumb-btn bg-zone-red text-white" type="button" disabled>GI Distress / Stomach Rescue</button>
+      <p id="caffeine-readout" class="micro"></p>
+      <p id="live-message" class="micro"></p>
+      <div class="action-bar">
+        <button id="log-intake" class="thumb-btn primary" type="button" disabled>✓ Log Intake</button>
+        <div class="action-row">
+          <button id="update-gps" class="thumb-btn secondary" type="button" disabled>📍 Update GPS</button>
+          <button id="gi-rescue" class="thumb-btn danger" type="button" disabled>⚠️ GI Rescue</button>
+        </div>
       </div>
     </section>
   </div>
 
   <nav class="tab-bar" aria-label="Primary">
-    <button id="nav-setup" type="button" aria-current="page">Setup &amp; Packing</button>
-    <button id="nav-map" type="button">Topo Map &amp; Elevation</button>
-    <button id="nav-live" type="button">Live Race Co-Pilot</button>
+    <button id="nav-setup" type="button" aria-current="page">Setup</button>
+    <button id="nav-map" type="button">Map</button>
+    <button id="nav-live" type="button">Live</button>
   </nav>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

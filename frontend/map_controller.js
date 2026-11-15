@@ -163,7 +163,7 @@ export function createMapView(mapElement, chartCanvas) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: "#E2E8F0" } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               label(item) {
@@ -172,17 +172,18 @@ export function createMapView(mapElement, chartCanvas) {
             },
           },
         },
+        layout: { padding: { top: 4, right: 8, bottom: 0, left: 0 } },
         scales: {
           x: {
             type: "linear",
-            ticks: { color: "#CBD5E1", maxTicksLimit: 8 },
-            title: { display: true, text: "Distance (km)", color: "#E2E8F0" },
-            grid: { color: "rgba(255,255,255,0.08)" },
+            ticks: { color: "#8B95A5", maxTicksLimit: 6, font: { size: 10 } },
+            title: { display: false },
+            grid: { color: "rgba(255,255,255,0.06)" },
           },
           y: {
-            ticks: { color: "#CBD5E1" },
-            title: { display: true, text: "Elevation (m)", color: "#E2E8F0" },
-            grid: { color: "rgba(255,255,255,0.08)" },
+            ticks: { color: "#8B95A5", maxTicksLimit: 4, font: { size: 10 } },
+            title: { display: false },
+            grid: { color: "rgba(255,255,255,0.06)" },
           },
         },
       },

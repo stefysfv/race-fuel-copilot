@@ -284,24 +284,51 @@ async function buildPlan(event) {
 function setupSummaryLine() {
   const plan = state.packedPlan;
   const km = Math.round(plan.distance_km);
-  const label = /vitosha/i.test(plan.race_name) ? `Vitosha ${km}km` : `${plan.race_name} · ${km}km`;
+  let label = `${km}km`;
+  if (/salomon/i.test(plan.race_name)) label = `Salomon ${km}km`;
+  else if (/vitosha/i.test(plan.race_name)) label = `Vitosha ${km}km`;
   const weight = Math.round(Number(plan.athlete.weight_kg));
   const carbs = Math.round(plan.athlete.carbs_g_per_hour);
-  return `${label} · ${weight}kg · ${carbs}g/h`;
+  const temp = Math.round(Number(plan.athlete.temperature_c));
+  const hours = Number(ui.hours.value) || 0;
+  const minutes = Number(ui.minutes.value) || 0;
+  const target = `${hours}h${String(minutes).padStart(2, "0")}m`;
+  const name = document.createElement("b");
+  name.textContent = label;
+  const meta = document.createElement("span");
+  meta.textContent = `${weight}kg · ${target} · ${carbs}g/h · ${temp}°C`;
+  ui.setupSummaryText.replaceChildren(name, meta);
 }
 
 function collapseSetup() {
   if (!state.packedPlan) {
     return;
   }
-  ui.setupSummaryText.textContent = setupSummaryLine();
+  setupSummaryLine();
   ui.setupSummary.classList.remove("hidden");
+  ui.setupSummary.classList.remove("is-open");
+  ui.setupSummary.setAttribute("aria-expanded", "false");
+  ui.setupSummary.querySelector(".edit-label").textContent = "Edit Setup ▾";
   ui.form.classList.add("hidden");
 }
 
 function showSetupForm() {
   ui.form.classList.remove("hidden");
   ui.setupSummary.classList.add("hidden");
+  ui.setupSummary.classList.remove("is-open");
+  ui.setupSummary.setAttribute("aria-expanded", "false");
+}
+
+function toggleSetup() {
+  if (!state.packedPlan) {
+    showSetupForm();
+    return;
+  }
+  ui.setupSummary.classList.remove("hidden");
+  const open = ui.form.classList.toggle("hidden") === false;
+  ui.setupSummary.classList.toggle("is-open", open);
+  ui.setupSummary.setAttribute("aria-expanded", open ? "true" : "false");
+  ui.setupSummary.querySelector(".edit-label").textContent = open ? "Edit Setup ▴" : "Edit Setup ▾";
 }
 
 function renderPacking() {
@@ -318,51 +345,98 @@ function renderPacking() {
   }
   const athlete = plan.athlete;
   ui.summary.classList.remove("hidden");
-  ui.summary.innerHTML = `
-    <p class="text-lg font-extrabold">${plan.race_name}</p>
-    <p class="mt-1 text-sm leading-relaxed text-slate-200">
-      Predicted ${formatDuration(plan.predicted_duration_min)}
-      at ${athlete.flat_pace_min_per_km.toFixed(2)} min/km flat effort.
-      Sweat ${Math.round(athlete.fluid_ml_per_hour)} ml/h ·
-      sodium ${Math.round(athlete.sodium_mg_per_hour)} mg/h ·
-      carbs ${Math.round(athlete.carbs_g_per_hour)} g/h.
-      Caffeine ${Math.round(plan.totals?.caffeine_mg || 0)} / ${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg.
-    </p>`;
+  ui.summary.textContent = `${plan.race_name} · ${formatDuration(plan.predicted_duration_min)} · ${athlete.flat_pace_min_per_km.toFixed(2)} min/km · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
   for (const warning of plan.warnings) {
     const item = document.createElement("li");
     item.textContent = warning;
     ui.warnings.append(item);
   }
   for (const leg of plan.aid_legs) {
-    const station = state.aidStations.find((item) => item.name === leg.to_name);
     const card = document.createElement("article");
-    card.className = "panel";
-    const tags = station
-      ? [station.has_water ? "Water" : "", station.has_food ? "Food" : "", station.drop_bag ? "Drop bag" : ""].filter(Boolean)
-      : [];
+    card.className = "pack-card";
+    const chips = leg.pack.map((item) => `<li>${chipLabel(item)}</li>`).join("");
+    const eat = eatLabel(leg);
     card.innerHTML = `
-      <h2 class="text-lg font-extrabold leading-tight">${leg.from_name} → ${leg.to_name}</h2>
-      <p class="mt-1 text-sm text-slate-300">${leg.from_km.toFixed(1)} km → ${leg.to_km.toFixed(1)} km · ${formatDuration(leg.predicted_minutes)}</p>
-      <p class="mt-3 text-base font-semibold">Vest carry · ${Math.round(leg.vest_carbs_g ?? leg.carbs_g)} g carbs · ${Math.round(leg.fluid_ml)} ml · ${Math.round(leg.sodium_mg)} mg sodium</p>
-      <ul class="mt-2 space-y-1 text-sm text-slate-100"></ul>
-      <p class="eat-note mt-2 text-sm font-semibold text-slate-100"></p>
-      <p class="station-note mt-2 text-sm text-slate-300"></p>`;
-    const list = card.querySelector("ul");
-    for (const item of leg.pack) {
-      const row = document.createElement("li");
-      row.textContent = `${item.quantity} × ${item.item} — ${item.detail}`;
-      list.append(row);
-    }
-    card.querySelector(".eat-note").textContent = leg.station_meal
-      ? `Eat at station · ${Math.round(leg.station_carbs_g)} g · ${leg.station_meal}`
-      : "Eat at station · nothing plated on this arrival.";
-    const note = card.querySelector(".station-note");
-    note.textContent = [tags.join(" · "), station?.notes || ""].filter(Boolean).join(" — ");
+      <div class="pack-top">
+        <h2>${leg.from_name} → ${leg.to_name} <span class="km">(${leg.distance_km.toFixed(1)} km)</span></h2>
+        <span class="time-badge">${compactHours(leg.predicted_minutes)} · +${legGain(leg)}m</span>
+      </div>
+      <div class="macros">
+        <span>${grouped(leg.carbs_g)}g Carbs</span>
+        <span>${grouped(leg.fluid_ml)}ml Fluid</span>
+        <span>${grouped(leg.sodium_mg)}mg Na</span>
+      </div>
+      <div class="pack-split">
+        <div>
+          <p class="kicker">Pack in vest</p>
+          <ul class="chip-list">${chips || "<li>—</li>"}</ul>
+        </div>
+        <div>
+          <p class="kicker">Eat at station</p>
+          <p class="eat-note">${eat}</p>
+        </div>
+      </div>`;
     ui.packing.append(card);
   }
   ui.exportCard.disabled = false;
   ui.exportCard.classList.remove("hidden");
   collapseSetup();
+}
+
+function grouped(value) {
+  return Math.round(value).toLocaleString("en-US");
+}
+
+function compactHours(minutes) {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return hours > 0 ? `${hours}h ${String(mins).padStart(2, "0")}m` : `${mins}m`;
+}
+
+function legGain(leg) {
+  const segments = state.packedPlan?.segments || [];
+  const from = leg.from_km * 1000;
+  const to = leg.to_km * 1000;
+  let gain = 0;
+  for (const segment of segments) {
+    if (segment.end_distance_m <= from || segment.start_distance_m >= to) continue;
+    gain += segment.elevation_gain_m || 0;
+  }
+  return Math.round(gain);
+}
+
+function chipLabel(item) {
+  const name = item.item
+    .replace("Soft flask 500 ml", "500ml Flask")
+    .replace("Salt capsule", "Salt");
+  return `${item.quantity}× ${name}`;
+}
+
+function eatLabel(leg) {
+  if (!leg.station_meal) return "—";
+  if (leg.station_meal.startsWith("Aid Station Plate")) {
+    return `Potatoes / banana + cola (${Math.round(leg.station_carbs_g)}g)`;
+  }
+  return `${leg.station_meal} (${Math.round(leg.station_carbs_g)}g)`;
+}
+
+function shortIntake(stop) {
+  if (stop.at_aid_station) return `Aid plate (${Math.round(stop.carbs_g)}g)`;
+  if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) return "Water and salt sip";
+  if (stop.form === "micro_dose" || stop.form === "liquid") return `Liquid ${Math.round(stop.carbs_g)}g · small sips`;
+  const name = stop.product || "Gel";
+  return `Take 1× ${name} (${Math.round(stop.carbs_g)}g)`;
+}
+
+function flavorTag(stop) {
+  if (!stop) return "";
+  if (stop.form === "micro_dose" || stop.form === "liquid") return "Liquid Micro-Dose";
+  if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) return "Sip";
+  if (stop.flavor === "Savoury/Salty") return "Savoury";
+  if (stop.flavor) return stop.flavor;
+  if (stop.form === "rescue_sip" || stop.form === "sip") return "Sip";
+  return "";
 }
 
 function nextStop() {
@@ -420,48 +494,42 @@ function renderLive() {
   paintDesk();
   if (!hasPlan) {
     ui.countdown.textContent = "--:--";
-    ui.caption.textContent = "Build a plan, then tap the timer to start the race clock.";
-    ui.intake.textContent = "";
+    ui.caption.textContent = "";
+    ui.intake.textContent = "Build a plan";
     paintBadge(null);
-    ui.nextAid.textContent = "Next aid station appears after a plan is built.";
+    ui.nextAid.textContent = "—";
     return;
   }
   if (!clockOn) {
     ui.countdown.textContent = stop ? formatClock(stop.scheduled_minute) : "Done";
-    ui.caption.textContent = stop
-      ? "Tap the timer to start the race clock. The number is the first intake time."
-      : "No intake on this plan.";
+    ui.caption.textContent = stop ? (flavorTag(stop) || "Tap clock") : "";
   } else if (!stop) {
     ui.countdown.textContent = "Done";
-    ui.caption.textContent = "Every scheduled intake is logged.";
+    ui.caption.textContent = "";
   } else {
     const remaining = stop.scheduled_minute - elapsed;
     ui.countdown.textContent = remaining > 0 ? formatClock(remaining) : "Due";
-    ui.caption.textContent = remaining > 0 ? "Until the next intake" : "This intake is due now";
+    ui.caption.textContent = flavorTag(stop);
   }
-  ui.intake.textContent = stop
-    ? `${stop.distance_km.toFixed(1)} km · ${stop.grade_percent >= 0 ? "+" : ""}${stop.grade_percent.toFixed(1)}% · ${stop.reason}`
-    : "";
+  ui.intake.textContent = stop ? shortIntake(stop) : "";
   paintBadge(currentSegment());
   const aid = nextAid(clockOn ? elapsed : 0);
-  ui.nextAid.textContent = aid
-    ? `Next: ${aid.name} · ${aid.km.toFixed(1)} km · ETA ${formatDuration(aid.etaMin)}`
-    : "No aid station left on the course.";
+  ui.nextAid.textContent = aid ? compactHours(aid.etaMin) : "—";
+  ui.nextAid.title = aid ? `${aid.name} · ${aid.km.toFixed(1)} km` : "";
 }
 
 function paintBadge(segment) {
   ui.badge.className = "zone-badge";
   if (!segment) {
     ui.badge.classList.add("idle");
-    ui.badge.textContent = "No plan";
+    ui.badge.textContent = "—";
     ui.grade.textContent = "—";
     return;
   }
   ui.badge.classList.add(segment.zone);
-  ui.badge.textContent = segment.zone.charAt(0).toUpperCase() + segment.zone.slice(1);
+  ui.badge.textContent = segment.zone.toUpperCase();
   const sign = segment.grade_percent >= 0 ? "+" : "";
-  const km = state.snap ? state.snap.distanceM / 1000 : segment.start_distance_m / 1000;
-  ui.grade.textContent = `${sign}${segment.grade_percent.toFixed(1)}% · ${km.toFixed(1)} km`;
+  ui.grade.textContent = `${sign}${segment.grade_percent.toFixed(1)}%`;
 }
 
 function drawMap() {
@@ -502,6 +570,7 @@ function showTab(name) {
       tabButton.removeAttribute("aria-current");
     }
   }
+  document.body.dataset.tab = name;
   if (name === "map") {
     drawMap();
     requestAnimationFrame(() => mapView?.resize());
@@ -1052,7 +1121,7 @@ function renderLocker() {
   }
   const weight = Number(ui.weight.value);
   const cap = Number.isFinite(weight) ? Math.round(weight * 5) : 0;
-  document.querySelector("#caffeine-cap").textContent = `Caffeine ceiling ${cap} mg (5 mg per kg).`;
+  document.querySelector("#caffeine-cap").textContent = `Cap ${cap} mg`;
 }
 
 function addCustomItem() {
@@ -1122,8 +1191,12 @@ function exportRaceCard() {
 function bind() {
   document.querySelector("#setup-form").addEventListener("submit", buildPlan);
   document.querySelector("#source-race").addEventListener("click", () => setSource("race"));
-  document.querySelector("#source-gpx").addEventListener("click", () => setSource("gpx"));
+  document.querySelector("#source-gpx").addEventListener("click", () => {
+    setSource("gpx");
+    ui.gpxFile.click();
+  });
   ui.raceSelect.addEventListener("change", () => {
+    setSource("race");
     state.raceId = ui.raceSelect.value;
     applyTargetDefault();
   });
@@ -1151,7 +1224,10 @@ function bind() {
   ui.countdown.addEventListener("click", startClock);
   ui.log.addEventListener("click", () => logIntake().catch((error) => setStatus(error.message)));
   ui.gps.addEventListener("click", onUpdateGpsClick);
-  ui.setupSummary.addEventListener("click", showSetupForm);
+  ui.setupSummary.addEventListener("click", toggleSetup);
+  document.querySelector("#offline-tiles").addEventListener("click", () => {
+    setStatus("Tiles stay on this phone after you view this course.");
+  });
   document.querySelector("#center-me").addEventListener("click", () => {
     showTab("map");
     requestAnimationFrame(() => {
