@@ -130,86 +130,119 @@
       "distance_km": 100.4,
       "elevation_gain_m": 1956,
       "location": "Vitosha, Bulgaria",
-      "summary": "Recorded 100.40 km loop from Boyana around the foot of Vitosha. Pins sit on the closest point of the track to each village.",
+      "summary": "Recorded 100.40 km loop from Boyana around the foot of Vitosha. Aid stations sit on the track about 8–12 km apart.",
       "profile_source": "gpx",
       "gpx_file": "backend/data/gpx/vitosha-100.gpx",
       "aid_stations": [
         {
-          "name": "Kladnitsa",
-          "distance_km": 23.75,
-          "lat": 42.56717,
-          "lon": 23.179542,
-          "elevation_m": 984.8,
+          "name": "Tikhiyat Kat",
+          "distance_km": 9.5,
+          "lat": 42.632467,
+          "lon": 23.208853,
+          "elevation_m": 979.7,
           "has_water": true,
           "has_food": true,
-          "drop_bag": true,
-          "notes": "Closest point on the track to Kladnitsa."
+          "drop_bag": false,
+          "notes": "Water and light food. Snapped onto the track at 9.5 km."
+        },
+        {
+          "name": "Vladaya",
+          "distance_km": 15.5,
+          "lat": 42.604298,
+          "lon": 23.185365,
+          "elevation_m": 1028.1,
+          "has_water": true,
+          "has_food": true,
+          "drop_bag": false,
+          "notes": "Water and food. Snapped onto the track at 15.5 km."
+        },
+        {
+          "name": "Kladnitsa",
+          "distance_km": 23.5,
+          "lat": 42.569417,
+          "lon": 23.179829,
+          "elevation_m": 985.2,
+          "has_water": true,
+          "has_food": true,
+          "drop_bag": false,
+          "notes": "Water and food. Snapped onto the track at 23.5 km."
         },
         {
           "name": "Studena",
-          "distance_km": 29.11,
-          "lat": 42.539477,
-          "lon": 23.163695,
-          "elevation_m": 885.0,
+          "distance_km": 29.0,
+          "lat": 42.539997,
+          "lon": 23.162587,
+          "elevation_m": 878.9,
           "has_water": true,
           "has_food": true,
           "drop_bag": false,
-          "notes": "Closest point on the track to Studena."
+          "notes": "Water and food. Snapped onto the track at 29.0 km."
         },
         {
           "name": "Chuypetlovo",
-          "distance_km": 44.32,
-          "lat": 42.515378,
-          "lon": 23.242344,
-          "elevation_m": 1210.8,
+          "distance_km": 41.5,
+          "lat": 42.496592,
+          "lon": 23.228855,
+          "elevation_m": 1077.6,
           "has_water": true,
           "has_food": true,
           "drop_bag": true,
-          "notes": "Closest point on the track to Chuypetlovo."
-        },
-        {
-          "name": "Breze",
-          "distance_km": 54.04,
-          "lat": 42.455521,
-          "lon": 23.228289,
-          "elevation_m": 1194.4,
-          "has_water": true,
-          "has_food": true,
-          "drop_bag": false,
-          "notes": "Closest point on the track to Breze."
+          "notes": "Water, hot food, and a drop bag. Snapped onto the track at 41.5 km."
         },
         {
           "name": "Yarlovo",
-          "distance_km": 61.72,
-          "lat": 42.468845,
-          "lon": 23.278272,
-          "elevation_m": 1071.0,
+          "distance_km": 52.5,
+          "lat": 42.464139,
+          "lon": 23.236544,
+          "elevation_m": 1287.6,
           "has_water": true,
           "has_food": true,
           "drop_bag": false,
-          "notes": "Closest point on the track to Yarlovo."
+          "notes": "Water and food. Snapped onto the track at 52.5 km."
         },
         {
-          "name": "Belite Brezi",
-          "distance_km": 91.94,
-          "lat": 42.617962,
-          "lon": 23.315279,
-          "elevation_m": 890.9,
+          "name": "Breze / Bukovets",
+          "distance_km": 63.0,
+          "lat": 42.470602,
+          "lon": 23.291464,
+          "elevation_m": 1086.3,
           "has_water": true,
           "has_food": true,
           "drop_bag": false,
-          "notes": "Closest point on the track to Belite Brezi."
+          "notes": "Water and food. Snapped onto the track at 63.0 km."
         },
         {
-          "name": "Simeonovo/Dragalevtsi",
-          "distance_km": 93.57,
-          "lat": 42.624146,
-          "lon": 23.301307,
-          "elevation_m": 896.8,
+          "name": "Bistritsa / Zheleznitsa",
+          "distance_km": 75.5,
+          "lat": 42.523807,
+          "lon": 23.360889,
+          "elevation_m": 1143.8,
           "has_water": true,
           "has_food": true,
-          "drop_bag": true,
-          "notes": "Closest point on the track to Dragalevtsi, after the Simeonovo side."
+          "drop_bag": false,
+          "notes": "Water and food. Snapped onto the track at 75.5 km."
+        },
+        {
+          "name": "Simeonovo / Dragalevtsi",
+          "distance_km": 88.5,
+          "lat": 42.601042,
+          "lon": 23.333238,
+          "elevation_m": 1103.2,
+          "has_water": true,
+          "has_food": true,
+          "drop_bag": false,
+          "notes": "Water and food. Snapped onto the track at 88.5 km."
+        },
+        {
+          "name": "Finish (Boyana)",
+          "distance_km": 100.0,
+          "lat": 42.655594,
+          "lon": 23.275690,
+          "elevation_m": 683.6,
+          "has_water": true,
+          "has_food": false,
+          "drop_bag": false,
+          "notes": "Finish pin on the track at 100.0 km. The recorded course ends 0.4 km later."
         }
       ]
     }

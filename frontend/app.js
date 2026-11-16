@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=7";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=8";
 
 const PRESETS = [
   { name: "Standard Gel", carbs_g: 25, caffeine_mg: 0, kind: "gel" },
@@ -432,11 +432,11 @@ function renderPacking() {
   const plan = state.packedPlan;
   ui.packing.replaceChildren();
   ui.warnings.replaceChildren();
-  ui.legSwitch.replaceChildren();
   if (!plan) {
     ui.summary.classList.add("hidden");
     ui.exportCard.disabled = true;
     ui.packing.classList.remove("is-all");
+    renderLegStepper([]);
     closeCrewModal();
     return;
   }
@@ -452,32 +452,7 @@ function renderPacking() {
   if (state.legView !== "all" && (state.legView < 0 || state.legView >= legs.length)) {
     state.legView = 0;
   }
-  legs.forEach((leg, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.setAttribute("role", "tab");
-    const from = Math.round(leg.from_km);
-    const to = Math.round(leg.to_km);
-    button.className = "liquid-pill";
-    button.textContent = `Leg ${index + 1} (${from}–${to}km)`;
-    button.setAttribute("aria-selected", state.legView === index ? "true" : "false");
-    button.addEventListener("click", () => {
-      state.legView = index;
-      renderPacking();
-    });
-    ui.legSwitch.append(button);
-  });
-  const all = document.createElement("button");
-  all.type = "button";
-  all.className = "liquid-pill";
-  all.textContent = "All";
-  all.setAttribute("role", "tab");
-  all.setAttribute("aria-selected", state.legView === "all" ? "true" : "false");
-  all.addEventListener("click", () => {
-    state.legView = "all";
-    renderPacking();
-  });
-  ui.legSwitch.append(all);
+  renderLegStepper(legs);
   const shown = state.legView === "all" ? legs : (legs[state.legView] ? [legs[state.legView]] : []);
   ui.packing.classList.toggle("is-all", state.legView === "all");
   for (const leg of shown) {
@@ -486,13 +461,55 @@ function renderPacking() {
   ui.exportCard.disabled = false;
 }
 
+function renderLegStepper(legs) {
+  const select = document.querySelector("#leg-select");
+  const prev = document.querySelector("#leg-prev");
+  const next = document.querySelector("#leg-next");
+  if (!select || !prev || !next) return;
+  select.replaceChildren();
+  if (!legs.length) {
+    prev.disabled = true;
+    next.disabled = true;
+    return;
+  }
+  legs.forEach((leg, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    const km = Number(leg.to_km).toFixed(1);
+    option.textContent = `Leg ${index + 1} of ${legs.length} · ${leg.from_name} → ${leg.to_name} (${km} km)`;
+    select.append(option);
+  });
+  const all = document.createElement("option");
+  all.value = "all";
+  all.textContent = "All Legs";
+  select.append(all);
+  select.value = state.legView === "all" ? "all" : String(state.legView);
+  const index = state.legView === "all" ? -1 : state.legView;
+  prev.disabled = index <= 0;
+  next.disabled = index < 0 || index >= legs.length - 1;
+}
+
+function stepLeg(delta) {
+  const legs = state.packedPlan?.aid_legs || [];
+  if (!legs.length || state.legView === "all") return;
+  const next = state.legView + delta;
+  if (next < 0 || next >= legs.length) return;
+  state.legView = next;
+  renderPacking();
+}
+
 function packCard(leg) {
   const card = document.createElement("article");
   card.className = "pack-card";
-  const chips = leg.pack.map((item) => chipLabel(item)).join("");
+  const carry = leg.pack.map((item) => carryLine(item)).join("");
+  const station = escapeHtml(leg.to_name);
+  const km = Number(leg.to_km).toFixed(1);
+  const meal = leg.station_meal
+    ? `<p class="table-where">AT ${escapeHtml(leg.to_name.toUpperCase())} TABLE (KM ${km})</p><p class="eat-note">${escapeHtml(eatLabel(leg))}</p>`
+    : `<p class="eat-note">Nothing on the table here. Do not pack a station meal for this stop.</p>`;
   card.innerHTML = `
     <div class="pack-top">
-      <h2>${leg.from_name} → ${leg.to_name} <span class="km">(${leg.distance_km.toFixed(1)} km)</span></h2>
+      <h2>${escapeHtml(leg.from_name)} → ${station} <span class="km">(${Number(leg.distance_km).toFixed(1)} km)</span></h2>
       <span class="time-badge">${compactHours(leg.predicted_minutes)} · +${legGain(leg)}m</span>
     </div>
     <div class="macros">
@@ -500,16 +517,14 @@ function packCard(leg) {
       <span>${grouped(leg.fluid_ml)}ml Fluid</span>
       <span>${grouped(leg.sodium_mg)}mg Na</span>
     </div>
-    <div class="pack-split">
-      <div>
-        <p class="kicker">Pack in vest</p>
-        <ul class="chip-list">${chips || "<li>—</li>"}</ul>
-      </div>
-      <div>
-        <p class="kicker">Eat at station</p>
-        <p class="eat-note">${eatLabel(leg)}</p>
-      </div>
-    </div>`;
+    <section class="carry-block">
+      <p class="kicker">1. Carry in vest and eat on trail (during this leg)</p>
+      <ul class="carry-list">${carry || "<li>Nothing to carry on this leg.</li>"}</ul>
+    </section>
+    <section class="table-block">
+      <p class="kicker">2. Eat at ${station} table (on arrival — do not carry)</p>
+      ${meal}
+    </section>`;
   return card;
 }
 
@@ -536,18 +551,22 @@ function legGain(leg) {
   return Math.round(gain);
 }
 
-function chipLabel(item) {
-  const name = item.item
-    .replace("Soft flask 500 ml", "500ml Flask")
-    .replace("Salt capsule", "Salt");
-  return `<li class="liquid-pill glass-chip"><span class="qty">${item.quantity}×</span>${name}</li>`;
+function carryLine(item) {
+  const name = escapeHtml(
+    String(item.item)
+      .replace("Soft flask 500 ml", "500ml Flask")
+      .replace("Salt capsule", "Salt cap"),
+  );
+  const detail = item.detail ? `<span class="carry-detail">${escapeHtml(item.detail)}</span>` : "";
+  return `<li><span class="qty">${item.quantity}×</span> ${name}${detail}</li>`;
 }
 
 function eatLabel(leg) {
-  if (!leg.station_meal) return "—";
+  if (!leg.station_meal) return "Nothing on the table for this stop.";
   if (leg.station_meal.startsWith("Aid Station Plate")) {
     return `Potatoes / banana + cola (${Math.round(leg.station_carbs_g)}g)`;
   }
+  if (/\(\d+\s*g\)/i.test(leg.station_meal)) return leg.station_meal;
   return `${leg.station_meal} (${Math.round(leg.station_carbs_g)}g)`;
 }
 
@@ -1939,7 +1958,7 @@ function exportRaceCard() {
     const station = state.aidStations.find((item) => item.name === leg.to_name);
     const cutoff = station?.cutoff_hours ? `${station.cutoff_hours} h` : "—";
     const vest = leg.pack.map((item) => `${item.quantity}× ${item.item}`).join(", ");
-    const eat = leg.station_meal ? `${Math.round(leg.station_carbs_g)} g · ${leg.station_meal}` : "—";
+    const eat = leg.station_meal ? eatLabel(leg) : "—";
     return `<tr>
       <td>${leg.to_name}<br>${leg.to_km.toFixed(1)} km</td>
       <td>${formatDuration(cursor)}</td>
@@ -1969,16 +1988,16 @@ const VEST_MENU = [
   { key: "gel_25", label: "Standard Gel", carbs: 25, sodium: 50, flavor: "Sweet" },
   { key: "iso_gel_22", label: "Isotonic Gel", carbs: 22, sodium: 40, flavor: "Sweet" },
   { key: "drink_30", label: "Drink Mix", carbs: 30, sodium: 250, flavor: "Sweet" },
-  { key: "sandwich", label: "Sandwich", carbs: 32, sodium: 280, flavor: "Savoury/Salty" },
-  { key: "bar", label: "Oat Bar", carbs: 35, sodium: 120, flavor: "Sweet" },
+  { key: "sandwich", label: "Half Sandwich", carbs: 20, sodium: 140, flavor: "Savoury/Salty" },
+  { key: "bar", label: "Oat Bar", carbs: 30, sodium: 100, flavor: "Sweet" },
   { key: "dates", label: "Dates", carbs: 28, sodium: 10, flavor: "Sweet" },
-  { key: "chocolate", label: "Chocolate", carbs: 22, sodium: 30, flavor: "Sweet" },
+  { key: "chocolate", label: "Chocolate", carbs: 15, sodium: 20, flavor: "Sweet" },
   { key: "chips", label: "Salted Chips", carbs: 20, sodium: 320, flavor: "Savoury/Salty" },
 ];
 const STATION_MENU = [
   { key: "sandwich", label: "Sandwich", carbs: 30, sodium: 250, flavor: "Savoury/Salty" },
-  { key: "watermelon", label: "Watermelon", carbs: 18, sodium: 5, flavor: "Sweet" },
-  { key: "cucumber", label: "Cucumber", carbs: 12, sodium: 350, flavor: "Savoury/Salty" },
+  { key: "watermelon", label: "Watermelon", carbs: 12, sodium: 5, flavor: "Sweet" },
+  { key: "cucumber", label: "Cucumber", carbs: 3, sodium: 300, flavor: "Savoury/Salty" },
   { key: "chips", label: "Chips", carbs: 22, sodium: 300, flavor: "Savoury/Salty" },
   { key: "chocolate", label: "Chocolate", carbs: 24, sodium: 20, flavor: "Sweet" },
   { key: "apple", label: "Apple", carbs: 18, sodium: 2, flavor: "Sweet" },
@@ -1989,6 +2008,10 @@ const STATION_MENU = [
 
 function listen(selector, event, handler) {
   document.querySelector(selector)?.addEventListener(event, handler);
+}
+
+function escapeHtml(value) {
+  return escapeAttr(value);
 }
 
 function escapeAttr(value) {
@@ -2416,6 +2439,13 @@ function bind() {
   });
   listen("#add-locker", "click", addCustomItem);
   ui.exportCard?.addEventListener("click", exportRaceCard);
+  document.querySelector("#leg-prev")?.addEventListener("click", () => stepLeg(-1));
+  document.querySelector("#leg-next")?.addEventListener("click", () => stepLeg(1));
+  document.querySelector("#leg-select")?.addEventListener("change", (event) => {
+    const value = event.target.value;
+    state.legView = value === "all" ? "all" : Number(value);
+    renderPacking();
+  });
   listen("#close-crew", "click", closeCrewModal);
   listen("#close-crew-bottom", "click", closeCrewModal);
   listen("#open-gut-live", "click", openGutModal);

@@ -415,7 +415,57 @@ input, select {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+.leg-stepper {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+.leg-stepper button {
+  width: auto;
+  height: 40px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.leg-stepper button:disabled { opacity: 0.38; }
+.leg-select {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
 .pack-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.carry-block, .table-block { margin-top: 12px; }
+.carry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.carry-list li {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.carry-list .qty { color: #ff5500; margin-right: 4px; }
+.carry-detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.table-where {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.pack-card { overflow: visible; }
 .chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .glass-chip {
   padding: 4px 10px;

@@ -202,8 +202,14 @@ def test_long_race_turns_savoury_and_plates_food_stations() -> None:
         if stop.scheduled_minute >= 210 and not stop.at_aid_station and stop.carbs_g > 0
     ]
     assert late, "a race past 3.5 h should still have a feed after minute 210"
-    assert all(stop.flavor == "Savoury/Salty" for stop in late)
-    assert any(stop.form is FuelForm.real_food for stop in late)
+    assert any(stop.flavor == "Savoury/Salty" and stop.form is FuelForm.real_food for stop in late)
+    early = [
+        stop
+        for stop in plan.fuel_stops
+        if stop.scheduled_minute < 90 and not stop.at_aid_station and stop.carbs_g > 0
+    ]
+    assert early
+    assert all("sandwich" not in stop.product.casefold() for stop in early)
 
     plates = [stop for stop in plan.fuel_stops if stop.at_aid_station]
     assert len(plates) == 1
@@ -337,7 +343,8 @@ def test_selected_vest_and_station_foods_change_the_plan() -> None:
     leg = next(item for item in plated.aid_legs if item.to_name == "Hut")
     assert "Watermelon" in leg.station_meal
     assert "cucumber" in leg.station_meal.lower()
-    assert 28.0 <= leg.station_carbs_g <= 35.0
+    assert leg.station_meal.count("(15g)") == 1
+    assert leg.station_carbs_g == pytest.approx(15.0)
     assert leg.vest_carbs_g == pytest.approx(leg.carbs_g - leg.station_carbs_g)
 
 
@@ -405,6 +412,71 @@ def test_custom_food_portions_keep_the_runners_name_and_grams() -> None:
     untouched = AthleteInput(flat_pace_min_per_km=8.0)
     assert untouched.custom_vest_items == []
     assert untouched.custom_station_items == []
+
+
+def test_short_leg_does_not_schedule_a_station_meal() -> None:
+    points = course_points([(8_000, 0.0)])
+    course = prepare_course(points)
+    pin = location_at_distance(course, 2_000)
+    plan = build_plan(
+        points,
+        AthleteInput(flat_pace_min_per_km=8.0),
+        [
+            AidStation(
+                name="Close hut",
+                distance_km=2.0,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        ],
+    )
+    leg = next(item for item in plan.aid_legs if item.to_name == "Close hut")
+    assert leg.predicted_minutes < 40
+    assert leg.station_meal == ""
+    assert leg.station_carbs_g == 0
+    assert not any(stop.at_aid_station for stop in plan.fuel_stops)
+
+
+def test_long_leg_caps_flasks_and_food_types() -> None:
+    plan = build_plan(
+        course_points([(30_000, 0.0)]),
+        AthleteInput(
+            flat_pace_min_per_km=10.0,
+            carbs_g_per_hour=60,
+            temperature_c=18,
+            vest_foods=["gel_25", "iso_gel_22", "drink_30", "bar", "sandwich", "chocolate"],
+            custom_vest_items=[
+                {"key": "gel_25", "name": "Standard Gel", "carbs_g": 25, "flavor": "Sweet"},
+                {"key": "iso_gel_22", "name": "Isotonic Gel", "carbs_g": 22, "flavor": "Sweet"},
+                {"key": "drink_30", "name": "Drink Mix", "carbs_g": 30, "flavor": "Sweet"},
+                {"key": "bar", "name": "Oat Bar", "carbs_g": 30, "flavor": "Sweet"},
+                {"key": "sandwich", "name": "Half Sandwich", "carbs_g": 20, "flavor": "Savoury/Salty"},
+                {"key": "chocolate", "name": "Chocolate", "carbs_g": 15, "flavor": "Sweet"},
+            ],
+        ),
+    )
+    leg = plan.aid_legs[0]
+    flasks = [item for item in leg.pack if "Flask" in item.item]
+    assert len(flasks) == 1
+    assert flasks[0].quantity in {2, 3}
+    assert "8" not in str(flasks[0].quantity)
+    assert "Refill" in flasks[0].detail
+    assert "Drink Mix" in flasks[0].detail
+    chewed = [item.item for item in leg.pack if "Flask" not in item.item and "Salt" not in item.item]
+    assert chewed == ["Standard Gel", "Half Sandwich"] or set(chewed) <= {"Standard Gel", "Half Sandwich"}
+    assert "Isotonic Gel" not in chewed
+    assert "Oat Bar" not in chewed
+    assert "Chocolate" not in chewed
+    early = [
+        stop
+        for stop in plan.fuel_stops
+        if stop.scheduled_minute < 90 and stop.carbs_g > 0 and not stop.at_aid_station
+    ]
+    assert early
+    assert all("sandwich" not in stop.product.casefold() for stop in early)
 
 
 def test_gut_calibration_scales_carbs_and_tightens_climbs() -> None:

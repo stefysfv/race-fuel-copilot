@@ -87,7 +87,16 @@ MAJOR_CLIMB_GRADE = 8.0
 PALATE_FATIGUE_MIN = 210.0
 SAVOURY_START_MIN = 150.0
 EARLY_SAVOURY_MIN = 90.0
-AID_FOOD_MIN_MINUTE = 60.0
+# The first 90 minutes stay on gels and drink mix. A station plate is only
+# worth sitting down for when the leg that arrives there lasted 40 minutes.
+OPENING_EASY_MIN = 90.0
+SOLID_EVERY_MIN = 90.0
+AID_LEG_MIN_MINUTES = 40.0
+FLASK_CAP = 2
+FLASK_CAP_LONG = 3
+LONG_LEG_HOURS = 2.5
+# A pin in the last 500 m is the finish, not a one-minute extra leg.
+FINISH_MERGE_M = 500.0
 SENSITIVE_GREEN_MAX = 3.5
 AID_BITE_CARBS_G = 28.0
 FLAT_GREEN_GRADE = 3.0
@@ -132,16 +141,16 @@ VEST_MENU: dict[str, _MenuItem] = {
     "gel_25": _MenuItem("gel_25", "Standard Gel", 25, 50, "Sweet", "gel"),
     "iso_gel_22": _MenuItem("iso_gel_22", "Isotonic Gel", 22, 40, "Sweet", "gel"),
     "drink_30": _MenuItem("drink_30", "Drink Mix", 30, 250, "Sweet", "liquid"),
-    "sandwich": _MenuItem("sandwich", "Mini Sandwich", 32, 280, "Savoury/Salty", "solid"),
-    "bar": _MenuItem("bar", "Oat Bar", 35, 120, "Sweet", "solid"),
+    "sandwich": _MenuItem("sandwich", "Half Sandwich", 20, 140, "Savoury/Salty", "solid"),
+    "bar": _MenuItem("bar", "Oat Bar", 30, 100, "Sweet", "solid"),
     "dates": _MenuItem("dates", "Medjool Dates", 28, 10, "Sweet", "solid"),
-    "chocolate": _MenuItem("chocolate", "Chocolate Squares", 22, 30, "Sweet", "solid"),
+    "chocolate": _MenuItem("chocolate", "Chocolate", 15, 20, "Sweet", "solid"),
     "chips": _MenuItem("chips", "Salted Chips", 20, 320, "Savoury/Salty", "solid"),
 }
 STATION_MENU: dict[str, _MenuItem] = {
     "sandwich": _MenuItem("sandwich", "Sandwich quarters", 30, 250, "Savoury/Salty", "solid"),
-    "watermelon": _MenuItem("watermelon", "Watermelon", 18, 5, "Sweet", "solid"),
-    "cucumber": _MenuItem("cucumber", "Salted cucumber and crackers", 12, 350, "Savoury/Salty", "solid"),
+    "watermelon": _MenuItem("watermelon", "Watermelon", 12, 5, "Sweet", "solid"),
+    "cucumber": _MenuItem("cucumber", "Cucumber", 3, 300, "Savoury/Salty", "solid"),
     "chips": _MenuItem("chips", "Salted chips", 22, 300, "Savoury/Salty", "solid"),
     "chocolate": _MenuItem("chocolate", "Chocolate pieces", 24, 20, "Sweet", "solid"),
     "apple": _MenuItem("apple", "Apple wedges", 18, 2, "Sweet", "solid"),
@@ -151,6 +160,17 @@ STATION_MENU: dict[str, _MenuItem] = {
 }
 DEFAULT_STATION_KEYS = ("sandwich", "watermelon", "cucumber", "chips", "cola_broth")
 SAVOURY_VEST_KEYS = frozenset({"sandwich", "chips"})
+HEAVY_VEST_KEYS = frozenset({"sandwich", "chocolate", "chips"})
+FRUIT_STATION_KEYS = frozenset({"watermelon", "apple", "banana"})
+SALT_STATION_KEYS = frozenset({"cucumber", "chips"})
+
+
+@dataclass
+class _MenuClock:
+    """Remembers the last solid so a leg cannot turn into a picnic."""
+
+    last_solid_min: float = -1_000.0
+    opening_solid: bool = False
 
 
 def _menu_items(keys: list[str], catalog: dict[str, _MenuItem]) -> list[_MenuItem]:
@@ -257,33 +277,39 @@ def _scaled_athlete(athlete: AthleteInput) -> AthleteInput:
     return athlete.model_copy(update={"carbs_g_per_hour": athlete.carbs_g_per_hour * factor})
 
 
-def station_plate(athlete: AthleteInput) -> tuple[float, str]:
-    """Carbs and the words for one aid-station plate.
+def station_plate(athlete: AthleteInput) -> tuple[float, str, float]:
+    """Carbs, label, and sodium for one aid-station plate.
 
-    The default menu stays at 28 g so existing packing checks keep their vest
-    split. A custom menu uses the pair closest to 31 g, clamped to 28–35 g.
-    Edited portions skip that clamp and use the runner's gram counts.
+    The untouched default menu stays at 28 g so the palate check keeps its
+    vest split. Any other menu uses the foods the runner actually ticked.
+    Watermelon is 12 g and cucumber is a 3 g salt bite, so that plate is
+    15 g with the grams written once.
     """
 
     chosen = _resolved_foods(athlete.station_foods, STATION_MENU, athlete.custom_station_items)
     customized = bool(athlete.custom_station_items)
-    if customized and len(chosen) == 1:
-        item = chosen[0]
-        return item.carbs_g, f"{item.name} ({item.carbs_g:.0f}g)"
     if not customized and (len(chosen) < 2 or tuple(athlete.station_foods) == DEFAULT_STATION_KEYS):
-        return AID_BITE_CARBS_G, AID_PLATE
+        return AID_BITE_CARBS_G, AID_PLATE, 200.0
+    if len(chosen) == 1:
+        item = chosen[0]
+        return item.carbs_g, f"{item.name} ({item.carbs_g:.0f}g)", item.sodium_mg
     if len(chosen) < 2:
-        return AID_BITE_CARBS_G, AID_PLATE
-    best: tuple[float, _MenuItem, _MenuItem] | None = None
-    for index, first in enumerate(chosen):
-        for second in chosen[index + 1 :]:
-            total = first.carbs_g + second.carbs_g
-            if best is None or abs(total - 31.0) < abs(best[0] - 31.0):
-                best = (total, first, second)
-    assert best is not None
-    raw, first, second = best
-    carbs = min(120.0, max(1.0, raw)) if customized else min(35.0, max(28.0, raw))
-    return carbs, f"{first.name} + {second.name} ({carbs:.0f}g)"
+        return AID_BITE_CARBS_G, AID_PLATE, 200.0
+    fruit = next((item for item in chosen if item.key in FRUIT_STATION_KEYS), None)
+    salt = next((item for item in chosen if item.key in SALT_STATION_KEYS), None)
+    if fruit is not None and salt is not None:
+        first, second = fruit, salt
+    else:
+        best: tuple[float, _MenuItem, _MenuItem] | None = None
+        for index, first in enumerate(chosen):
+            for second in chosen[index + 1 :]:
+                total = first.carbs_g + second.carbs_g
+                if best is None or total < best[0]:
+                    best = (total, first, second)
+        assert best is not None
+        _, first, second = best
+    carbs = min(120.0, max(1.0, first.carbs_g + second.carbs_g))
+    return carbs, f"{first.name} + {second.name} ({carbs:.0f}g)", first.sodium_mg + second.sodium_mg
 
 
 @dataclass(frozen=True)
@@ -540,6 +566,7 @@ def schedule_fuel(
     stops: list[FuelStop] = []
     caffeine_used = 0.0
     race_start = segments[0].start_minute
+    menu_clock = _MenuClock()
 
     for target in targets:
         placed = _place_feed(segments, target.minute, prefer_safe=target.kind == "normal")
@@ -578,6 +605,7 @@ def schedule_fuel(
                 when=when,
                 finish_min=finish_min,
                 athlete=athlete,
+                clock=menu_clock,
             )
             reason = dose.reason
             if food_name:
@@ -628,12 +656,16 @@ def build_aid_legs(
         marks.append(("Current position", from_distance_m))
     else:
         marks.append(("Start", 0.0))
+    finish_name = "Finish"
     for station in stations:
         distance_m = station.distance_km * 1000.0
+        if distance_m >= total_m - FINISH_MERGE_M and distance_m > marks[-1][1] + 30:
+            finish_name = station.name
+            continue
         if marks[-1][1] + 30 < distance_m < total_m - 30:
             marks.append((station.name, distance_m))
     if total_m > marks[-1][1] + 1:
-        marks.append(("Finish", total_m))
+        marks.append((finish_name, total_m))
 
     fluid_per_hour, sodium_per_hour = sweat_rates(athlete.temperature_c, athlete.weight_kg)
     legs: list[AidLeg] = []
@@ -655,8 +687,8 @@ def build_aid_legs(
         arrival = next((station for station in stations if station.name == to_name), None)
         station_carbs = 0.0
         station_meal = ""
-        plate_carbs, plate_label = station_plate(athlete)
-        if arrival is not None and arrival.has_food and end_min >= AID_FOOD_MIN_MINUTE:
+        plate_carbs, plate_label, _plate_sodium = station_plate(athlete)
+        if arrival is not None and arrival.has_food and minutes >= AID_LEG_MIN_MINUTES:
             station_carbs = min(plate_carbs, carbs_g)
             station_meal = plate_label
         vest_carbs = max(0.0, carbs_g - station_carbs)
@@ -684,6 +716,8 @@ def build_aid_legs(
                     _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
                     if athlete.custom_vest_items
                     else None,
+                    hours,
+                    start_min,
                 ),
                 note="",
             )
@@ -1126,12 +1160,13 @@ def _apply_food_preference(
     when: float,
     finish_min: float,
     athlete: AthleteInput,
+    clock: _MenuClock | None = None,
 ) -> tuple[str, str]:
     """Name a vest food from the runner's menu, and mark the flavor.
 
-    Red micro-doses and rescue sips stay liquid. Green rotates the selected
-    vest foods. After the savoury mark, green feeds prefer sandwich and chips.
-    Yellow stays on gels and drink mix from that same menu.
+    Red micro-doses and rescue sips stay liquid. The first 90 minutes stay on
+    gels, drink mix, or one small bar or dates. After that, a solid is at most
+    one bite per 90 minutes. Yellow stays on gels and drink mix.
     """
 
     del grade_percent
@@ -1141,15 +1176,61 @@ def _apply_food_preference(
     foods = _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
     if not foods:
         foods = [VEST_MENU["gel_25"]]
-    if zone == DigestiveZone.green and when >= _savoury_minute(athlete, finish_min):
-        savoury = [item for item in foods if item.flavor == "Savoury/Salty" or item.key in SAVOURY_VEST_KEYS]
-        return _apply_named_food(dose, _pick_item(savoury or foods, when), "Take ")
-    if zone == DigestiveZone.green:
-        return _apply_named_food(dose, _pick_item(foods, when), "Take ")
+    if clock is None:
+        clock = _MenuClock()
+    easy = [item for item in foods if item.kind in {"gel", "liquid"}]
+    small = [item for item in foods if item.key in {"dates", "bar"}]
+    light = [item for item in foods if item.key not in HEAVY_VEST_KEYS]
+
+    def pick(pool: list[_MenuItem], note: str = "Take ", scale: float = 1.0) -> tuple[str, str]:
+        return _apply_named_food(dose, _pick_item(pool, when), note, portion_scale=scale)
+
     if zone == DigestiveZone.yellow:
-        soft = [item for item in foods if item.kind in {"gel", "liquid"}] or foods[:1]
-        return _apply_named_food(dose, _pick_item(soft, when), "Half portion: ", portion_scale=0.5)
-    return "", ""
+        return pick(easy or light or foods[:1], "Half portion: ", 0.5)
+    if zone != DigestiveZone.green:
+        return "", ""
+    if when < OPENING_EASY_MIN:
+        if not clock.opening_solid and small and when >= 45:
+            clock.opening_solid = True
+            clock.last_solid_min = when
+            return pick(small[:1])
+        return pick(easy or light or foods[:1])
+
+    due = when - clock.last_solid_min >= SOLID_EVERY_MIN
+    if due:
+        if when >= _savoury_minute(athlete, finish_min):
+            savoury = [item for item in foods if item.flavor == "Savoury/Salty" or item.key in SAVOURY_VEST_KEYS]
+            solids = [item for item in savoury if item.kind == "solid"] or [
+                item for item in foods if item.kind == "solid"
+            ]
+            if solids:
+                clock.last_solid_min = when
+                return pick(solids)
+        else:
+            between = [item for item in foods if item.kind == "solid" and item.key != "sandwich"]
+            if between:
+                clock.last_solid_min = when
+                return pick(between)
+    return pick(easy or foods[:1])
+
+
+def _approach_minutes(
+    segments: list[Segment],
+    stations: list[AidStation],
+    distance_m: float,
+) -> tuple[float, float]:
+    """Minutes spent on the leg that arrives at `distance_m`, and the arrival clock."""
+
+    previous_m = segments[0].start_distance_m if segments else 0.0
+    for station in sorted(stations, key=lambda item: item.distance_km):
+        station_m = station.distance_km * 1000.0
+        if station_m >= distance_m - 1:
+            break
+        if station_m > previous_m:
+            previous_m = station_m
+    start = _minute_at_distance(segments, previous_m)
+    end = _minute_at_distance(segments, distance_m)
+    return max(0.0, end - start), end
 
 
 def _insert_aid_bites(
@@ -1158,15 +1239,15 @@ def _insert_aid_bites(
     segments: list[Segment],
     athlete: AthleteInput,
 ) -> list[FuelStop]:
-    """Add a plate at each food station after 60 minutes, and lighten a nearby vest snack.
+    """Add a plate when the arriving leg lasted at least 40 minutes and has food.
 
     The plate is eaten while stopped, so a red grade at the pin does not
-    turn it into a climbing micro-dose. Its carbs come from the station menu.
+    turn it into a climbing micro-dose. A 15 minute hop does not get a meal.
     """
 
     if not segments:
         return stops
-    plate_carbs, plate_label = station_plate(athlete)
+    plate_carbs, plate_label, plate_sodium = station_plate(athlete)
     bites: list[FuelStop] = []
     for station in stations:
         if not station.has_food:
@@ -1174,8 +1255,8 @@ def _insert_aid_bites(
         distance_m = station.distance_km * 1000.0
         if distance_m < segments[0].start_distance_m - 30:
             continue
-        minute = _minute_at_distance(segments, distance_m)
-        if minute < AID_FOOD_MIN_MINUTE:
+        leg_minutes, minute = _approach_minutes(segments, stations, distance_m)
+        if leg_minutes < AID_LEG_MIN_MINUTES:
             continue
         segment = next(
             (item for item in segments if item.start_distance_m <= distance_m <= item.end_distance_m),
@@ -1195,7 +1276,7 @@ def _insert_aid_bites(
                 zone=segment.zone,
                 carbs_g=plate_carbs,
                 fluid_ml=150.0,
-                sodium_mg=200.0,
+                sodium_mg=plate_sodium,
                 form=FuelForm.real_food,
                 reason=plate_label,
                 product="Aid station plate",
@@ -1287,6 +1368,87 @@ def _apply_locker(
     return "", 0.0, dose.reason + blocked
 
 
+def _flask_item(fluid_ml: float, leg_hours: float, mix_note: str = "") -> PackItem | None:
+    """Two 500 ml flasks, or three on a leg longer than 2.5 hours.
+
+    A vest cannot carry four litres. Extra fluid is a mid-leg refill, not
+    another bottle in the pack list.
+    """
+
+    if fluid_ml < 1:
+        return None
+    cap = FLASK_CAP_LONG if leg_hours > LONG_LEG_HOURS else FLASK_CAP
+    needed = math.ceil(fluid_ml / FLASK_ML)
+    carry = min(needed, cap)
+    if needed > carry:
+        refills = needed - carry
+        note = f"Refill {refills}× at mid-leg fountain/stream — total {round(fluid_ml):,} ml."
+    else:
+        note = "Water/Electrolytes."
+    detail = f"{mix_note} {note}".strip() if mix_note else note
+    return PackItem(item="500ml Flask", quantity=carry, detail=detail)
+
+
+def _eat_detail(portion_g: float, count: int, leg_minutes: float, earliest_min: float = 0.0) -> str:
+    """Space bites across the leg. Two gels on a 105 minute leg land at 35 and 70.
+
+    `earliest_min` keeps a sandwich out of the first 90 minutes when a leg
+    starts at the gun and only runs past that mark near the end.
+    """
+
+    if count <= 0 or leg_minutes <= 0:
+        return f"{portion_g:.0f}g each."
+    span_start = min(max(leg_minutes - 1, 0.0), max(0.0, earliest_min))
+    span = max(1.0, leg_minutes - span_start)
+    gap = span / (count + 1)
+    clocks = [max(1, int(round(span_start + gap * (index + 1)))) for index in range(count)]
+    if len(clocks) > 4:
+        shown = ", ".join(f"min {minute}" for minute in clocks[:4]) + f", +{len(clocks) - 4} more"
+    else:
+        shown = ", ".join(f"min {minute}" for minute in clocks)
+    return f"{portion_g:.0f}g each. Eat at {shown} of this leg."
+
+
+def _solid_choice(
+    foods: list[_MenuItem],
+    by_key: dict[str, _MenuItem],
+    leg_start_min: float,
+    leg_minutes: float,
+) -> tuple[_MenuItem | None, int, float]:
+    """Pick the one solid for this leg, how many, and the earliest eat minute.
+
+    A leg that is still inside the first 90 minutes gets one bar or dates.
+    A sandwich is only carried once the leg has 45 minutes after that opening,
+    and its eat time starts after minute 90.
+    """
+
+    leg_end = leg_start_min + leg_minutes
+    heavy_time = max(0.0, leg_end - max(leg_start_min, OPENING_EASY_MIN))
+    if heavy_time >= 45:
+        slots = max(1, int(heavy_time // SOLID_EVERY_MIN))
+        solid = None
+        for key in ("sandwich", "bar", "chocolate", "chips", "dates"):
+            if key in by_key:
+                solid = by_key[key]
+                break
+        if solid is None:
+            solid = next((food for food in foods if food.kind == "solid"), None)
+        return solid, slots if solid is not None else 0, max(0.0, OPENING_EASY_MIN - leg_start_min)
+    if leg_start_min < OPENING_EASY_MIN:
+        for key in ("dates", "bar"):
+            if key in by_key:
+                return by_key[key], 1, 0.0
+        return None, 0, 0.0
+    if leg_minutes < 45:
+        return None, 0, 0.0
+    slots = max(1, int(leg_minutes // SOLID_EVERY_MIN))
+    for key in ("sandwich", "bar", "chocolate", "chips", "dates"):
+        if key in by_key:
+            return by_key[key], slots, 0.0
+    solid = next((food for food in foods if food.kind == "solid"), None)
+    return solid, slots if solid is not None else 0, 0.0
+
+
 def _pack_named_portions(
     carbs_g: float,
     fluid_ml: float,
@@ -1294,11 +1456,14 @@ def _pack_named_portions(
     locker: list[LockerItem],
     foods: list[_MenuItem],
     stops: list[FuelStop] | None,
+    leg_hours: float,
+    leg_start_min: float,
 ) -> list[PackItem]:
-    """Pack the runner's named portions until the vest carb total is covered.
+    """Pack at most two foods to chew, with drink mix poured into one flask.
 
-    Caffeinated locker gels are counted from the stops that actually use them.
-    The rest of the vest is split across the selected foods, one portion at a time.
+    A running vest is not a grocery bag. One gel type plus one solid, and
+    solids stay at one bite per 90 minutes. The first 90 minutes of the race
+    get no sandwich.
     """
 
     items: list[PackItem] = []
@@ -1319,30 +1484,62 @@ def _pack_named_portions(
         covered += count * product.carbs_g
 
     remaining = max(0.0, carbs_g - covered)
-    portions = [food for food in foods if food.carbs_g > 0]
-    counts = [0 for _ in portions]
-    guard = 0
-    index = 0
-    while portions and remaining >= 1 and guard < 500:
-        slot = index % len(portions)
-        counts[slot] += 1
-        remaining -= portions[slot].carbs_g
-        index += 1
-        guard += 1
-    for food, count in zip(portions, counts, strict=True):
-        if count <= 0:
-            continue
-        items.append(
+    leg_minutes = max(0.0, leg_hours * 60.0)
+    by_key = {food.key: food for food in foods if food.key}
+    drink = by_key.get("drink_30") or next((food for food in foods if food.kind == "liquid"), None)
+    mix_note = ""
+    if drink is not None and remaining >= drink.carbs_g:
+        remaining -= drink.carbs_g
+        mix_note = f"1× {drink.name} ({drink.carbs_g:.0f}g) in one flask."
+
+    gel = by_key.get("gel_25") or by_key.get("iso_gel_22") or next((food for food in foods if food.kind == "gel"), None)
+    solid, slots, earliest_min = _solid_choice(foods, by_key, leg_start_min, leg_minutes)
+
+    food_lines: list[PackItem] = []
+    if solid is not None and slots > 0 and remaining >= solid.carbs_g:
+        quantity = min(slots, int(remaining // solid.carbs_g))
+        if quantity >= 1:
+            food_lines.append(
+                PackItem(
+                    item=solid.name,
+                    quantity=quantity,
+                    detail=_eat_detail(solid.carbs_g, quantity, leg_minutes, earliest_min),
+                )
+            )
+            remaining -= quantity * solid.carbs_g
+    if gel is not None and remaining >= 1:
+        quantity = math.ceil(remaining / gel.carbs_g)
+        food_lines.append(
             PackItem(
-                item=food.name,
-                quantity=count,
-                detail=f"{food.carbs_g:.0f} g carbs each.",
+                item=gel.name,
+                quantity=quantity,
+                detail=_eat_detail(gel.carbs_g, quantity, leg_minutes),
             )
         )
-    if remaining >= 1 and not portions:
-        items.extend(_pack_plain(remaining, 0, 0))
-    items.extend(_pack_plain(0, fluid_ml, sodium_mg))
-    return items
+        remaining = 0
+    elif remaining >= 1 and foods and not food_lines:
+        only = foods[0]
+        food_lines.append(
+            PackItem(
+                item=only.name,
+                quantity=1,
+                detail=_eat_detail(only.carbs_g, 1, leg_minutes),
+            )
+        )
+
+    flask = _flask_item(fluid_ml, leg_hours, mix_note)
+    packed: list[PackItem] = []
+    if flask is not None:
+        packed.append(flask)
+    packed.extend(items)
+    gels = [line for line in food_lines if solid is None or line.item != solid.name]
+    solids = [line for line in food_lines if solid is not None and line.item == solid.name]
+    packed.extend(gels)
+    packed.extend(solids)
+    if sodium_mg >= 1:
+        capsules = math.ceil(sodium_mg / CAPSULE_SODIUM_MG)
+        packed.append(PackItem(item="Salt capsule", quantity=capsules, detail="200 mg sodium each."))
+    return packed
 
 
 def _pack_items(
@@ -1353,6 +1550,8 @@ def _pack_items(
     stops: list[FuelStop] | None = None,
     preference: str = "gels_first",
     named_foods: list[_MenuItem] | None = None,
+    leg_hours: float = 0.0,
+    leg_start_min: float = 0.0,
 ) -> list[PackItem]:
     """Turn an already-buffered vest total into food, flasks, and salt.
 
@@ -1362,9 +1561,18 @@ def _pack_items(
     """
 
     if named_foods:
-        return _pack_named_portions(carbs_g, fluid_ml, sodium_mg, locker or [], named_foods, stops)
+        return _pack_named_portions(
+            carbs_g,
+            fluid_ml,
+            sodium_mg,
+            locker or [],
+            named_foods,
+            stops,
+            leg_hours,
+            leg_start_min,
+        )
     if not locker:
-        return _pack_for_preference(carbs_g, fluid_ml, sodium_mg, preference)
+        return _pack_for_preference(carbs_g, fluid_ml, sodium_mg, preference, leg_hours)
 
     items: list[PackItem] = []
     covered = 0.0
@@ -1399,17 +1607,17 @@ def _pack_items(
     elif remaining >= 1:
         items.extend(_pack_plain(remaining, 0, 0))
 
-    if fluid_ml >= 1:
-        flasks = math.ceil(fluid_ml / FLASK_ML)
+    flask = _flask_item(fluid_ml, leg_hours)
+    if flask is not None:
         liquid = next((item for item in locker if item.kind == "liquid"), None)
         if liquid is None:
-            items.append(PackItem(item="Soft flask 500 ml", quantity=flasks, detail="Water or mix for this leg."))
+            items.append(flask)
         else:
             items.append(
                 PackItem(
                     item=liquid.name,
-                    quantity=flasks,
-                    detail=f"{liquid.carbs_g:.0f} g carbs per 500 ml. The leg fluid total already includes the 15% reserve.",
+                    quantity=flask.quantity,
+                    detail=f"{liquid.carbs_g:.0f} g carbs per 500 ml. {flask.detail}",
                 )
             )
     if sodium_mg >= 1:
@@ -1418,7 +1626,13 @@ def _pack_items(
     return items
 
 
-def _pack_for_preference(carbs_g: float, fluid_ml: float, sodium_mg: float, preference: str) -> list[PackItem]:
+def _pack_for_preference(
+    carbs_g: float,
+    fluid_ml: float,
+    sodium_mg: float,
+    preference: str,
+    leg_hours: float = 0.0,
+) -> list[PackItem]:
     """Split vest carbs into gels, bars, and savoury food, then add flasks and salt.
 
     A short vest under 60 g stays gels, so the small packing check still sees
@@ -1459,20 +1673,20 @@ def _pack_for_preference(carbs_g: float, fluid_ml: float, sodium_mg: float, pref
         if remaining >= 1:
             gels = math.ceil(remaining / GEL_CARBS_G)
             items.append(PackItem(item="Gel", quantity=gels, detail="25 g carbs each. The leg total already includes the 15% reserve."))
-    items.extend(_pack_plain(0, fluid_ml, sodium_mg))
+    items.extend(_pack_plain(0, fluid_ml, sodium_mg, leg_hours))
     return items
 
 
-def _pack_plain(carbs_g: float, fluid_ml: float, sodium_mg: float) -> list[PackItem]:
-    """Default pack: 25 g gels, 500 ml flasks, and 200 mg salt capsules."""
+def _pack_plain(carbs_g: float, fluid_ml: float, sodium_mg: float, leg_hours: float = 0.0) -> list[PackItem]:
+    """Default pack: 25 g gels, at most two or three 500 ml flasks, and salt capsules."""
 
     items: list[PackItem] = []
     if carbs_g >= 1:
         gels = math.ceil(carbs_g / GEL_CARBS_G)
         items.append(PackItem(item="Gel", quantity=gels, detail="25 g carbs each. The leg total already includes the 15% reserve."))
-    if fluid_ml >= 1:
-        flasks = math.ceil(fluid_ml / FLASK_ML)
-        items.append(PackItem(item="Soft flask 500 ml", quantity=flasks, detail="Water or mix for this leg."))
+    flask = _flask_item(fluid_ml, leg_hours)
+    if flask is not None:
+        items.append(flask)
     if sodium_mg >= 1:
         capsules = math.ceil(sodium_mg / CAPSULE_SODIUM_MG)
         items.append(PackItem(item="Salt capsule", quantity=capsules, detail="200 mg sodium each."))

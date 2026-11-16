@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/style.css?v=7">
+  <link rel="stylesheet" href="/style.css?v=8">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -175,7 +175,11 @@
           <section id="plan-summary" class="micro hidden" aria-live="polite"></section>
           <button id="export-card" class="text-btn liquid-pill" type="button" disabled>Export Card</button>
         </div>
-        <div id="leg-switch" class="leg-pills" role="tablist" aria-label="Aid legs"></div>
+        <div id="leg-switch" class="leg-stepper" role="group" aria-label="Aid legs">
+          <button id="leg-prev" class="liquid-pill" type="button">‹ Prev</button>
+          <select id="leg-select" class="leg-select" aria-label="Choose a leg"></select>
+          <button id="leg-next" class="liquid-pill" type="button">Next ›</button>
+        </div>
         <ul id="warnings"></ul>
         <div id="packing-list"></div>
       </div>
@@ -307,6 +311,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=7"></script>
+  <script type="module" src="/app.js?v=8"></script>
 </body>
 </html>
