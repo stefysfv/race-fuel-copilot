@@ -4,7 +4,7 @@ API writes always go to the network. GET /api/races falls back to the last
 successful response.
 */
 
-const CACHE = "race-fuel-v9";
+const CACHE = "race-fuel-v10";
 const SHELL = [
   "/",
   "/index.html",

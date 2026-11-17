@@ -93,6 +93,7 @@ def create_plan(body: GeneratePlanRequest) -> RacePlan:
             aid_stations=stations,
             profile=profile,
             athlete=body.athlete,
+            packed_vest_items=body.packed_vest_items,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown race_id '{body.race_id}'") from None
@@ -117,6 +118,7 @@ def recalibrate_plan(body: RecalibrateRequest) -> RecalibrateResponse:
             longitude=body.longitude,
             elapsed_min=body.elapsed_min,
             gi_rescue=body.gi_rescue,
+            packed_vest_items=body.packed_vest_items,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown race_id '{body.race_id}'") from None

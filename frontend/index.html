@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/style.css?v=9">
+  <link rel="stylesheet" href="/style.css?v=10">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -117,9 +117,7 @@
         <details id="vest-drawer" class="drawer liquid-glass">
           <summary>Vest Food &amp; Fuel</summary>
           <p class="micro">Every gel can be turned off. Real Food does that and selects drink mix, a bar, and dates. Gels turns gels on and turns sandwiches and bars off.</p>
-          <div id="vest-foods" class="food-grid"></div>
-          <p class="micro food-editor-title">Active Items &amp; Custom Food</p>
-          <div id="vest-active" class="food-editor"></div>
+          <div id="vest-foods" class="vest-inventory"></div>
           <div class="custom-food-add">
             <input id="vest-custom-name" type="text" maxlength="60" placeholder="Food name" aria-label="Custom vest food name">
             <input id="vest-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom vest food carbs in grams">
@@ -183,6 +181,7 @@
           <button id="leg-next" class="liquid-pill" type="button">Next ›</button>
         </div>
         <ul id="warnings"></ul>
+        <p id="vest-usage" class="vest-usage hidden"></p>
         <div id="packing-list"></div>
       </div>
     </section>
@@ -313,6 +312,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=9"></script>
+  <script type="module" src="/app.js?v=10"></script>
 </body>
 </html>

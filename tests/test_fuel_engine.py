@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.fuel_engine import RED_MICRO_DOSE_G, classify_zone, generate_plan, snap_custom_aids, sweat_rates
-from backend.models import AidStation, AthleteInput, CustomAidInput, DigestiveZone, FuelForm, TrackPoint
+from backend.models import AidStation, AthleteInput, CustomAidInput, DigestiveZone, FuelForm, PackedVestItem, TrackPoint
 from backend.gpx_parser import location_at_distance, prepare_course
 from backend.main import app
 
@@ -576,3 +576,60 @@ def test_no_gels_never_schedules_a_gel_on_a_climb() -> None:
     assert all("tiny bites" in stop.reason.casefold() for stop in red_dates)
     assert all("gel" not in stop.product.casefold() for stop in dates.fuel_stops)
     assert all("gel" not in item.item.casefold() for leg in dates.aid_legs for item in leg.pack)
+
+
+def test_packed_vest_alternates_and_is_finished() -> None:
+    """3 gels, 2 sandwiches, and 2 bars are mixed across legs and all eaten."""
+
+    points = course_points([(36_000, 0.0)])
+    course = prepare_course(points)
+    stations = []
+    for name, km in (("Hut A", 12.0), ("Hut B", 24.0)):
+        pin = location_at_distance(course, int(km * 1000))
+        stations.append(
+            AidStation(
+                name=name,
+                distance_km=km,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        )
+    plan = generate_plan(
+        race_id="test-course",
+        race_name="Synthetic course",
+        declared_distance_km=36.0,
+        aid_stations=stations,
+        profile=points,
+        athlete=AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60),
+        packed_vest_items=[
+            PackedVestItem(id="gel", name="Standard Gel", carbs_g=25, qty=3, flavor="sweet", form="gel"),
+            PackedVestItem(id="sandwich", name="Half Sandwich", carbs_g=20, qty=2, flavor="savoury", form="solid"),
+            PackedVestItem(id="bar", name="Oat Bar", carbs_g=30, qty=2, flavor="sweet", form="solid"),
+        ],
+    )
+    packed = [stop.product for stop in plan.fuel_stops if stop.reason.startswith("Packed vest")]
+    assert packed.count("Standard Gel") == 3
+    assert packed.count("Half Sandwich") == 2
+    assert packed.count("Oat Bar") == 2
+    for index in range(len(packed) - 2):
+        assert len(set(packed[index:index + 3])) > 1
+    legs_used = sum(
+        1
+        for leg in plan.aid_legs
+        if {item.item for item in leg.pack} & {"Standard Gel", "Half Sandwich", "Oat Bar"}
+    )
+    assert legs_used >= 2
+    assert "3/3 Standard Gel" in plan.vest_inventory_summary
+    assert "2/2 Half Sandwich" in plan.vest_inventory_summary
+    assert "2/2 Oat Bar" in plan.vest_inventory_summary
+    assert "0 left at finish" in plan.vest_inventory_summary
+
+    def packed_qty(name: str) -> int:
+        return sum(item.quantity for leg in plan.aid_legs for item in leg.pack if item.item == name)
+
+    assert packed_qty("Standard Gel") == 3
+    assert packed_qty("Half Sandwich") == 2
+    assert packed_qty("Oat Bar") == 2

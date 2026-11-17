@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=9";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=10";
 
 const PRESETS = [
   { name: "Standard Gel", carbs_g: 25, caffeine_mg: 0, kind: "gel" },
@@ -39,6 +39,7 @@ const state = {
   vestFoods: new Set(["gel_25", "drink_30", "bar", "sandwich", "dates"]),
   stationFoods: new Set(["sandwich", "watermelon", "cucumber", "chips", "cola_broth"]),
   foodEdits: { vest: {}, station: {} },
+  vestQty: {},
   customFoods: { vest: [], station: [] },
   gut: { carb_multiplier: 1, climb_sensitivity: "normal", early_savoury: false, saved: false },
   packedPlan: null,
@@ -89,6 +90,7 @@ const ui = {
   summary: document.querySelector("#plan-summary"),
   warnings: document.querySelector("#warnings"),
   protocol: document.querySelector("#protocol-note"),
+  vestUsage: document.querySelector("#vest-usage"),
   packing: document.querySelector("#packing-list"),
   mapEmpty: document.querySelector("#map-empty"),
   mapBlock: document.querySelector("#map-block"),
@@ -240,7 +242,7 @@ function readAthlete(pace) {
 }
 
 function courseBody(athlete) {
-  const body = { athlete };
+  const body = { athlete, packed_vest_items: packedVestPayload() };
   if (state.customAids.length) {
     body.aid_stations = state.customAids.map((station) => {
       const row = {
@@ -443,6 +445,10 @@ function renderPacking() {
       ui.protocol.textContent = "";
       ui.protocol.classList.add("hidden");
     }
+    if (ui.vestUsage) {
+      ui.vestUsage.textContent = "";
+      ui.vestUsage.classList.add("hidden");
+    }
     closeCrewModal();
     return;
   }
@@ -453,6 +459,11 @@ function renderPacking() {
   if (ui.protocol) {
     ui.protocol.textContent = protocol || "";
     ui.protocol.classList.toggle("hidden", !protocol);
+  }
+  const vestLine = plan.vest_inventory_summary || "";
+  if (ui.vestUsage) {
+    ui.vestUsage.textContent = vestLine;
+    ui.vestUsage.classList.toggle("hidden", !vestLine);
   }
   for (const warning of plan.warnings) {
     if (String(warning).startsWith("Short Race Protocol")) continue;
@@ -2132,6 +2143,95 @@ function foodChipText(which, key) {
   return `${record.name} · ${clampCarbs(record.carbs_g)}g`;
 }
 
+function vestForm(key, name) {
+  if (key === "gel_25" || key === "iso_gel_22" || /gel/i.test(name)) return "gel";
+  if (key === "drink_30" || /drink|mix|cola|broth/i.test(name)) return "liquid";
+  return "solid";
+}
+
+function vestFlavor(flavor) {
+  if (flavor === "Savoury/Salty" || flavor === "savoury") return "savoury";
+  if (flavor === "neutral") return "neutral";
+  return "sweet";
+}
+
+function shownQty(key) {
+  if (state.vestQty[key] == null) return 1;
+  return state.vestQty[key];
+}
+
+function packedVestPayload() {
+  const items = [];
+  const foods = [
+    ...VEST_MENU.map((food) => ({ key: food.key, sodium: food.sodium, flavor: food.flavor })),
+    ...state.customFoods.vest.map((food) => ({ key: food.key, sodium: 0, flavor: food.flavor })),
+  ];
+  for (const food of foods) {
+    if (!state.vestFoods.has(food.key)) continue;
+    const record = foodRecord("vest", food.key);
+    if (!record?.name) continue;
+    const qty = Math.min(30, parseInt(state.vestQty[food.key] ?? 1, 10) || 0);
+    if (qty < 1) continue;
+    items.push({
+      id: food.key,
+      name: record.name.trim(),
+      carbs_g: clampCarbs(record.carbs_g),
+      sodium_mg: food.sodium || 50,
+      caffeine_mg: 0,
+      qty,
+      flavor: vestFlavor(food.flavor),
+      form: vestForm(food.key, record.name),
+    });
+  }
+  return items;
+}
+
+function vestInventoryRows() {
+  const foods = [
+    ...VEST_MENU.map((food) => food.key),
+    ...state.customFoods.vest.map((food) => food.key),
+  ];
+  return foods.map((key) => {
+    const record = foodRecord("vest", key);
+    if (!record) return "";
+    const on = state.vestFoods.has(key);
+    const name = escapeAttr(record.name);
+    const fields = on
+      ? `<span class="vest-fields">
+          <label class="vest-field">Qty
+            <input class="qty-input" type="number" inputmode="numeric" min="1" max="30" step="1" value="${shownQty(key)}" data-qty="${escapeAttr(key)}" aria-label="Quantity of ${name}">
+          </label>
+          <label class="vest-field">Carbs (g)
+            <input class="carbs-input" type="number" inputmode="numeric" min="1" max="120" step="1" value="${clampCarbs(record.carbs_g)}" data-carbs="${escapeAttr(key)}" aria-label="Carbs in grams for ${name}">
+          </label>
+        </span>`
+      : "";
+    return `<div class="vest-row">
+      <button type="button" class="vest-toggle" data-food="${escapeAttr(key)}" aria-pressed="${on ? "true" : "false"}">${on ? "✓ " : ""}${name}</button>
+      ${fields}
+    </div>`;
+  }).join("");
+}
+
+function renderVestRows() {
+  const vest = document.querySelector("#vest-foods");
+  if (vest) vest.innerHTML = vestInventoryRows();
+}
+
+function onVestInventoryInput(event) {
+  const qty = event.target.closest?.(".qty-input");
+  if (qty) {
+    state.vestQty[qty.dataset.qty] = parseInt(qty.value, 10) || 0;
+    saveMenu();
+    return;
+  }
+  const carbs = event.target.closest?.(".carbs-input");
+  if (!carbs) return;
+  const parsed = parseInt(carbs.value, 10);
+  if (parsed >= 1 && parsed <= 120) setFoodCarbs("vest", carbs.dataset.carbs, parsed);
+  saveMenu();
+}
+
 function foodChips(which) {
   const selected = selectedFoods(which);
   const catalog = menuFor(which).map((food) => {
@@ -2160,23 +2260,20 @@ function editorRow(which, key) {
 }
 
 function renderFoods() {
-  const vest = document.querySelector("#vest-foods");
+  renderVestRows();
   const station = document.querySelector("#station-foods");
-  if (vest) vest.innerHTML = foodChips("vest");
   if (station) station.innerHTML = foodChips("station");
   renderActiveFoods();
 }
 
 function renderActiveFoods() {
-  for (const which of ["vest", "station"]) {
-    const root = document.querySelector(which === "vest" ? "#vest-active" : "#station-active");
-    if (!root) continue;
-    const keys = [
-      ...menuFor(which).map((food) => food.key),
-      ...state.customFoods[which].map((food) => food.key),
-    ].filter((key) => selectedFoods(which).has(key));
-    root.innerHTML = keys.map((key) => editorRow(which, key)).join("");
-  }
+  const root = document.querySelector("#station-active");
+  if (!root) return;
+  const keys = [
+    ...menuFor("station").map((food) => food.key),
+    ...state.customFoods.station.map((food) => food.key),
+  ].filter((key) => state.stationFoods.has(key));
+  root.innerHTML = keys.map((key) => editorRow("station", key)).join("");
 }
 
 function saveMenu() {
@@ -2186,6 +2283,7 @@ function saveMenu() {
       station: [...state.stationFoods],
       edits: state.foodEdits,
       custom: state.customFoods,
+      qty: state.vestQty,
     }));
   } catch {
     /* private mode can block storage */
@@ -2231,14 +2329,18 @@ function paintChipLabel(which, key) {
 }
 
 function toggleFood(event, which) {
+  if (event.target.closest?.(".qty-input, .carbs-input")) return;
   const button = event.target.closest?.("[data-food]");
   if (!button) return;
   const bag = selectedFoods(which);
   const key = button.dataset.food;
   if (bag.has(key)) bag.delete(key);
   else bag.add(key);
-  button.setAttribute("aria-pressed", bag.has(key) ? "true" : "false");
-  renderActiveFoods();
+  if (which === "vest") renderVestRows();
+  else {
+    button.setAttribute("aria-pressed", bag.has(key) ? "true" : "false");
+    renderActiveFoods();
+  }
   saveMenu();
 }
 
@@ -2324,6 +2426,13 @@ function loadStoredPreferences() {
         for (const [key, value] of Object.entries(edits)) {
           if (!value || typeof value.name !== "string") continue;
           state.foodEdits[which][key] = { name: value.name, carbs_g: clampCarbs(value.carbs_g) };
+        }
+      }
+      if (menu?.qty && typeof menu.qty === "object") {
+        state.vestQty = {};
+        for (const [key, value] of Object.entries(menu.qty)) {
+          const parsed = parseInt(value, 10);
+          if (Number.isFinite(parsed)) state.vestQty[key] = Math.min(30, Math.max(0, parsed));
         }
       }
       if (Array.isArray(menu?.custom?.[which])) {
@@ -2497,7 +2606,16 @@ function bind() {
   listen("#close-gut-bottom", "click", closeGutModal);
   listen("#save-gut", "click", saveGut);
   listen("#gut-reset", "click", resetGut);
-  document.querySelector("#vest-foods")?.addEventListener("click", (event) => toggleFood(event, "vest"));
+  const vestFoods = document.querySelector("#vest-foods");
+  if (vestFoods) {
+    for (const type of ["click", "mousedown", "touchstart", "keydown"]) {
+      vestFoods.addEventListener(type, (event) => {
+        if (event.target.closest?.(".qty-input, .carbs-input")) event.stopPropagation();
+      });
+    }
+    vestFoods.addEventListener("click", (event) => toggleFood(event, "vest"));
+    vestFoods.addEventListener("input", onVestInventoryInput);
+  }
   document.querySelector("#station-foods")?.addEventListener("click", (event) => toggleFood(event, "station"));
   document.querySelector("#gut-modal")?.addEventListener("click", (event) => {
     const button = event.target.closest?.("[data-gut]");

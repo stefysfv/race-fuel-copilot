@@ -50,6 +50,7 @@ from backend.models import (
     CustomFoodItem,
     LockerItem,
     PackItem,
+    PackedVestItem,
     PlanTotals,
     Race,
     RacePlan,
@@ -636,6 +637,248 @@ def _limit_short_race(legs: list[AidLeg], athlete: AthleteInput, bite: _ShortBit
     return limited
 
 
+# A solid on green, or a gel/liquid on yellow and red, gets this added to
+# its pick score. 1.0 is enough to break a tie, and smaller than the 1.5
+# repeat penalty, so the vest still alternates.
+_ZONE_FIT_BONUS = 1.0
+_REPEAT_PENALTY = 1.5
+
+
+@dataclass
+class _VestStock:
+    """One packed food and how many pieces are still in the vest."""
+
+    item: PackedVestItem
+    initial: int
+    remaining: int
+
+
+def _zone_fit_bonus(item: PackedVestItem, zone: DigestiveZone) -> float:
+    """Prefer real food on runnable ground, and gels or drink on steep ground."""
+
+    if zone == DigestiveZone.green and item.form == "solid":
+        return _ZONE_FIT_BONUS
+    if zone in {DigestiveZone.yellow, DigestiveZone.red} and item.form in {"gel", "liquid"}:
+        return _ZONE_FIT_BONUS
+    return 0.0
+
+
+def _packed_form(item: PackedVestItem) -> FuelForm:
+    if item.form == "liquid":
+        return FuelForm.liquid
+    if item.form == "solid":
+        return FuelForm.real_food
+    return FuelForm.gel
+
+
+def _is_vest_slot(stop: FuelStop) -> bool:
+    """A trail feed that can spend one packed piece. Station plates stay put."""
+
+    if stop.at_aid_station or stop.carbs_g <= 0:
+        return False
+    return stop.form not in {FuelForm.sip, FuelForm.rescue_sip}
+
+
+def _choose_packed(
+    stocks: list[_VestStock],
+    zone: DigestiveZone,
+    last_id: str | None,
+    used_in_leg: dict[str, int],
+    placed_carbs: float,
+    budget_g: float,
+    consume_all: bool,
+) -> _VestStock | None:
+    """Pick the next piece.
+
+    score = (remaining / initial) * 2 + zone fit - repeat penalty.
+    The ratio term drains gel, bar, and sandwich together. The penalty
+    blocks a second copy of the item just eaten, and a third copy in the
+    same leg, while anything else is still in the vest.
+    """
+
+    best: _VestStock | None = None
+    best_key: tuple[float, float, int] | None = None
+    for stock in stocks:
+        if stock.remaining <= 0:
+            continue
+        if not consume_all and placed_carbs + stock.item.carbs_g > budget_g + 0.5:
+            continue
+        ratio = stock.remaining / stock.initial
+        others_left = any(
+            other.remaining > 0 and other.item.id != stock.item.id for other in stocks
+        )
+        penalty = 0.0
+        if last_id == stock.item.id or (used_in_leg.get(stock.item.id, 0) >= 2 and others_left):
+            penalty = _REPEAT_PENALTY
+        score = ratio * 2.0 + _zone_fit_bonus(stock.item, zone) - penalty
+        key = (score, ratio, -used_in_leg.get(stock.item.id, 0))
+        if best_key is None or key > best_key:
+            best = stock
+            best_key = key
+    return best
+
+
+def _stamp_packed(stop: FuelStop, item: PackedVestItem) -> None:
+    stop.product = item.name
+    stop.carbs_g = float(item.carbs_g)
+    stop.sodium_mg = float(item.sodium_mg)
+    stop.caffeine_mg = float(item.caffeine_mg) if item.form == "gel" else 0.0
+    stop.form = _packed_form(item)
+    stop.flavor = "Savoury/Salty" if item.flavor == "savoury" else "Sweet"
+    stop.reason = f"Packed vest: {item.name}"
+
+
+def _leg_index_for_km(legs: list[AidLeg], distance_km: float) -> int:
+    for index, leg in enumerate(legs):
+        if distance_km < leg.to_km - 1e-6 or index == len(legs) - 1:
+            if distance_km >= leg.from_km - 1e-6:
+                return index
+    return max(0, len(legs) - 1)
+
+
+def _keep_pack_line(item: PackItem) -> bool:
+    name = item.item.casefold()
+    return "flask" in name or "salt" in name
+
+
+def _inventory_summary(stocks: list[_VestStock]) -> str:
+    parts = [
+        f"{stock.initial - stock.remaining}/{stock.initial} {stock.item.name}"
+        for stock in stocks
+    ]
+    left = sum(stock.remaining for stock in stocks)
+    return f"Vest Inventory Used: {' · '.join(parts)} ({left} left at finish)"
+
+
+def _consume_packed_vest(
+    stops: list[FuelStop],
+    legs: list[AidLeg],
+    segments: list[Segment],
+    course: list[CoursePoint],
+    items: list[PackedVestItem],
+    feed_interval_min: int,
+) -> tuple[str, str]:
+    """Spend the packed vest across the race, alternating foods.
+
+    Every piece is scheduled when its carbs fit in the race budget. A vest
+    that is bigger than the race is only eaten up to that budget. A short
+    race never reaches this function.
+    """
+
+    stocks = [
+        _VestStock(item=item, initial=item.qty, remaining=item.qty)
+        for item in items
+        if item.qty > 0
+    ]
+    if not stocks or not legs:
+        return "", ""
+
+    budget_g = sum(leg.carbs_g for leg in legs)
+    packed_g = sum(stock.initial * stock.item.carbs_g for stock in stocks)
+    consume_all = packed_g <= budget_g + 0.5
+    placed_g = 0.0
+    extra_g = 0.0
+    last_id: str | None = None
+    used_in_leg: list[dict[str, int]] = [{} for _ in legs]
+    by_id = {stock.item.id: stock.item for stock in stocks}
+
+    def take(stop: FuelStop) -> bool:
+        nonlocal placed_g, last_id
+        leg_index = _leg_index_for_km(legs, stop.distance_km)
+        choice = _choose_packed(
+            stocks,
+            stop.zone,
+            last_id,
+            used_in_leg[leg_index],
+            placed_g,
+            budget_g,
+            consume_all,
+        )
+        if choice is None:
+            return False
+        _stamp_packed(stop, choice.item)
+        choice.remaining -= 1
+        placed_g += choice.item.carbs_g
+        used_in_leg[leg_index][choice.item.id] = used_in_leg[leg_index].get(choice.item.id, 0) + 1
+        last_id = choice.item.id
+        return True
+
+    for stop in stops:
+        if not _is_vest_slot(stop):
+            continue
+        if all(stock.remaining <= 0 for stock in stocks):
+            extra_g += stop.carbs_g
+            continue
+        if not take(stop) and all(stock.remaining <= 0 for stock in stocks):
+            extra_g += stop.carbs_g
+
+    if consume_all and segments and any(stock.remaining > 0 for stock in stocks):
+        finish_min = segments[-1].end_minute
+        minute = float(feed_interval_min)
+        while minute <= finish_min - 10 and any(stock.remaining > 0 for stock in stocks):
+            crowded = any(abs(stop.scheduled_minute - minute) < 8 for stop in stops)
+            placed = None if crowded else _place_feed(segments, minute, prefer_safe=True)
+            if placed is not None:
+                segment, when = placed
+                if not any(abs(stop.scheduled_minute - when) < 8 for stop in stops):
+                    distance_m = _distance_at_minute(segment, when)
+                    location = location_at_distance(course, distance_m)
+                    extra_stop = FuelStop(
+                        sequence=len(stops) + 1,
+                        ideal_minute=minute,
+                        scheduled_minute=when,
+                        shift_minutes=when - minute,
+                        distance_km=distance_m / 1000.0,
+                        latitude=location.lat,
+                        longitude=location.lon,
+                        segment_index=segment.index,
+                        grade_percent=segment.grade_percent,
+                        zone=segment.zone,
+                        carbs_g=1.0,
+                        fluid_ml=0.0,
+                        sodium_mg=0.0,
+                        form=FuelForm.gel,
+                        reason="Open vest slot",
+                    )
+                    if take(extra_stop):
+                        stops.append(extra_stop)
+            minute += feed_interval_min
+        stops.sort(key=lambda stop: (stop.scheduled_minute, stop.sequence))
+        for index, stop in enumerate(stops, start=1):
+            stop.sequence = index
+
+    for leg in legs:
+        kept = [line for line in leg.pack if _keep_pack_line(line)]
+        counts: dict[str, int] = {}
+        for stop in stops:
+            if not stop.reason.startswith("Packed vest:"):
+                continue
+            if _leg_index_for_km(legs, stop.distance_km) != legs.index(leg):
+                continue
+            item = next((stock.item for stock in stocks if stock.item.name == stop.product), None)
+            if item is None:
+                continue
+            counts[item.id] = counts.get(item.id, 0) + 1
+        for item_id, quantity in counts.items():
+            item = by_id[item_id]
+            kept.append(
+                PackItem(
+                    item=item.name,
+                    quantity=quantity,
+                    detail=f"{item.carbs_g:.0f} g carbs each · from the packed vest",
+                )
+            )
+        leg.pack = kept
+
+    note = ""
+    if extra_g >= 1 and all(stock.remaining <= 0 for stock in stocks):
+        note = (
+            "Packed vest 100% consumed · "
+            f"+{int(round(extra_g))}g extra needed from aid stations or extra gels"
+        )
+    return _inventory_summary(stocks), note
+
+
 def generate_plan(
     *,
     race_id: str,
@@ -648,6 +891,7 @@ def generate_plan(
     not_before_min: float = 0.0,
     from_distance_m: float = 0.0,
     rescue_start_min: float | None = None,
+    packed_vest_items: list[PackedVestItem] | None = None,
 ) -> RacePlan:
     """Build a fueling plan for a full course, or for the part still ahead."""
 
@@ -699,6 +943,19 @@ def generate_plan(
             total_m=total_m,
             stops=stops,
         )
+    inventory_summary = ""
+    # A short race stays on one flask and one bite. The vest list is ignored there.
+    if not _is_short_race(athlete) and packed_vest_items:
+        inventory_summary, extra_note = _consume_packed_vest(
+            stops,
+            legs,
+            timed,
+            course,
+            packed_vest_items,
+            athlete.feed_interval_min,
+        )
+        if extra_note:
+            warnings.append(extra_note)
     gain_m = sum(segment.elevation_gain_m for segment in timed)
     clock_start = timed[0].start_minute
     duration = timed[-1].end_minute - clock_start
@@ -720,6 +977,7 @@ def generate_plan(
         aid_stations=stations,
         totals=_totals(stops, athlete),
         warnings=warnings,
+        vest_inventory_summary=inventory_summary,
     )
 
 
@@ -1011,6 +1269,7 @@ def recalibrate(
     longitude: float,
     elapsed_min: float,
     gi_rescue: bool,
+    packed_vest_items: list[PackedVestItem] | None = None,
 ) -> RecalibrateResponse:
     """Snap a live fix to the track and rebuild the plan for the remaining course.
 
@@ -1037,6 +1296,7 @@ def recalibrate(
         not_before_min=elapsed_min,
         from_distance_m=snapped.distance_m,
         rescue_start_min=elapsed_min if gi_rescue else None,
+        packed_vest_items=packed_vest_items,
     )
     # The truncated clock is on the scaled timeline, so "now" matches elapsed.
     minutes_behind = elapsed_min - predicted_min

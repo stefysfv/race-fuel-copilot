@@ -106,6 +106,24 @@ class LockerItem(APIModel):
     kind: str = Field(default="gel", pattern=r"^(gel|liquid|bar)$")
 
 
+class PackedVestItem(APIModel):
+    """One food the runner actually packed, with the exact piece count.
+
+    The fueling engine spends this list. Empty means the plan keeps the
+    usual rotation. `flavor` is sweet, savoury, or neutral. `form` is
+    liquid, gel, or solid.
+    """
+
+    id: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=60)
+    carbs_g: float = Field(gt=0, le=120)
+    sodium_mg: float = Field(default=50.0, ge=0, le=2000)
+    caffeine_mg: float = Field(default=0.0, ge=0, le=400)
+    qty: int = Field(default=1, ge=0, le=30)
+    flavor: str = Field(default="sweet", pattern=r"^(sweet|savoury|neutral)$")
+    form: str = Field(default="gel", pattern=r"^(liquid|gel|solid)$")
+
+
 class CustomFoodItem(APIModel):
     """A renamed portion, or a food that is not in the built-in menu.
 
@@ -235,6 +253,11 @@ class GeneratePlanRequest(APIModel):
     gpx_xml: str | None = None
     athlete: AthleteInput = Field(default_factory=AthleteInput)
     aid_stations: list[CustomAidInput] = Field(default_factory=list, max_length=40)
+    packed_vest_items: list[PackedVestItem] = Field(
+        default_factory=list,
+        max_length=24,
+        description="Exact vest inventory. Empty keeps the usual food rotation.",
+    )
 
     @model_validator(mode="after")
     def exactly_one_course_source(self) -> GeneratePlanRequest:
@@ -261,6 +284,11 @@ class RecalibrateRequest(APIModel):
     # `gi_distress` is the same switch. The live app sends `gi_rescue`.
     gi_rescue: bool = Field(default=False, validation_alias=AliasChoices("gi_rescue", "gi_distress"))
     aid_stations: list[CustomAidInput] = Field(default_factory=list, max_length=40)
+    packed_vest_items: list[PackedVestItem] = Field(
+        default_factory=list,
+        max_length=24,
+        description="Exact vest inventory. Empty keeps the usual food rotation.",
+    )
 
     @model_validator(mode="after")
     def exactly_one_course_source(self) -> RecalibrateRequest:
@@ -389,6 +417,7 @@ class RacePlan(APIModel):
     aid_stations: list[AidStation] = Field(default_factory=list)
     totals: PlanTotals
     warnings: list[str]
+    vest_inventory_summary: str = ""
 
 
 class SnapResult(APIModel):
