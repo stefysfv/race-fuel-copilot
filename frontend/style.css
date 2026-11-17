@@ -22,8 +22,10 @@ html, body, .shell, .app-shell, main {
   overflow-x: hidden;
 }
 html, body {
-  margin: 0;
   height: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
   color: var(--ink);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--paper);
@@ -92,7 +94,7 @@ main {
   min-height: 0;
   overflow-y: auto;
   margin: 0 auto;
-  padding: 8px 0 24px;
+  padding: 8px 0 calc(78px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -106,48 +108,45 @@ main {
   gap: 10px;
   min-width: 0;
 }
-.brand-mark { position: relative; width: 36px; height: 36px; flex: none; }
-.brand-logo {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  object-fit: contain;
-  display: block;
-}
-.brand-fallback {
-  display: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #0f1115;
-}
-.brand-word {
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  background: #0F1115;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16), inset 0 1px 1px rgba(255, 255, 255, 0.25);
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.brand-mark svg { width: 40px; height: 40px; display: block; }
+.brand-copy { min-width: 0; }
+.brand-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: #0F1115;
+  line-height: 1.05;
 }
-.brand-fuel {
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  color: #0f1115;
+.brand-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #FF5500;
+  box-shadow: 0 0 8px #FF5500;
 }
-.brand-copilot {
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.08em;
-  color: #475569;
-}
-.brand-badge {
-  margin-left: auto;
-  padding: 3px 8px;
-  color: var(--muted);
-  font-size: 9px;
+.brand-sub {
+  margin: 2px 0 0;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748B;
 }
 .status { min-height: 0; margin: 6px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
 .status:empty { display: none; margin: 0; }
@@ -486,6 +485,47 @@ input, select {
   font-size: 12px;
   font-weight: 700;
   line-height: 1.35;
+}
+.vest-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.vest-tab {
+  height: 34px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.vest-tab[aria-selected="true"] {
+  background: #0f1115;
+  color: #fff;
+}
+.vest-drinks { display: grid; gap: 8px; }
+.drink-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.coach-note {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(15, 17, 21, 0.05);
+  color: #0f1115;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.trail-clear {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #047857;
 }
 .vest-inventory { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .vest-row { display: flex; align-items: center; gap: 8px; width: 100%; }
@@ -1009,12 +1049,16 @@ body[data-tab="setup"] #configure-pane {
 .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 .tab-bar {
-  flex: none;
+  position: fixed;
+  left: 14px;
+  right: 14px;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  z-index: 1000;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   height: 58px;
-  margin: 0 12px calc(8px + env(safe-area-inset-bottom));
+  margin: 0;
   padding: 4px;
 }
 .tab-bar button {

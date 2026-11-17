@@ -136,11 +136,15 @@ def test_red_window_is_a_micro_dose_and_the_next_window_has_no_debt() -> None:
     red_stops = [
         stop
         for stop in plan.fuel_stops
-        if stop.zone is DigestiveZone.red and 1.0 < stop.distance_km < 6.5
+        if stop.zone is DigestiveZone.red and 1.0 < stop.distance_km < 8.0 and not stop.at_aid_station
     ]
     assert red_stops, "a sustained 15% climb should contain a red feed"
-    assert all(stop.form is FuelForm.micro_dose for stop in red_stops)
-    assert all(stop.carbs_g == pytest.approx(RED_MICRO_DOSE_G, abs=0.1) for stop in red_stops)
+    opening = [stop for stop in red_stops if stop.scheduled_minute < 50]
+    later = [stop for stop in red_stops if stop.scheduled_minute >= 50]
+    assert all(stop.form is FuelForm.sip and stop.carbs_g == 0 for stop in opening)
+    assert later, "the climb after the pre-race meal should still feed"
+    assert all(stop.form is FuelForm.micro_dose for stop in later)
+    assert all(stop.carbs_g == pytest.approx(RED_MICRO_DOSE_G, abs=0.1) for stop in later)
 
     green_after = [
         stop
@@ -219,10 +223,10 @@ def test_long_race_turns_savoury_and_plates_food_stations() -> None:
     food_leg = next(leg for leg in plan.aid_legs if leg.to_name == "Food hut")
     water_leg = next(leg for leg in plan.aid_legs if leg.to_name == "Water only")
     assert food_leg.station_carbs_g == pytest.approx(28.0)
-    assert food_leg.vest_carbs_g == pytest.approx(food_leg.carbs_g - 28.0)
-    assert food_leg.vest_carbs_g < food_leg.carbs_g
+    assert food_leg.vest_carbs_g + food_leg.carryover_carbs_g == pytest.approx(food_leg.carbs_g - 28.0)
+    assert food_leg.carryover_carbs_g > 0
     assert water_leg.station_carbs_g == 0
-    assert water_leg.vest_carbs_g == pytest.approx(water_leg.carbs_g)
+    assert water_leg.vest_carbs_g + water_leg.carryover_carbs_g == pytest.approx(water_leg.carbs_g)
     assert all(stop.product != "Water only" for stop in plan.fuel_stops)
 
 
@@ -345,12 +349,12 @@ def test_selected_vest_and_station_foods_change_the_plan() -> None:
     assert "cucumber" in leg.station_meal.lower()
     assert leg.station_meal.count("(15g)") == 1
     assert leg.station_carbs_g == pytest.approx(15.0)
-    assert leg.vest_carbs_g == pytest.approx(leg.carbs_g - leg.station_carbs_g)
+    assert leg.vest_carbs_g + leg.carryover_carbs_g == pytest.approx(leg.carbs_g - leg.station_carbs_g)
 
 
 def test_custom_food_portions_keep_the_runners_name_and_grams() -> None:
     named = build_plan(
-        course_points([(8_000, 0.0)]),
+        course_points([(16_000, 0.0)]),
         AthleteInput(
             flat_pace_min_per_km=8.0,
             carbs_g_per_hour=60,
@@ -576,6 +580,54 @@ def test_no_gels_never_schedules_a_gel_on_a_climb() -> None:
     assert all("tiny bites" in stop.reason.casefold() for stop in red_dates)
     assert all("gel" not in stop.product.casefold() for stop in dates.fuel_stops)
     assert all("gel" not in item.item.casefold() for leg in dates.aid_legs for item in leg.pack)
+
+
+def test_salt_capsules_are_absent_unless_the_runner_packs_them() -> None:
+    plain = build_plan(course_points([(12_000, 0.0)]), AthleteInput(flat_pace_min_per_km=8.0))
+    assert all("capsule" not in item.item.casefold() for leg in plain.aid_legs for item in leg.pack)
+    early = [stop for stop in plain.fuel_stops if stop.scheduled_minute < 50 and not stop.at_aid_station]
+    assert early
+    assert all(stop.carbs_g == 0 for stop in early)
+
+    salted = build_plan(
+        course_points([(12_000, 0.0)]),
+        AthleteInput(flat_pace_min_per_km=8.0, has_salt_caps=True, salt_caps_qty=4, salt_cap_mg=200),
+    )
+    caps = [item for leg in salted.aid_legs for item in leg.pack if "capsule" in item.item.casefold()]
+    assert caps
+    assert sum(item.quantity for item in caps) == 4
+
+
+def test_fast_descent_carries_no_trail_food() -> None:
+    points = course_points([(5_000, 6.0), (8_000, -8.0)])
+    course = prepare_course(points)
+    pin = location_at_distance(course, 5_000)
+    plan = build_plan(
+        points,
+        AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60),
+        [
+            AidStation(
+                name="Summit",
+                distance_km=5.0,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        ],
+    )
+    descent = next(leg for leg in plan.aid_legs if leg.from_name == "Summit")
+    assert "Fast descent" in descent.note
+    assert descent.vest_carbs_g == 0
+    chewed = [item for item in descent.pack if "flask" not in item.item.casefold()]
+    assert chewed == []
+    trail = [
+        stop
+        for stop in plan.fuel_stops
+        if descent.from_km - 0.05 <= stop.distance_km < descent.to_km and not stop.at_aid_station
+    ]
+    assert all(stop.carbs_g == 0 for stop in trail)
 
 
 def test_packed_vest_alternates_and_is_finished() -> None:

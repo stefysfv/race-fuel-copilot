@@ -225,6 +225,23 @@ class AthleteInput(APIModel):
         le=48 * 60,
         description="Finish target in minutes. 120 or less uses the short-race protocol.",
     )
+    has_salt_caps: bool = Field(
+        default=False,
+        description="Salt capsules are packed only when the runner turns them on.",
+    )
+    salt_caps_qty: int = Field(
+        default=0,
+        ge=0,
+        le=40,
+        description="How many salt capsules are in the vest. Zero means none are packed.",
+    )
+    salt_cap_mg: float = Field(default=200, ge=0, le=2000)
+    flask_count: int = Field(
+        default=2,
+        ge=0,
+        le=6,
+        description="500 ml flasks the runner actually carries.",
+    )
 
 
 class CustomAidInput(APIModel):
@@ -371,6 +388,11 @@ class AidLeg(APIModel):
     vest_carbs_g: float = Field(default=0, ge=0)
     station_carbs_g: float = Field(default=0, ge=0)
     station_meal: str = ""
+    carryover_carbs_g: float = Field(
+        default=0,
+        ge=0,
+        description="Carbs already eaten that are still digesting on this leg.",
+    )
     pack: list[PackItem]
     note: str = ""
 

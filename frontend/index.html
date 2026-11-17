@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#ECF0F5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/style.css?v=10">
+  <link rel="stylesheet" href="/style.css?v=11">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -36,21 +36,17 @@
   <div class="shell app-shell">
     <header class="brand">
       <div class="brand-lockup">
-        <div class="brand-mark">
-          <img src="logo.png" alt="Logo" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-          <span class="brand-fallback" aria-hidden="true">
-            <svg viewBox="0 0 36 36" width="36" height="36">
-              <rect width="36" height="36" rx="10" fill="#0F1115"></rect>
-              <path d="M7 26 L14 16 L18 21 L23 12 L30 26" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"></path>
-              <path d="M8 29 H28" stroke="#FF5500" stroke-width="1.6" stroke-linecap="round"></path>
-            </svg>
-          </span>
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" width="40" height="40">
+            <rect width="40" height="40" rx="12" fill="#0F1115"></rect>
+            <path d="M5 30 L13 16 L20 23 L28 10 L36 30" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"></path>
+            <path d="M5 22 H16 L20 16 L25 23 H36" fill="none" stroke="#FF5500" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></path>
+          </svg>
         </div>
-        <p class="brand-word">
-          <span class="brand-fuel">FUEL</span>
-          <span class="brand-copilot">CO—PILOT</span>
-        </p>
-        <span class="brand-badge liquid-pill">VITOSHA</span>
+        <div class="brand-copy">
+          <p class="brand-title">FUEL CO-PILOT<span class="brand-dot" aria-hidden="true"></span></p>
+          <p class="brand-sub">Mountain Ultra Engine</p>
+        </div>
       </div>
       <p id="app-status" class="status" role="status"></p>
     </header>
@@ -116,22 +112,44 @@
 
         <details id="vest-drawer" class="drawer liquid-glass">
           <summary>Vest Food &amp; Fuel</summary>
-          <p class="micro">Every gel can be turned off. Real Food does that and selects drink mix, a bar, and dates. Gels turns gels on and turns sandwiches and bars off.</p>
+          <div class="vest-tabs" role="tablist" aria-label="Vest categories">
+            <button class="vest-tab" type="button" data-vest-tab="gels" aria-selected="true">Gels</button>
+            <button class="vest-tab" type="button" data-vest-tab="solids" aria-selected="false">Solid Food</button>
+            <button class="vest-tab" type="button" data-vest-tab="drinks" aria-selected="false">Drinks &amp; Salt</button>
+          </div>
           <div id="vest-foods" class="vest-inventory"></div>
-          <div class="custom-food-add">
-            <input id="vest-custom-name" type="text" maxlength="60" placeholder="Food name" aria-label="Custom vest food name">
+          <div id="vest-drinks" class="vest-drinks hidden">
+            <label class="drink-line">500ml Water Flasks Carried
+              <input id="flask-qty" class="qty-input" type="number" inputmode="numeric" min="0" max="6" step="1" value="2" aria-label="Number of 500ml flasks">
+            </label>
+            <div class="vest-row">
+              <button id="drink-toggle" class="vest-toggle" type="button" aria-pressed="true">✓ Carb Drink Mix in Flasks</button>
+              <span class="vest-fields">
+                <label class="vest-field">Scoops
+                  <input id="drink-qty" class="qty-input" type="number" inputmode="numeric" min="1" max="30" step="1" value="1" aria-label="Drink mix servings">
+                </label>
+                <label class="vest-field">Carbs / flask
+                  <input id="drink-carbs" class="carbs-input" type="number" inputmode="numeric" min="1" max="120" step="1" value="30" aria-label="Carbs per 500ml flask">
+                </label>
+              </span>
+            </div>
+            <div class="vest-row">
+              <button id="salt-toggle" class="vest-toggle" type="button" aria-pressed="false">Salt Capsules (optional)</button>
+              <span id="salt-fields" class="vest-fields hidden">
+                <label class="vest-field">Qty
+                  <input id="salt-qty" class="qty-input" type="number" inputmode="numeric" min="1" max="40" step="1" value="0" aria-label="Salt capsule quantity">
+                </label>
+                <label class="vest-field">mg Na
+                  <input id="salt-mg" class="carbs-input" type="number" inputmode="numeric" min="1" max="2000" step="1" value="200" aria-label="Sodium per salt capsule">
+                </label>
+              </span>
+            </div>
+          </div>
+          <div id="vest-custom-row" class="custom-food-add">
+            <input id="vest-custom-name" type="text" maxlength="60" placeholder="Custom gel" aria-label="Custom vest food name">
             <input id="vest-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom vest food carbs in grams">
             <button id="vest-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
             <button id="vest-custom-add" type="button" aria-label="Add custom vest food">+</button>
-          </div>
-          <p id="caffeine-cap" class="micro"></p>
-          <div id="locker-presets" class="pill-row"></div>
-          <ul id="locker-list"></ul>
-          <div class="locker-add">
-            <input id="custom-name" type="text" maxlength="60" placeholder="Name" aria-label="Custom product name">
-            <input id="custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="Carbs" aria-label="Custom product carbs in grams">
-            <input id="custom-caffeine" type="number" inputmode="decimal" min="0" max="400" step="1" placeholder="Caff" aria-label="Custom product caffeine in milligrams">
-            <button id="add-locker" type="button" aria-label="Add custom item">+</button>
           </div>
         </details>
 
@@ -312,6 +330,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=10"></script>
+  <script type="module" src="/app.js?v=11"></script>
 </body>
 </html>

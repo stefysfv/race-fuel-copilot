@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=10";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=11";
 
 const PRESETS = [
   { name: "Standard Gel", carbs_g: 25, caffeine_mg: 0, kind: "gel" },
@@ -40,6 +40,12 @@ const state = {
   stationFoods: new Set(["sandwich", "watermelon", "cucumber", "chips", "cola_broth"]),
   foodEdits: { vest: {}, station: {} },
   vestQty: {},
+  vestTab: "gels",
+  flaskQty: 2,
+  drinkScoops: 1,
+  saltOn: false,
+  saltMg: 200,
+  saltQty: 0,
   customFoods: { vest: [], station: [] },
   gut: { carb_multiplier: 1, climb_sensitivity: "normal", early_savoury: false, saved: false },
   packedPlan: null,
@@ -229,6 +235,10 @@ function readAthlete(pace) {
     carb_multiplier: state.gut.saved ? state.gut.carb_multiplier : 1,
     climb_sensitivity: state.gut.saved ? state.gut.climb_sensitivity : "normal",
     early_savoury: state.gut.saved ? state.gut.early_savoury : false,
+    has_salt_caps: state.saltOn,
+    salt_caps_qty: state.saltOn ? Math.min(40, parseInt(state.saltQty, 10) || 0) : 0,
+    salt_cap_mg: Math.min(2000, parseInt(state.saltMg, 10) || 200),
+    flask_count: Math.min(6, Math.max(0, parseInt(state.flaskQty, 10) || 0)),
   };
   if (state.locker.length) {
     athlete.locker = state.locker.map((item) => ({
@@ -524,28 +534,36 @@ function stepLeg(delta) {
 function packCard(leg) {
   const card = document.createElement("article");
   card.className = "pack-card";
-  const carry = leg.pack.map((item) => carryLine(item)).join("");
+  const salt = leg.pack.filter((item) => /salt capsule/i.test(item.item));
+  const chew = leg.pack.filter((item) => !/flask/i.test(item.item) && !/salt capsule/i.test(item.item));
+  const sips = leg.pack.filter((item) => /flask/i.test(item.item));
+  const lines = [...chew, ...sips, ...salt].map((item) => carryLine(item)).join("");
+  const trail = chew.length
+    ? `<ul class="carry-list">${lines}</ul>`
+    : `<p class="trail-clear">✓ No trail eating needed — focus on pace &amp; hydration sips</p>${lines ? `<ul class="carry-list">${lines}</ul>` : ""}`;
   const station = escapeHtml(leg.to_name);
   const km = Number(leg.to_km).toFixed(1);
   const meal = leg.station_meal
-    ? `<p class="table-where">AT ${escapeHtml(leg.to_name.toUpperCase())} TABLE (KM ${km})</p><p class="eat-note">${escapeHtml(eatLabel(leg))}</p>`
+    ? `<p class="table-where">AT ${escapeHtml(leg.to_name.toUpperCase())} CHECKPOINT TABLE (KM ${km})</p><p class="eat-note">${escapeHtml(eatLabel(leg))}</p>`
     : `<p class="eat-note">Nothing on the table here. Do not pack a station meal for this stop.</p>`;
+  const coach = leg.note ? `<p class="coach-note">${escapeHtml(leg.note)}</p>` : "";
   card.innerHTML = `
     <div class="pack-top">
       <h2>${escapeHtml(leg.from_name)} → ${station} <span class="km">(${Number(leg.distance_km).toFixed(1)} km)</span></h2>
       <span class="time-badge">${compactHours(leg.predicted_minutes)} · +${legGain(leg)}m</span>
     </div>
+    ${coach}
     <div class="macros">
       <span>${grouped(leg.carbs_g)}g Carbs</span>
       <span>${grouped(leg.fluid_ml)}ml Fluid</span>
       <span>${grouped(leg.sodium_mg)}mg Na</span>
     </div>
     <section class="carry-block">
-      <p class="kicker">1. Carry in vest and eat on trail (during this leg)</p>
-      <ul class="carry-list">${carry || "<li>Nothing to carry on this leg.</li>"}</ul>
+      <p class="kicker">On the trail (consume while moving)</p>
+      ${trail}
     </section>
     <section class="table-block">
-      <p class="kicker">2. Eat at ${station} table (on arrival — do not carry)</p>
+      <p class="kicker">At ${station} checkpoint table (eat before leaving)</p>
       ${meal}
     </section>`;
   return card;
@@ -1820,6 +1838,7 @@ function togglePlay() {
 function renderLocker() {
   const presets = document.querySelector("#locker-presets");
   const list = document.querySelector("#locker-list");
+  if (!presets || !list) return;
   presets.replaceChildren();
   for (const preset of PRESETS) {
     const button = document.createElement("button");
@@ -1979,8 +1998,7 @@ function setFuelPreference(value, applyMenu = false) {
 
 function applyStyleMenu(value) {
   if (value === "real_food_heavy") {
-    state.vestFoods.delete("gel_25");
-    state.vestFoods.delete("iso_gel_22");
+    for (const key of ["gel_25", "iso_gel_22", "high_carb_gel", "caffeine_gel"]) state.vestFoods.delete(key);
     state.vestFoods.add("drink_30");
     state.vestFoods.add("bar");
     state.vestFoods.add("dates");
@@ -2031,16 +2049,23 @@ function closeCrewModal() {
   ui.crewModal.classList.add("hidden");
 }
 
-const VEST_MENU = [
-  { key: "gel_25", label: "Standard Gel", carbs: 25, sodium: 50, flavor: "Sweet" },
-  { key: "iso_gel_22", label: "Isotonic Gel", carbs: 22, sodium: 40, flavor: "Sweet" },
-  { key: "drink_30", label: "Drink Mix", carbs: 30, sodium: 250, flavor: "Sweet" },
-  { key: "sandwich", label: "Half Sandwich", carbs: 20, sodium: 140, flavor: "Savoury/Salty" },
-  { key: "bar", label: "Oat Bar", carbs: 30, sodium: 100, flavor: "Sweet" },
-  { key: "dates", label: "Dates", carbs: 28, sodium: 10, flavor: "Sweet" },
-  { key: "chocolate", label: "Chocolate", carbs: 15, sodium: 20, flavor: "Sweet" },
-  { key: "chips", label: "Salted Chips", carbs: 20, sodium: 320, flavor: "Savoury/Salty" },
+const GEL_MENU = [
+  { key: "gel_25", label: "Standard Gel", carbs: 25, sodium: 50, flavor: "Sweet", caffeine: 0, form: "gel" },
+  { key: "iso_gel_22", label: "Isotonic Gel", carbs: 22, sodium: 40, flavor: "Sweet", caffeine: 0, form: "gel" },
+  { key: "high_carb_gel", label: "High-Carb Gel", carbs: 40, sodium: 80, flavor: "Sweet", caffeine: 0, form: "gel" },
+  { key: "caffeine_gel", label: "Caffeine Gel", carbs: 25, sodium: 50, flavor: "Sweet", caffeine: 100, form: "gel" },
 ];
+const SOLID_MENU = [
+  { key: "sandwich", label: "Half Sandwich / Wrap", carbs: 25, sodium: 140, flavor: "Savoury/Salty", caffeine: 0, form: "solid" },
+  { key: "bar", label: "Oat / Energy Bar", carbs: 30, sodium: 100, flavor: "Sweet", caffeine: 0, form: "solid" },
+  { key: "dates", label: "Medjool Dates", carbs: 25, sodium: 10, flavor: "Sweet", caffeine: 0, form: "solid" },
+  { key: "chocolate", label: "Chocolate", carbs: 20, sodium: 20, flavor: "Sweet", caffeine: 0, form: "solid" },
+  { key: "chips", label: "Salted Chips / Pretzels", carbs: 20, sodium: 320, flavor: "Savoury/Salty", caffeine: 0, form: "solid" },
+];
+const DRINK_MENU = [
+  { key: "drink_30", label: "Drink Mix", carbs: 30, sodium: 250, flavor: "Sweet", caffeine: 0, form: "liquid" },
+];
+const VEST_MENU = [...GEL_MENU, ...DRINK_MENU, ...SOLID_MENU];
 const STATION_MENU = [
   { key: "sandwich", label: "Sandwich", carbs: 30, sodium: 250, flavor: "Savoury/Salty" },
   { key: "watermelon", label: "Watermelon", carbs: 12, sodium: 5, flavor: "Sweet" },
@@ -2144,8 +2169,10 @@ function foodChipText(which, key) {
 }
 
 function vestForm(key, name) {
-  if (key === "gel_25" || key === "iso_gel_22" || /gel/i.test(name)) return "gel";
-  if (key === "drink_30" || /drink|mix|cola|broth/i.test(name)) return "liquid";
+  const catalog = VEST_MENU.find((item) => item.key === key);
+  if (catalog?.form) return catalog.form;
+  if (/gel/i.test(name)) return "gel";
+  if (/drink|mix|cola|broth/i.test(name)) return "liquid";
   return "solid";
 }
 
@@ -2177,7 +2204,7 @@ function packedVestPayload() {
       name: record.name.trim(),
       carbs_g: clampCarbs(record.carbs_g),
       sodium_mg: food.sodium || 50,
-      caffeine_mg: 0,
+      caffeine_mg: catalogFood("vest", food.key)?.caffeine || 0,
       qty,
       flavor: vestFlavor(food.flavor),
       form: vestForm(food.key, record.name),
@@ -2187,9 +2214,11 @@ function packedVestPayload() {
 }
 
 function vestInventoryRows() {
+  const catalog = state.vestTab === "solids" ? SOLID_MENU : GEL_MENU;
+  const form = state.vestTab === "solids" ? "solid" : "gel";
   const foods = [
-    ...VEST_MENU.map((food) => food.key),
-    ...state.customFoods.vest.map((food) => food.key),
+    ...catalog.map((food) => food.key),
+    ...state.customFoods.vest.filter((food) => (food.form || "solid") === form).map((food) => food.key),
   ];
   return foods.map((key) => {
     const record = foodRecord("vest", key);
@@ -2214,8 +2243,43 @@ function vestInventoryRows() {
 }
 
 function renderVestRows() {
+  const drinks = state.vestTab === "drinks";
+  document.querySelector("#vest-foods")?.classList.toggle("hidden", drinks);
+  document.querySelector("#vest-drinks")?.classList.toggle("hidden", !drinks);
+  document.querySelector("#vest-custom-row")?.classList.toggle("hidden", drinks);
+  const name = document.querySelector("#vest-custom-name");
+  if (name) name.placeholder = state.vestTab === "solids" ? "Custom solid food" : "Custom gel";
+  for (const button of document.querySelectorAll(".vest-tab")) {
+    button.setAttribute("aria-selected", button.dataset.vestTab === state.vestTab ? "true" : "false");
+  }
   const vest = document.querySelector("#vest-foods");
-  if (vest) vest.innerHTML = vestInventoryRows();
+  if (vest && !drinks) vest.innerHTML = vestInventoryRows();
+  paintDrinkControls();
+}
+
+function paintDrinkControls() {
+  const drinkOn = state.vestFoods.has("drink_30");
+  const drinkButton = document.querySelector("#drink-toggle");
+  if (drinkButton) {
+    drinkButton.setAttribute("aria-pressed", drinkOn ? "true" : "false");
+    drinkButton.textContent = `${drinkOn ? "✓ " : ""}Carb Drink Mix in Flasks`;
+  }
+  const saltButton = document.querySelector("#salt-toggle");
+  if (saltButton) {
+    saltButton.setAttribute("aria-pressed", state.saltOn ? "true" : "false");
+    saltButton.textContent = `${state.saltOn ? "✓ " : ""}Salt Capsules (optional)`;
+  }
+  document.querySelector("#salt-fields")?.classList.toggle("hidden", !state.saltOn);
+  const flask = document.querySelector("#flask-qty");
+  const scoops = document.querySelector("#drink-qty");
+  const carbs = document.querySelector("#drink-carbs");
+  const saltQty = document.querySelector("#salt-qty");
+  const saltMg = document.querySelector("#salt-mg");
+  if (flask && document.activeElement !== flask) flask.value = String(state.flaskQty);
+  if (scoops && document.activeElement !== scoops) scoops.value = String(state.drinkScoops);
+  if (carbs && document.activeElement !== carbs) carbs.value = String(state.drinkCarbs ?? 30);
+  if (saltQty && document.activeElement !== saltQty) saltQty.value = String(state.saltQty);
+  if (saltMg && document.activeElement !== saltMg) saltMg.value = String(state.saltMg);
 }
 
 function onVestInventoryInput(event) {
@@ -2284,6 +2348,11 @@ function saveMenu() {
       edits: state.foodEdits,
       custom: state.customFoods,
       qty: state.vestQty,
+      flaskQty: state.flaskQty,
+      drinkScoops: state.drinkScoops,
+      saltOn: state.saltOn,
+      saltMg: state.saltMg,
+      saltQty: state.saltQty,
     }));
   } catch {
     /* private mode can block storage */
@@ -2389,6 +2458,7 @@ function addCustomFood(which) {
     name,
     carbs_g: clampCarbs(carbs),
     flavor: flavorButton?.dataset.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
+    form: which === "vest" && state.vestTab === "gels" ? "gel" : "solid",
   });
   selectedFoods(which).add(key);
   if (nameInput) nameInput.value = "";
@@ -2418,6 +2488,11 @@ function loadStoredPreferences() {
     }
     const menu = JSON.parse(localStorage.getItem("fuel-menu") || "null");
     if (Array.isArray(menu?.vest)) state.vestFoods = new Set(menu.vest.filter((key) => typeof key === "string"));
+    if (Number.isFinite(Number(menu?.flaskQty))) state.flaskQty = Math.min(6, Math.max(0, Number(menu.flaskQty)));
+    if (Number.isFinite(Number(menu?.drinkScoops))) state.drinkScoops = Math.min(30, Math.max(1, Number(menu.drinkScoops)));
+    if (typeof menu?.saltOn === "boolean") state.saltOn = menu.saltOn;
+    if (Number.isFinite(Number(menu?.saltMg))) state.saltMg = Math.min(2000, Math.max(1, Number(menu.saltMg)));
+    if (Number.isFinite(Number(menu?.saltQty))) state.saltQty = Math.min(40, Math.max(0, Number(menu.saltQty)));
     if (Array.isArray(menu?.station)) state.stationFoods = new Set(menu.station.filter((key) => typeof key === "string"));
     for (const which of ["vest", "station"]) {
       const edits = menu?.edits?.[which];
@@ -2444,6 +2519,7 @@ function loadStoredPreferences() {
             name: item.name,
             carbs_g: clampCarbs(item.carbs_g),
             flavor: item.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
+            form: item.form === "gel" ? "gel" : "solid",
           }));
       }
     }
@@ -2616,6 +2692,42 @@ function bind() {
     vestFoods.addEventListener("click", (event) => toggleFood(event, "vest"));
     vestFoods.addEventListener("input", onVestInventoryInput);
   }
+  for (const button of document.querySelectorAll(".vest-tab")) {
+    button.addEventListener("click", () => {
+      state.vestTab = button.dataset.vestTab || "gels";
+      renderVestRows();
+    });
+  }
+  listen("#drink-toggle", "click", () => {
+    if (state.vestFoods.has("drink_30")) state.vestFoods.delete("drink_30");
+    else state.vestFoods.add("drink_30");
+    paintDrinkControls();
+    saveMenu();
+  });
+  listen("#salt-toggle", "click", () => {
+    state.saltOn = !state.saltOn;
+    if (state.saltOn && !(state.saltQty >= 1)) state.saltQty = 4;
+    paintDrinkControls();
+    saveMenu();
+  });
+  for (const [selector, key] of [
+    ["#flask-qty", "flaskQty"],
+    ["#drink-qty", "drinkScoops"],
+    ["#salt-qty", "saltQty"],
+    ["#salt-mg", "saltMg"],
+  ]) {
+    document.querySelector(selector)?.addEventListener("input", (event) => {
+      event.stopPropagation();
+      state[key] = parseInt(event.target.value, 10) || 0;
+      saveMenu();
+    });
+  }
+  document.querySelector("#drink-carbs")?.addEventListener("input", (event) => {
+    event.stopPropagation();
+    const parsed = parseInt(event.target.value, 10);
+    if (parsed >= 1 && parsed <= 120) setFoodCarbs("vest", "drink_30", parsed);
+    saveMenu();
+  });
   document.querySelector("#station-foods")?.addEventListener("click", (event) => toggleFood(event, "station"));
   document.querySelector("#gut-modal")?.addEventListener("click", (event) => {
     const button = event.target.closest?.("[data-gut]");
