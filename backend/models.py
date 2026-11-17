@@ -11,6 +11,122 @@ from enum import Enum
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
+_FUEL_PREFS = {"gels_first", "balanced_real_food", "real_food_heavy"}
+_FUEL_ALIASES = {
+    "gels": "gels_first",
+    "gel": "gels_first",
+    "balanced": "balanced_real_food",
+    "real_food": "real_food_heavy",
+    "real": "real_food_heavy",
+}
+
+
+def _bounded(value: object, default: float, low: float, high: float) -> float:
+    """Turn a stale JSON number into a value the field will accept."""
+
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    if number != number:
+        return default
+    return min(high, max(low, number))
+
+
+def _clean_locker_item(raw: object) -> dict[str, object] | None:
+    """Drop unknown locker keys and map an old `solid` kind onto `bar`."""
+
+    if not isinstance(raw, dict):
+        return None
+    name = str(raw.get("name") or "").strip()[:60]
+    carbs = _bounded(raw.get("carbs_g", raw.get("carbs")), 0, 0, 120)
+    if not name or not 0 < carbs <= 120:
+        return None
+    kind = str(raw.get("kind") or "gel").strip().lower()
+    if kind in {"solid", "food", "bar", "real"}:
+        kind = "bar"
+    elif kind == "liquid":
+        kind = "liquid"
+    else:
+        kind = "gel"
+    return {
+        "name": name,
+        "carbs_g": carbs,
+        "caffeine_mg": _bounded(raw.get("caffeine_mg", raw.get("caffeine")), 0, 0, 400),
+        "kind": kind,
+    }
+
+
+def _clean_packed_item(raw: object) -> dict[str, object] | None:
+    """Accept a vest row saved by an older screen.
+
+    Old rows used `Sweet`, `kind`, and `carbs`. Those become the current
+    flavor, form, and carb fields. A row that still has no name is skipped
+    instead of rejecting the whole plan.
+    """
+
+    if not isinstance(raw, dict):
+        return None
+    name = str(raw.get("name") or "").strip()[:60]
+    item_id = str(raw.get("id") or name).strip()[:40]
+    carbs = _bounded(raw.get("carbs_g", raw.get("carbs")), 0, 0, 120)
+    if not name or not item_id or not 0 < carbs <= 120:
+        return None
+    flavor = str(raw.get("flavor") or "sweet").strip().lower()
+    if "sav" in flavor or "salt" in flavor:
+        flavor = "savoury"
+    elif flavor == "neutral":
+        flavor = "neutral"
+    else:
+        flavor = "sweet"
+    form = str(raw.get("form") or raw.get("kind") or "gel").strip().lower()
+    if form in {"liquid", "drink", "mix"}:
+        form = "liquid"
+    elif form in {"solid", "bar", "food", "real"}:
+        form = "solid"
+    else:
+        form = "gel"
+    try:
+        qty = int(float(raw.get("qty", 1)))
+    except (TypeError, ValueError):
+        qty = 1
+    return {
+        "id": item_id,
+        "name": name,
+        "carbs_g": carbs,
+        "sodium_mg": _bounded(raw.get("sodium_mg", raw.get("sodium", 50)), 50, 0, 2000),
+        "caffeine_mg": _bounded(raw.get("caffeine_mg", raw.get("caffeine")), 0, 0, 400),
+        "qty": min(30, max(0, qty)),
+        "flavor": flavor,
+        "form": form,
+    }
+
+
+def _prepare_plan_body(data: object) -> object:
+    """Normalize a plan body before strict field checks run."""
+
+    if not isinstance(data, dict):
+        return data
+    body = dict(data)
+    athlete = body.get("athlete")
+    if isinstance(athlete, dict):
+        athlete = dict(athlete)
+        preference = athlete.get("fuel_preference")
+        if isinstance(preference, str) and preference not in _FUEL_PREFS:
+            athlete["fuel_preference"] = _FUEL_ALIASES.get(preference, "gels_first")
+        locker = athlete.get("locker")
+        if isinstance(locker, list):
+            athlete["locker"] = [item for item in (_clean_locker_item(raw) for raw in locker) if item][:12]
+        elif locker is not None:
+            athlete["locker"] = []
+        body["athlete"] = athlete
+    packed = body.get("packed_vest_items")
+    if isinstance(packed, list):
+        body["packed_vest_items"] = [item for item in (_clean_packed_item(raw) for raw in packed) if item][:24]
+    elif packed is not None:
+        body["packed_vest_items"] = []
+    return body
+
 
 class APIModel(BaseModel):
     """Base model: unknown JSON keys are rejected."""
@@ -276,6 +392,11 @@ class GeneratePlanRequest(APIModel):
         description="Exact vest inventory. Empty keeps the usual food rotation.",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_vest(cls, data: object) -> object:
+        return _prepare_plan_body(data)
+
     @model_validator(mode="after")
     def exactly_one_course_source(self) -> GeneratePlanRequest:
         has_race = bool(self.race_id and self.race_id.strip())
@@ -306,6 +427,11 @@ class RecalibrateRequest(APIModel):
         max_length=24,
         description="Exact vest inventory. Empty keeps the usual food rotation.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_vest(cls, data: object) -> object:
+        return _prepare_plan_body(data)
 
     @model_validator(mode="after")
     def exactly_one_course_source(self) -> RecalibrateRequest:

@@ -685,3 +685,36 @@ def test_packed_vest_alternates_and_is_finished() -> None:
     assert packed_qty("Standard Gel") == 3
     assert packed_qty("Half Sandwich") == 2
     assert packed_qty("Oat Bar") == 2
+
+
+def test_legacy_phone_payload_still_builds_a_plan() -> None:
+    """An older saved vest row must not 422 the whole plan."""
+
+    points = course_points([(8_000, 1.0)])
+    response = client.post(
+        "/api/generate-plan",
+        json={
+            "gpx_xml": to_gpx(points),
+            "athlete": {
+                "weight_kg": 70,
+                "flat_pace_min_per_km": 8,
+                "fuel_preference": "balanced",
+                "locker": [{"name": "Old Bar", "carbs_g": 30, "kind": "solid", "notes": "stale"}],
+            },
+            "packed_vest_items": [
+                {
+                    "id": "legacy-gel-with-a-very-long-identifier-from-an-old-phone",
+                    "name": "Standard Gel",
+                    "carbs": 25,
+                    "flavor": "Sweet",
+                    "kind": "gel",
+                    "qty": "2",
+                    "notes": "stale",
+                }
+            ],
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["athlete"]["fuel_preference"] == "balanced_real_food"
+    assert body["athlete"]["locker"][0]["kind"] == "bar"

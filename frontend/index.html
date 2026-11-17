@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/style.css?v=11">
+  <link rel="stylesheet" href="/style.css?v=12">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -33,6 +33,38 @@
   </script>
 </head>
 <body data-tab="setup">
+  <script>
+    (function () {
+      var SHELL = "v12";
+      var guard = "fuel_sw_boot";
+      try {
+        if (sessionStorage.getItem(guard) === SHELL) return;
+      } catch (error) {
+        return;
+      }
+      if (!("serviceWorker" in navigator) || !navigator.serviceWorker.getRegistrations) return;
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        var stale = regs.filter(function (reg) {
+          var worker = reg.active || reg.waiting || reg.installing;
+          var script = worker && worker.scriptURL ? worker.scriptURL : "";
+          return script.indexOf("v=12") === -1;
+        });
+        if (!stale.length) {
+          try { sessionStorage.setItem(guard, SHELL); } catch (error) {}
+          return;
+        }
+        return Promise.all(stale.map(function (reg) { return reg.unregister(); })).then(function () {
+          if (!window.caches || !caches.keys) return;
+          return caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (key) { return caches.delete(key); }));
+          });
+        }).then(function () {
+          try { sessionStorage.setItem(guard, SHELL); } catch (error) {}
+          location.reload();
+        });
+      }).catch(function () {});
+    })();
+  </script>
   <div class="shell app-shell">
     <header class="brand">
       <div class="brand-lockup">
@@ -330,6 +362,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=11"></script>
+  <script type="module" src="/app.js?v=12"></script>
 </body>
 </html>

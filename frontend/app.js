@@ -9,7 +9,18 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=11";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=12";
+
+const STORAGE_SCHEMA_VERSION = "v11";
+
+try {
+  if (localStorage.getItem("fuel_schema_version") !== STORAGE_SCHEMA_VERSION) {
+    localStorage.clear();
+    localStorage.setItem("fuel_schema_version", STORAGE_SCHEMA_VERSION);
+  }
+} catch {
+  /* private mode can block storage; the form still builds a plan */
+}
 
 const PRESETS = [
   { name: "Standard Gel", carbs_g: 25, caffeine_mg: 0, kind: "gel" },
@@ -155,9 +166,9 @@ function mapApi() {
 
 let toastTimer = 0;
 
-function setStatus(message) {
+function setStatus(message, hold = false) {
   const text = message || "";
-  if (ui.status) ui.status.textContent = "";
+  if (ui.status) ui.status.textContent = hold ? text : "";
   if (!ui.toast) return;
   window.clearTimeout(toastTimer);
   if (!text) {
@@ -169,7 +180,7 @@ function setStatus(message) {
   ui.toast.classList.remove("hidden");
   toastTimer = window.setTimeout(() => {
     ui.toast.classList.add("hidden");
-  }, 3000);
+  }, hold ? 12000 : 3000);
 }
 
 function formatClock(minutes) {
@@ -226,7 +237,9 @@ function readAthlete(pace) {
     temperature_c: temperature,
     carbs_g_per_hour: state.carbs,
     flat_pace_min_per_km: pace,
-    fuel_preference: state.fuelPreference,
+    fuel_preference: ["gels_first", "balanced_real_food", "real_food_heavy"].includes(state.fuelPreference)
+      ? state.fuelPreference
+      : "gels_first",
     target_time_minutes: readTargetMin(),
     vest_foods: [...state.vestFoods],
     station_foods: [...state.stationFoods],
@@ -240,14 +253,21 @@ function readAthlete(pace) {
     salt_cap_mg: Math.min(2000, parseInt(state.saltMg, 10) || 200),
     flask_count: Math.min(6, Math.max(0, parseInt(state.flaskQty, 10) || 0)),
   };
-  if (state.locker.length) {
-    athlete.locker = state.locker.map((item) => ({
-      name: item.name,
-      carbs_g: item.carbs_g,
-      caffeine_mg: item.caffeine_mg,
-      kind: item.kind,
-    }));
+  const locker = [];
+  for (const item of Array.isArray(state.locker) ? state.locker : []) {
+    const name = String(item?.name || "").trim().slice(0, 60);
+    const carbs = clampCarbs(item?.carbs_g);
+    if (!name || !(carbs > 0)) continue;
+    const kind = item?.kind === "liquid" || item?.kind === "bar" ? item.kind : "gel";
+    locker.push({
+      name,
+      carbs_g: carbs,
+      caffeine_mg: Math.min(400, Math.max(0, Number(item?.caffeine_mg) || 0)),
+      kind,
+    });
+    if (locker.length >= 12) break;
   }
+  if (locker.length) athlete.locker = locker;
   return athlete;
 }
 
@@ -281,6 +301,20 @@ function courseBody(athlete) {
   return body;
 }
 
+function rejectionMessage(payload, status) {
+  const detail = payload?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const lines = detail.slice(0, 3).map((item) => {
+      const loc = Array.isArray(item?.loc) ? item.loc.filter((part) => part !== "body").join(".") : "";
+      const msg = item?.msg || "Invalid value";
+      return loc ? `${loc}: ${msg}` : msg;
+    }).filter(Boolean);
+    if (lines.length) return lines.join(" ");
+  }
+  return `The server rejected that request (${status}).`;
+}
+
 async function postJson(path, body) {
   let response;
   try {
@@ -294,9 +328,7 @@ async function postJson(path, body) {
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const detail = payload.detail;
-    const message = typeof detail === "string" ? detail : "The server rejected that request.";
-    throw new Error(message);
+    throw new Error(rejectionMessage(payload, response.status));
   }
   return payload;
 }
@@ -360,9 +392,9 @@ async function loadRaces() {
 async function buildPlan(event) {
   event.preventDefault();
   state.autoGps = true;
-  armGpsWatch();
   ui.build.disabled = true;
   try {
+    armGpsWatch();
     const targetMin = readTargetMin();
     setStatus("Building the plan…");
     const probe = await postJson("/api/generate-plan", courseBody(readAthlete(8)));
@@ -389,7 +421,7 @@ async function buildPlan(event) {
     drawMap();
     await persist();
   } catch (error) {
-    setStatus(error.message);
+    setStatus(error?.message || "Could not build the plan.", true);
   } finally {
     ui.build.disabled = false;
   }
@@ -2107,7 +2139,8 @@ function menuFor(which) {
 }
 
 function selectedFoods(which) {
-  return which === "vest" ? state.vestFoods : state.stationFoods;
+  const bag = which === "vest" ? state.vestFoods : state.stationFoods;
+  return bag instanceof Set ? bag : new Set();
 }
 
 function catalogFood(which, key) {
@@ -2140,20 +2173,22 @@ function customFoodPayload(which) {
     const record = foodRecord(which, food.key);
     if (!record?.name) continue;
     items.push({
-      key: food.key,
-      name: record.name,
+      key: String(food.key).slice(0, 40),
+      name: String(record.name).trim().slice(0, 60),
       carbs_g: clampCarbs(record.carbs_g),
       sodium_mg: food.sodium,
       flavor: food.flavor,
     });
   }
-  for (const food of state.customFoods[which]) {
-    if (!selectedFoods(which).has(food.key)) continue;
+  const extras = Array.isArray(state.customFoods?.[which]) ? state.customFoods[which] : [];
+  for (const food of extras) {
+    const key = String(food?.key || "").trim().slice(0, 40);
+    if (!key || !selectedFoods(which).has(food.key)) continue;
     const name = String(food.name || "").trim();
     if (!name) continue;
     items.push({
-      key: food.key,
-      name,
+      key,
+      name: name.slice(0, 60),
       carbs_g: clampCarbs(food.carbs_g),
       sodium_mg: 0,
       flavor: food.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
@@ -2188,29 +2223,38 @@ function shownQty(key) {
 }
 
 function packedVestPayload() {
-  const items = [];
-  const foods = [
-    ...VEST_MENU.map((food) => ({ key: food.key, sodium: food.sodium, flavor: food.flavor })),
-    ...state.customFoods.vest.map((food) => ({ key: food.key, sodium: 0, flavor: food.flavor })),
-  ];
-  for (const food of foods) {
-    if (!state.vestFoods.has(food.key)) continue;
-    const record = foodRecord("vest", food.key);
-    if (!record?.name) continue;
-    const qty = Math.min(30, parseInt(state.vestQty[food.key] ?? 1, 10) || 0);
-    if (qty < 1) continue;
-    items.push({
-      id: food.key,
-      name: record.name.trim(),
-      carbs_g: clampCarbs(record.carbs_g),
-      sodium_mg: food.sodium || 50,
-      caffeine_mg: catalogFood("vest", food.key)?.caffeine || 0,
-      qty,
-      flavor: vestFlavor(food.flavor),
-      form: vestForm(food.key, record.name),
-    });
+  try {
+    const selected = state.vestFoods instanceof Set ? state.vestFoods : new Set();
+    const customs = Array.isArray(state.customFoods?.vest) ? state.customFoods.vest : [];
+    const foods = [
+      ...VEST_MENU.map((food) => ({ key: food.key, sodium: food.sodium, flavor: food.flavor })),
+      ...customs.map((food) => ({ key: food?.key, sodium: 0, flavor: food?.flavor })),
+    ];
+    const items = [];
+    for (const food of foods) {
+      if (!food?.key || !selected.has(food.key)) continue;
+      const record = foodRecord("vest", food.key);
+      const name = String(record?.name || "").trim().slice(0, 60);
+      const id = String(food.key).trim().slice(0, 40);
+      if (!name || !id) continue;
+      const qty = Math.min(30, Math.max(0, parseInt(state.vestQty?.[food.key] ?? 1, 10) || 0));
+      if (qty < 1) continue;
+      items.push({
+        id,
+        name,
+        carbs_g: clampCarbs(record.carbs_g),
+        sodium_mg: Math.min(2000, Math.max(0, Number(food.sodium) || 50)),
+        caffeine_mg: Math.min(400, Math.max(0, Number(catalogFood("vest", food.key)?.caffeine) || 0)),
+        qty,
+        flavor: vestFlavor(food.flavor),
+        form: vestForm(food.key, name),
+      });
+      if (items.length >= 24) break;
+    }
+    return items;
+  } catch {
+    return [];
   }
-  return items;
 }
 
 function vestInventoryRows() {
@@ -2782,7 +2826,16 @@ async function init() {
   setInterval(paintAutoGps, 1000);
   ensureTicker();
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    const hadWorker = Boolean(navigator.serviceWorker.controller);
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadWorker || reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
+    navigator.serviceWorker.register("/sw.js?v=12").then((registration) => {
+      registration.update().catch(() => {});
+    }).catch(() => {});
   }
 }
 
