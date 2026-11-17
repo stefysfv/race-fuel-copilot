@@ -544,6 +544,13 @@ def test_short_race_carries_one_bite_and_skips_the_aid_table() -> None:
     assert _pack_quantity(plan, "Flask") == 1
     assert _pack_quantity(plan, "Gel") == 1
     assert sum(stop.carbs_g for stop in plan.fuel_stops) <= 30
+    feeds = [stop for stop in plan.fuel_stops if stop.carbs_g > 0]
+    assert len(feeds) == 1
+    assert feeds[0].scheduled_minute == pytest.approx(plan.predicted_duration_min * 0.55, abs=8)
+    sips = [stop for stop in plan.fuel_stops if stop.form is FuelForm.sip]
+    assert sips
+    assert all(stop.reason.startswith("Hydration check") for stop in sips)
+    assert all(stop.carbs_g == 0 for stop in sips)
     names = [item.item for leg in plan.aid_legs for item in leg.pack]
     assert "Half Sandwich" not in names
     assert "Oat Bar" not in names

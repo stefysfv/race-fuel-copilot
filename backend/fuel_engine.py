@@ -558,41 +558,90 @@ def _short_race_bite(athlete: AthleteInput) -> _ShortBite | None:
     )
 
 
+HYDRATION_SIP_MIN = 25.0
+SHORT_RACE_SIP = "Hydration check · Take 3–4 sips from flask"
+
+
+def _stop_on_clock(
+    segments: list[Segment],
+    course: list[CoursePoint],
+    ideal: float,
+    *,
+    prefer_safe: bool,
+    carbs_g: float,
+    fluid_ml: float,
+    sodium_mg: float,
+    form: FuelForm,
+    reason: str,
+    product: str,
+    flavor: str,
+) -> FuelStop | None:
+    """One stop near `ideal`, staying inside the terrain window when it can."""
+
+    if not segments:
+        return None
+    placed = _place_feed(segments, ideal, prefer_safe=prefer_safe)
+    if placed is None:
+        segment = min(segments, key=lambda item: abs(item.start_minute - ideal))
+        when = min(max(ideal, segment.start_minute), segment.end_minute)
+    else:
+        segment, when = placed
+    distance_m = _distance_at_minute(segment, when)
+    location = location_at_distance(course, distance_m)
+    return FuelStop(
+        sequence=1,
+        ideal_minute=ideal,
+        scheduled_minute=when,
+        shift_minutes=when - ideal,
+        distance_km=distance_m / 1000.0,
+        latitude=location.lat,
+        longitude=location.lon,
+        segment_index=segment.index,
+        grade_percent=segment.grade_percent,
+        zone=segment.zone,
+        carbs_g=carbs_g,
+        fluid_ml=fluid_ml,
+        sodium_mg=sodium_mg,
+        form=form,
+        reason=reason,
+        product=product,
+        flavor=flavor,
+    )
+
+
 def _short_race_stops(
     segments: list[Segment],
     course: list[CoursePoint],
     athlete: AthleteInput,
     bite: _ShortBite | None,
 ) -> list[FuelStop]:
-    """One feed for the whole race. No aid-station plate."""
+    """One bite at 55% plus a sip reminder every 25 minutes.
 
-    if bite is None or not segments:
+    Races under 65 minutes keep a single halfway bite and no sip loop.
+    Nothing is plated at an aid station.
+    """
+
+    if not segments:
         return []
-    duration = segments[-1].end_minute - segments[0].start_minute
-    if duration <= 20:
-        ideal = max(5.0, duration * 0.5)
-    else:
-        ideal = min(max(20.0, duration * 0.45), duration - 5)
-    placed = _place_feed(segments, ideal, prefer_safe=True)
-    if placed is None:
-        segment = segments[len(segments) // 2]
-        when = min(max(ideal, segment.start_minute), segment.end_minute)
-    else:
-        segment, when = placed
-    distance_m = _distance_at_minute(segment, when)
-    location = location_at_distance(course, distance_m)
-    return [
-        FuelStop(
-            sequence=1,
-            ideal_minute=ideal,
-            scheduled_minute=when,
-            shift_minutes=when - ideal,
-            distance_km=distance_m / 1000.0,
-            latitude=location.lat,
-            longitude=location.lon,
-            segment_index=segment.index,
-            grade_percent=segment.grade_percent,
-            zone=segment.zone,
+    start = segments[0].start_minute
+    duration = segments[-1].end_minute - start
+    if duration <= 1:
+        return []
+    target = athlete.target_time_minutes or 0
+    stops: list[FuelStop] = []
+    feed_at: float | None = None
+    if bite is not None:
+        if target >= 65:
+            feed_at = start + duration * 0.55
+        elif duration <= 20:
+            feed_at = start + max(5.0, duration * 0.5)
+        else:
+            feed_at = start + min(max(20.0, duration * 0.45), duration - 5)
+        feed = _stop_on_clock(
+            segments,
+            course,
+            feed_at,
+            prefer_safe=True,
             carbs_g=bite.carbs_g,
             fluid_ml=120.0,
             sodium_mg=80.0,
@@ -601,7 +650,34 @@ def _short_race_stops(
             product=bite.name,
             flavor=bite.flavor,
         )
-    ]
+        if feed is not None:
+            stops.append(feed)
+            feed_at = feed.scheduled_minute
+    if target >= 65:
+        minute = start + HYDRATION_SIP_MIN
+        while minute < start + duration - 5:
+            if feed_at is None or abs(minute - feed_at) >= 10:
+                sip = _stop_on_clock(
+                    segments,
+                    course,
+                    minute,
+                    prefer_safe=False,
+                    carbs_g=0.0,
+                    fluid_ml=0.0,
+                    sodium_mg=0.0,
+                    form=FuelForm.sip,
+                    reason=SHORT_RACE_SIP,
+                    product="Flask",
+                    flavor="",
+                )
+                if sip is not None:
+                    stops.append(sip)
+            minute += HYDRATION_SIP_MIN
+    stops.sort(key=lambda stop: (stop.scheduled_minute, stop.carbs_g == 0))
+    numbered: list[FuelStop] = []
+    for sequence, stop in enumerate(stops, start=1):
+        numbered.append(stop.model_copy(update={"sequence": sequence}))
+    return numbered
 
 
 def _limit_short_race(legs: list[AidLeg], athlete: AthleteInput, bite: _ShortBite | None) -> list[AidLeg]:

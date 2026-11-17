@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=13";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=14";
 
 const STORAGE_SCHEMA_VERSION = "v11";
 
@@ -38,6 +38,7 @@ const state = {
   carbs: 60,
   aidStations: [],
   customAids: [],
+  editStations: false,
   vestFoods: new Set(["gel_25", "drink_30", "bar", "sandwich", "dates"]),
   stationFoods: new Set(["sandwich", "watermelon", "cucumber", "chips", "cola_broth"]),
   foodEdits: { vest: {}, station: {} },
@@ -335,12 +336,23 @@ function applyTargetDefault() {
   const preset = DEFAULT_TARGETS[state.raceId] || { hours: 6, minutes: 0 };
   ui.hours.value = String(preset.hours);
   ui.minutes.value = String(preset.minutes);
+  paintMinutes();
+}
+
+function paintMinutes() {
+  if (!ui.minutes) return;
+  const parsed = Number(ui.minutes.value);
+  if (!Number.isFinite(parsed)) return;
+  const clamped = Math.min(59, Math.max(0, Math.round(parsed)));
+  ui.minutes.value = String(clamped).padStart(2, "0");
 }
 
 function paintAidDrawer() {
-  if (state.source === "gpx" && ui.aidDrawer) {
-    ui.aidDrawer.open = true;
-  }
+  const show = state.source === "gpx" || state.editStations;
+  ui.aidDrawer?.classList.toggle("hidden", !show);
+  if (show && ui.aidDrawer) ui.aidDrawer.open = true;
+  const toggle = document.querySelector("#edit-stations");
+  if (toggle) toggle.textContent = show && state.source !== "gpx" ? "Hide Stations" : "Edit Stations";
 }
 
 function setSource(source) {
@@ -510,10 +522,6 @@ function renderPacking() {
     ui.exportCard.disabled = true;
     ui.packing.classList.remove("is-all");
     renderLegStepper([]);
-    if (ui.protocol) {
-      ui.protocol.textContent = "";
-      ui.protocol.classList.add("hidden");
-    }
     if (ui.vestUsage) {
       ui.vestUsage.textContent = "";
       ui.vestUsage.classList.add("hidden");
@@ -524,11 +532,6 @@ function renderPacking() {
   const athlete = plan.athlete;
   ui.summary.classList.remove("hidden");
   ui.summary.textContent = `${plan.race_name} · ${formatDuration(plan.predicted_duration_min)} · ${athlete.flat_pace_min_per_km.toFixed(2)} min/km · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
-  const protocol = (plan.warnings || []).find((line) => String(line).startsWith("Short Race Protocol"));
-  if (ui.protocol) {
-    ui.protocol.textContent = protocol || "";
-    ui.protocol.classList.toggle("hidden", !protocol);
-  }
   const vestLine = plan.vest_inventory_summary || "";
   if (ui.vestUsage) {
     ui.vestUsage.textContent = vestLine;
@@ -604,7 +607,7 @@ function packCard(leg) {
   const km = Number(leg.to_km).toFixed(1);
   const meal = leg.station_meal
     ? `<p class="table-where">AT ${escapeHtml(leg.to_name.toUpperCase())} CHECKPOINT TABLE (KM ${km})</p><p class="eat-note">${escapeHtml(eatLabel(leg))}</p>`
-    : `<p class="eat-note">Nothing on the table here. Do not pack a station meal for this stop.</p>`;
+    : `<p class="pass-badge">Pass through station — water refill only if needed</p>`;
   const coach = leg.note ? `<p class="coach-note">${escapeHtml(leg.note)}</p>` : "";
   card.innerHTML = `
     <div class="pack-top">
@@ -613,9 +616,9 @@ function packCard(leg) {
     </div>
     ${coach}
     <div class="macros">
-      <span>${grouped(leg.carbs_g)}g Carbs</span>
-      <span>${grouped(leg.fluid_ml)}ml Fluid</span>
-      <span>${grouped(leg.sodium_mg)}mg Na</span>
+      <div><strong>${grouped(leg.carbs_g)}g</strong><span>Carbs</span></div>
+      <div><strong>${grouped(leg.fluid_ml)}ml</strong><span>Fluid</span></div>
+      <div><strong>${grouped(leg.sodium_mg)}mg</strong><span>Sodium</span></div>
     </div>
     <section class="carry-block">
       <p class="kicker">On the trail (consume while moving)</p>
@@ -675,6 +678,7 @@ function shortIntake(stop) {
     if (stop.reason && !stop.reason.startsWith("Aid Station Plate")) return stop.reason;
     return `Aid plate · ${Math.round(stop.carbs_g)}g`;
   }
+  if (/^Hydration check/i.test(stop.reason || "")) return stop.reason;
   if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) return "Water and salt sip";
   const name = stop.product || "";
   if (/tiny bites/i.test(stop.reason || "")) {
@@ -752,6 +756,7 @@ function renderLive() {
   paintCaffeine(elapsed);
   paintDesk();
   if (!hasPlan) {
+    ui.countdown.classList.remove("is-complete");
     ui.countdown.textContent = "--:--";
     ui.caption.textContent = "";
     ui.intake.textContent = "Build a plan";
@@ -759,18 +764,23 @@ function renderLive() {
     ui.nextAid.textContent = "—";
     return;
   }
-  if (!clockOn) {
-    ui.countdown.textContent = stop ? formatClock(stop.scheduled_minute) : "Done";
-    ui.caption.textContent = stop ? (flavorTag(stop) || "Tap clock") : "";
-  } else if (!stop) {
-    ui.countdown.textContent = "Done";
+  if (!stop) {
+    ui.countdown.classList.add("is-complete");
+    ui.countdown.textContent = "Race Fueling Complete";
     ui.caption.textContent = "";
+    ui.intake.textContent = "Maintain hydration sips to the finish line";
+  } else if (!clockOn) {
+    ui.countdown.classList.remove("is-complete");
+    ui.countdown.textContent = formatClock(stop.scheduled_minute);
+    ui.caption.textContent = flavorTag(stop) || "Tap clock";
+    ui.intake.textContent = shortIntake(stop);
   } else {
+    ui.countdown.classList.remove("is-complete");
     const remaining = stop.scheduled_minute - elapsed;
     ui.countdown.textContent = remaining > 0 ? formatClock(remaining) : "Due";
     ui.caption.textContent = flavorTag(stop);
+    ui.intake.textContent = shortIntake(stop);
   }
-  ui.intake.textContent = stop ? shortIntake(stop) : "";
   paintBadge(currentSegment());
   const aid = nextAid(clockOn ? elapsed : 0);
   ui.nextAid.textContent = aid ? compactHours(aid.etaMin) : "—";
@@ -1667,6 +1677,7 @@ function restore(session) {
   ui.temperature.value = session.temperature ?? "18";
   ui.hours.value = session.hours ?? "5";
   ui.minutes.value = session.minutes ?? "30";
+  paintMinutes();
   ui.gpxName.textContent = state.gpxName ? `Loaded ${state.gpxName}` : "";
   setSource(state.source);
   setCarbs(state.carbs);
@@ -2678,6 +2689,11 @@ function bind() {
     applyTargetDefault();
   });
   listen("#add-aid", "click", onAddAidClick);
+  listen("#edit-stations", "click", () => {
+    state.editStations = !(state.source === "gpx" || state.editStations);
+    if (state.source === "gpx") state.editStations = false;
+    paintAidDrawer();
+  });
   ui.gpxFile?.addEventListener("change", async () => {
     const file = ui.gpxFile.files?.[0];
     if (!file) {
@@ -2693,6 +2709,7 @@ function bind() {
       state.targetEdited = true;
     });
   }
+  ui.minutes?.addEventListener("blur", paintMinutes);
   for (const button of document.querySelectorAll(".gut")) {
     button.addEventListener("click", () => setCarbs(Number(button.dataset.carbs)));
   }
@@ -2859,7 +2876,7 @@ async function init() {
         reloaded = true;
         window.location.reload();
       });
-      navigator.serviceWorker.register("/sw.js?v=13").then((registration) => {
+      navigator.serviceWorker.register("/sw.js?v=14").then((registration) => {
         registration.update().catch(() => {});
       }).catch(() => {});
     }

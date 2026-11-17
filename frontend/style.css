@@ -284,6 +284,13 @@ input, select {
   align-items: stretch;
   gap: 10px;
 }
+.setup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 24px;
+}
 .course-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -334,7 +341,7 @@ input, select {
   -webkit-backdrop-filter: none;
 }
 .time-pair { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; }
-.setup-grid .time-pair input { width: 34px; min-width: 34px; flex: none; }
+.setup-grid .time-pair input { width: 42px; min-width: 42px; flex: none; text-align: center; padding: 0; }
 .time-pair span { color: var(--muted); font-weight: 800; }
 
 .seg-grid {
@@ -406,14 +413,41 @@ input, select {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.macros { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
-.macros span {
-  padding: 3px 8px;
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
+.macros {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 10px 0;
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 14px;
+  padding: 10px;
+  text-align: center;
+}
+.macros strong {
+  display: block;
+  color: #0f1115;
+  font-size: 16px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+}
+.macros span {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pass-badge {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.05);
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
 }
 .leg-stepper {
   display: grid;
@@ -731,6 +765,13 @@ input, select {
 .action-pill { color: var(--ink); min-height: 42px; }
 .thumb-btn:disabled, .action-pill:disabled { opacity: 0.45; }
 .text-btn { height: 32px; color: var(--ink); font-size: 12px; font-weight: 700; }
+#edit-stations {
+  align-self: flex-start;
+  width: auto;
+  height: auto;
+  padding: 0 2px;
+  color: #64748b;
+}
 .text-btn:disabled { opacity: 0.45; }
 
 body[data-tab="map"] main,
@@ -930,16 +971,17 @@ body[data-tab="setup"] #configure-pane {
 .gps-banner, .off-course { display: none !important; }
 
 .hero {
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 16px;
   min-height: 0;
-  padding: 16px 14px 12px;
+  padding: 24px 20px;
   text-align: center;
 }
 .hero-caffeine {
-  margin: 12px 0 0;
+  margin: 0;
   padding-top: 8px;
   border-top: 1px solid rgba(15, 17, 21, 0.08);
   color: #64748b;
@@ -963,9 +1005,14 @@ body[data-tab="setup"] #configure-pane {
   font-variant-numeric: tabular-nums;
   box-shadow: none;
 }
-.intake { margin: 8px 0 0; font-size: 15px; font-weight: 700; }
+.countdown.is-complete {
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+.intake { margin: 0; font-size: 15px; font-weight: 700; }
 .flavor {
-  margin: 4px 0 0;
+  margin: 0;
   color: #ff5500;
   font-size: 11px;
   font-weight: 800;
@@ -976,7 +1023,7 @@ body[data-tab="setup"] #configure-pane {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin-top: 14px;
+  margin-top: 0;
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.55);
   text-align: center;
