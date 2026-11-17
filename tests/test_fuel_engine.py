@@ -499,3 +499,80 @@ def test_gut_calibration_scales_carbs_and_tightens_climbs() -> None:
     assert classify_zone(4.0) is DigestiveZone.green
     assert normal.segments[middle].zone is DigestiveZone.green
     assert sensitive.segments[middle].zone is DigestiveZone.yellow
+
+
+def _pack_quantity(plan, needle: str) -> int:
+    return sum(
+        item.quantity
+        for leg in plan.aid_legs
+        for item in leg.pack
+        if needle.casefold() in item.item.casefold()
+    )
+
+
+def test_short_race_carries_one_bite_and_skips_the_aid_table() -> None:
+    points = course_points([(12_000, 0.0)])
+    course = prepare_course(points)
+    pin = location_at_distance(course, 6_000)
+    station = AidStation(
+        name="Hut",
+        distance_km=6.0,
+        lat=pin.lat,
+        lon=pin.lon,
+        elevation_m=pin.elevation_m,
+        has_water=True,
+        has_food=True,
+    )
+    plan = build_plan(
+        points,
+        AthleteInput(
+            flat_pace_min_per_km=8.0,
+            temperature_c=18,
+            target_time_minutes=100,
+            vest_foods=["gel_25", "drink_30", "bar", "sandwich", "dates"],
+        ),
+        [station],
+    )
+    assert any(line.startswith("Short Race Protocol") for line in plan.warnings)
+    assert all(leg.station_meal == "" for leg in plan.aid_legs)
+    assert all(leg.station_carbs_g == 0 for leg in plan.aid_legs)
+    assert not any(stop.at_aid_station for stop in plan.fuel_stops)
+    assert _pack_quantity(plan, "Flask") == 1
+    assert _pack_quantity(plan, "Gel") == 1
+    assert sum(stop.carbs_g for stop in plan.fuel_stops) <= 30
+    names = [item.item for leg in plan.aid_legs for item in leg.pack]
+    assert "Half Sandwich" not in names
+    assert "Oat Bar" not in names
+
+    hot = build_plan(
+        points,
+        AthleteInput(flat_pace_min_per_km=8.0, temperature_c=28, target_time_minutes=90),
+    )
+    assert _pack_quantity(hot, "Flask") == 2
+    assert _pack_quantity(hot, "Gel") == 1
+
+
+def test_no_gels_never_schedules_a_gel_on_a_climb() -> None:
+    points = course_points([(8_000, 15.0), (4_000, 0.0)])
+    drink = build_plan(
+        points,
+        AthleteInput(flat_pace_min_per_km=8.0, vest_foods=["drink_30", "dates", "bar"]),
+    )
+    red = [stop for stop in drink.fuel_stops if stop.zone is DigestiveZone.red and stop.carbs_g > 0]
+    assert red, "a 15% climb should still feed"
+    assert all(stop.product == "Drink Mix" for stop in red)
+    assert all(stop.form is FuelForm.micro_dose for stop in red)
+    assert all(stop.carbs_g == pytest.approx(15.0, abs=0.1) for stop in red)
+    assert all("gel" not in stop.product.casefold() for stop in drink.fuel_stops)
+    assert all("gel" not in item.item.casefold() for leg in drink.aid_legs for item in leg.pack)
+
+    dates = build_plan(
+        points,
+        AthleteInput(flat_pace_min_per_km=8.0, vest_foods=["dates"]),
+    )
+    red_dates = [stop for stop in dates.fuel_stops if stop.zone is DigestiveZone.red and stop.carbs_g > 0]
+    assert red_dates
+    assert all("date" in stop.product.casefold() for stop in red_dates)
+    assert all("tiny bites" in stop.reason.casefold() for stop in red_dates)
+    assert all("gel" not in stop.product.casefold() for stop in dates.fuel_stops)
+    assert all("gel" not in item.item.casefold() for leg in dates.aid_legs for item in leg.pack)

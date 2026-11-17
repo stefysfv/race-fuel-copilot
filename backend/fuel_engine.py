@@ -92,6 +92,13 @@ EARLY_SAVOURY_MIN = 90.0
 OPENING_EASY_MIN = 90.0
 SOLID_EVERY_MIN = 90.0
 AID_LEG_MIN_MINUTES = 40.0
+# A race of two hours or less still has glycogen. One bottle and one small bite.
+SHORT_RACE_MAX_MIN = 120.0
+SHORT_RACE_NOTE = (
+    "Short Race Protocol: Rely on pre-race carb-loading (eat 2h before). "
+    "Minimal mid-race fueling required."
+)
+GEL_VEST_KEYS = frozenset({"gel_25", "iso_gel_22"})
 FLASK_CAP = 2
 FLASK_CAP_LONG = 3
 LONG_LEG_HOURS = 2.5
@@ -258,6 +265,23 @@ def _resolved_foods(
             )
         )
     return resolved
+
+
+def _gels_selected(athlete: AthleteInput) -> bool:
+    """True only when the runner actually ticked a gel.
+
+    An empty vest, or a vest of dates and drink mix, must not fall back to a
+    Standard Gel. The check is the two gel keys, not the word "gel" in a note.
+    """
+
+    return any(key in athlete.vest_foods for key in GEL_VEST_KEYS)
+
+
+def _is_short_race(athlete: AthleteInput) -> bool:
+    """Glycogen lasts a race of two hours or less. The target clock decides."""
+
+    target = athlete.target_time_minutes
+    return target is not None and target <= SHORT_RACE_MAX_MIN
 
 
 def _green_max_for(athlete: AthleteInput) -> float:
@@ -456,6 +480,162 @@ def build_timed_segments(
     return timed
 
 
+@dataclass(frozen=True)
+class _ShortBite:
+    """The single mid-race bite for a race of two hours or less."""
+
+    name: str
+    carbs_g: float
+    form: FuelForm
+    detail: str
+    flavor: str
+
+
+def _short_race_bite(athlete: AthleteInput) -> _ShortBite | None:
+    """One gel, or one dates/chews portion. Never a stack of both.
+
+    Gels are used only when the runner left one ticked. Otherwise the bite is
+    dates, chocolate, a bar, or drink mix, capped around 30 g.
+    """
+
+    foods = _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
+    by_key = {item.key: item for item in foods if item.key}
+    if _gels_selected(athlete):
+        item = by_key.get("gel_25") or by_key.get("iso_gel_22") or VEST_MENU["gel_25"]
+        carbs = min(30.0, item.carbs_g)
+        return _ShortBite(
+            item.name,
+            carbs,
+            FuelForm.gel,
+            f"The only mid-race bite ({carbs:.0f} g). Eat it once, near halfway.",
+            item.flavor,
+        )
+    for key in ("dates", "chocolate", "bar"):
+        item = by_key.get(key)
+        if item is None:
+            continue
+        carbs = min(30.0, item.carbs_g)
+        return _ShortBite(
+            item.name,
+            carbs,
+            FuelForm.real_food,
+            f"The only mid-race bite ({carbs:.0f} g). Take tiny bites.",
+            item.flavor,
+        )
+    drink = by_key.get("drink_30")
+    if drink is not None:
+        carbs = min(30.0, drink.carbs_g)
+        return _ShortBite(
+            drink.name,
+            carbs,
+            FuelForm.liquid,
+            f"1× {drink.name} ({carbs:.0f}g) in the flask. No extra food.",
+            drink.flavor,
+        )
+    solids = [item for item in foods if item.kind == "solid"]
+    if not solids:
+        return None
+    item = solids[0]
+    carbs = min(30.0, item.carbs_g)
+    return _ShortBite(
+        item.name,
+        carbs,
+        FuelForm.real_food,
+        f"The only mid-race bite ({carbs:.0f} g). Take tiny bites.",
+        item.flavor,
+    )
+
+
+def _short_race_stops(
+    segments: list[Segment],
+    course: list[CoursePoint],
+    athlete: AthleteInput,
+    bite: _ShortBite | None,
+) -> list[FuelStop]:
+    """One feed for the whole race. No aid-station plate."""
+
+    if bite is None or not segments:
+        return []
+    duration = segments[-1].end_minute - segments[0].start_minute
+    if duration <= 20:
+        ideal = max(5.0, duration * 0.5)
+    else:
+        ideal = min(max(20.0, duration * 0.45), duration - 5)
+    placed = _place_feed(segments, ideal, prefer_safe=True)
+    if placed is None:
+        segment = segments[len(segments) // 2]
+        when = min(max(ideal, segment.start_minute), segment.end_minute)
+    else:
+        segment, when = placed
+    distance_m = _distance_at_minute(segment, when)
+    location = location_at_distance(course, distance_m)
+    return [
+        FuelStop(
+            sequence=1,
+            ideal_minute=ideal,
+            scheduled_minute=when,
+            shift_minutes=when - ideal,
+            distance_km=distance_m / 1000.0,
+            latitude=location.lat,
+            longitude=location.lon,
+            segment_index=segment.index,
+            grade_percent=segment.grade_percent,
+            zone=segment.zone,
+            carbs_g=bite.carbs_g,
+            fluid_ml=120.0,
+            sodium_mg=80.0,
+            form=bite.form,
+            reason=f"{SHORT_RACE_NOTE} {bite.detail}",
+            product=bite.name,
+            flavor=bite.flavor,
+        )
+    ]
+
+
+def _limit_short_race(legs: list[AidLeg], athlete: AthleteInput, bite: _ShortBite | None) -> list[AidLeg]:
+    """Cap the whole race at one bottle (two in the heat) and one bite.
+
+    Later legs carry nothing new. The aid-station table stays empty.
+    """
+
+    flasks = 2 if athlete.temperature_c > 25 else 1
+    flask_detail = "Water for the whole race."
+    if bite is not None and bite.form is FuelForm.liquid:
+        flask_detail = bite.detail
+    limited: list[AidLeg] = []
+    for index, leg in enumerate(legs):
+        if index == 0:
+            pack = [PackItem(item="500ml Flask", quantity=flasks, detail=flask_detail)]
+            carbs = 0.0
+            if bite is not None and bite.form is not FuelForm.liquid:
+                pack.append(PackItem(item=bite.name, quantity=1, detail=bite.detail))
+                carbs = bite.carbs_g
+            elif bite is not None:
+                carbs = bite.carbs_g
+            fluid = flasks * FLASK_ML
+            sodium = 200.0
+        else:
+            pack = []
+            carbs = 0.0
+            fluid = 0.0
+            sodium = 0.0
+        limited.append(
+            leg.model_copy(
+                update={
+                    "pack": pack,
+                    "carbs_g": carbs,
+                    "fluid_ml": fluid,
+                    "sodium_mg": sodium,
+                    "vest_carbs_g": carbs,
+                    "station_carbs_g": 0.0,
+                    "station_meal": "",
+                    "note": SHORT_RACE_NOTE if index == 0 else "",
+                }
+            )
+        )
+    return limited
+
+
 def generate_plan(
     *,
     race_id: str,
@@ -482,26 +662,43 @@ def generate_plan(
         raise ValueError("No course remaining from this point")
 
     athlete = _scaled_athlete(_with_sweat_rates(athlete))
-    stops = schedule_fuel(
-        timed,
-        course,
-        athlete,
-        not_before_min=not_before_min,
-        rescue_start_min=rescue_start_min,
-    )
     warnings = _distance_warnings(declared_distance_km, course[-1].distance_m / 1000.0)
 
     total_m = course[-1].distance_m
     stations = _stations_on_course(aid_stations, total_m, warnings)
-    stops = _insert_aid_bites(stops, stations, timed, athlete)
-    legs = build_aid_legs(
-        stations,
-        timed,
-        athlete,
-        from_distance_m=max(0.0, from_distance_m),
-        total_m=total_m,
-        stops=stops,
-    )
+    if _is_short_race(athlete):
+        warnings.insert(0, SHORT_RACE_NOTE)
+        bite = _short_race_bite(athlete)
+        stops = _short_race_stops(timed, course, athlete, bite)
+        legs = _limit_short_race(
+            build_aid_legs(
+                stations,
+                timed,
+                athlete,
+                from_distance_m=max(0.0, from_distance_m),
+                total_m=total_m,
+                stops=stops,
+            ),
+            athlete,
+            bite,
+        )
+    else:
+        stops = schedule_fuel(
+            timed,
+            course,
+            athlete,
+            not_before_min=not_before_min,
+            rescue_start_min=rescue_start_min,
+        )
+        stops = _insert_aid_bites(stops, stations, timed, athlete)
+        legs = build_aid_legs(
+            stations,
+            timed,
+            athlete,
+            from_distance_m=max(0.0, from_distance_m),
+            total_m=total_m,
+            stops=stops,
+        )
     gain_m = sum(segment.elevation_gain_m for segment in timed)
     clock_start = timed[0].start_minute
     duration = timed[-1].end_minute - clock_start
@@ -582,15 +779,18 @@ def schedule_fuel(
             gentle_left=gentle_left,
         )
         gentle_left = dose.gentle_left
-        product, caffeine_mg, reason = _apply_locker(
-            dose,
-            segments,
-            when,
-            race_start,
-            finish_min,
-            athlete,
-            caffeine_used,
-        )
+        if _gels_selected(athlete):
+            product, caffeine_mg, reason = _apply_locker(
+                dose,
+                segments,
+                when,
+                race_start,
+                finish_min,
+                athlete,
+                caffeine_used,
+            )
+        else:
+            product, caffeine_mg, reason = "", 0.0, dose.reason
         caffeine_used += caffeine_mg
         # A caffeinated gel stays a gel. Every other green feed can rotate onto real food.
         food_name = ""
@@ -714,10 +914,11 @@ def build_aid_legs(
                     leg_stops,
                     athlete.fuel_preference,
                     _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
-                    if athlete.custom_vest_items
+                    if athlete.custom_vest_items or not _gels_selected(athlete)
                     else None,
                     hours,
                     start_min,
+                    allow_gels=_gels_selected(athlete),
                 ),
                 note="",
             )
@@ -1170,12 +1371,25 @@ def _apply_food_preference(
     """
 
     del grade_percent
-    if dose.carbs_g <= 0 or dose.form in {FuelForm.rescue_sip, FuelForm.sip, FuelForm.micro_dose}:
+    if dose.carbs_g <= 0 or dose.form in {FuelForm.rescue_sip, FuelForm.sip}:
         return "", ""
+    # A red micro-dose stays a plain liquid sip when a gel is in the vest.
+    # With no gel ticked, the same 15 g has to come from drink mix or tiny bites.
+    if dose.form is FuelForm.micro_dose and _gels_selected(athlete):
+        return "", ""
+    if not _gels_selected(athlete) and (dose.form is FuelForm.micro_dose or zone in {DigestiveZone.red, DigestiveZone.yellow}):
+        return _climb_without_gel(dose, athlete, zone)
 
     foods = _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
-    if not foods:
+    if not _gels_selected(athlete):
+        foods = [item for item in foods if item.kind != "gel" and item.key not in GEL_VEST_KEYS]
+    elif not foods:
         foods = [VEST_MENU["gel_25"]]
+    if not foods:
+        dose.form = FuelForm.sip
+        dose.carbs_g = 0
+        dose.reason += " No gel is in the vest, and no other vest food is selected."
+        return "", ""
     if clock is None:
         clock = _MenuClock()
     easy = [item for item in foods if item.kind in {"gel", "liquid"}]
@@ -1212,6 +1426,40 @@ def _apply_food_preference(
                 clock.last_solid_min = when
                 return pick(between)
     return pick(easy or foods[:1])
+
+
+def _climb_without_gel(dose: _Dose, athlete: AthleteInput, zone: DigestiveZone) -> tuple[str, str]:
+    """Cover a hard climb without inventing a gel.
+
+    Drink mix is the fast substitute. If that is off too, the softest solid
+    is eaten in tiny bites and the carb count stays the small climb dose.
+    """
+
+    foods = [
+        item
+        for item in _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
+        if item.kind != "gel" and item.key not in GEL_VEST_KEYS
+    ]
+    drink = next((item for item in foods if item.key == "drink_30" or item.kind == "liquid"), None)
+    if drink is not None:
+        dose.form = FuelForm.micro_dose if zone is DigestiveZone.red else FuelForm.liquid
+        dose.reason += f" No gel in the vest. {drink.name} covers this climb."
+        return drink.name, drink.flavor
+    soft: _MenuItem | None = None
+    for key in ("dates", "chocolate", "bar", "chips", "sandwich"):
+        soft = next((item for item in foods if item.key == key), None)
+        if soft is not None:
+            break
+    if soft is None:
+        soft = next((item for item in foods if item.kind == "solid"), None)
+    if soft is None:
+        dose.form = FuelForm.sip
+        dose.carbs_g = 0
+        dose.reason += " No gel or drink mix in the vest. Sip water and salt on this climb."
+        return "", ""
+    dose.form = FuelForm.micro_dose if zone is DigestiveZone.red else FuelForm.real_food
+    dose.reason += f" No gel or drink mix. Take tiny bites of {soft.name}."
+    return soft.name, soft.flavor
 
 
 def _approach_minutes(
@@ -1458,6 +1706,7 @@ def _pack_named_portions(
     stops: list[FuelStop] | None,
     leg_hours: float,
     leg_start_min: float,
+    allow_gels: bool = True,
 ) -> list[PackItem]:
     """Pack at most two foods to chew, with drink mix poured into one flask.
 
@@ -1466,10 +1715,12 @@ def _pack_named_portions(
     get no sandwich.
     """
 
+    if not allow_gels:
+        foods = [food for food in foods if food.kind != "gel" and food.key not in GEL_VEST_KEYS]
     items: list[PackItem] = []
     covered = 0.0
     for product in locker:
-        if product.kind != "gel" or product.caffeine_mg <= 0:
+        if not allow_gels or product.kind != "gel" or product.caffeine_mg <= 0:
             continue
         count = sum(1 for stop in (stops or []) if stop.product == product.name and stop.caffeine_mg > 0)
         if count <= 0:
@@ -1492,7 +1743,9 @@ def _pack_named_portions(
         remaining -= drink.carbs_g
         mix_note = f"1× {drink.name} ({drink.carbs_g:.0f}g) in one flask."
 
-    gel = by_key.get("gel_25") or by_key.get("iso_gel_22") or next((food for food in foods if food.kind == "gel"), None)
+    gel = None
+    if allow_gels and ("gel_25" in by_key or "iso_gel_22" in by_key):
+        gel = by_key.get("gel_25") or by_key.get("iso_gel_22")
     solid, slots, earliest_min = _solid_choice(foods, by_key, leg_start_min, leg_minutes)
 
     food_lines: list[PackItem] = []
@@ -1552,6 +1805,7 @@ def _pack_items(
     named_foods: list[_MenuItem] | None = None,
     leg_hours: float = 0.0,
     leg_start_min: float = 0.0,
+    allow_gels: bool = True,
 ) -> list[PackItem]:
     """Turn an already-buffered vest total into food, flasks, and salt.
 
@@ -1560,7 +1814,7 @@ def _pack_items(
     Named portions are used only when the runner sent custom vest foods.
     """
 
-    if named_foods:
+    if named_foods is not None:
         return _pack_named_portions(
             carbs_g,
             fluid_ml,
@@ -1570,6 +1824,7 @@ def _pack_items(
             stops,
             leg_hours,
             leg_start_min,
+            allow_gels,
         )
     if not locker:
         return _pack_for_preference(carbs_g, fluid_ml, sodium_mg, preference, leg_hours)

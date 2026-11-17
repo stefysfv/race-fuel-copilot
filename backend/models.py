@@ -201,6 +201,12 @@ class AthleteInput(APIModel):
         default=False,
         description="Start savoury foods at 1.5 h instead of 2.5 h.",
     )
+    target_time_minutes: float | None = Field(
+        default=None,
+        ge=30,
+        le=48 * 60,
+        description="Finish target in minutes. 120 or less uses the short-race protocol.",
+    )
 
 
 class CustomAidInput(APIModel):

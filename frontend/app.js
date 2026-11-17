@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=8";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=9";
 
 const PRESETS = [
   { name: "Standard Gel", carbs_g: 25, caffeine_mg: 0, kind: "gel" },
@@ -88,6 +88,7 @@ const ui = {
   minutes: document.querySelector("#target-minutes"),
   summary: document.querySelector("#plan-summary"),
   warnings: document.querySelector("#warnings"),
+  protocol: document.querySelector("#protocol-note"),
   packing: document.querySelector("#packing-list"),
   mapEmpty: document.querySelector("#map-empty"),
   mapBlock: document.querySelector("#map-block"),
@@ -218,6 +219,7 @@ function readAthlete(pace) {
     carbs_g_per_hour: state.carbs,
     flat_pace_min_per_km: pace,
     fuel_preference: state.fuelPreference,
+    target_time_minutes: readTargetMin(),
     vest_foods: [...state.vestFoods],
     station_foods: [...state.stationFoods],
     custom_vest_items: customFoodPayload("vest"),
@@ -437,13 +439,23 @@ function renderPacking() {
     ui.exportCard.disabled = true;
     ui.packing.classList.remove("is-all");
     renderLegStepper([]);
+    if (ui.protocol) {
+      ui.protocol.textContent = "";
+      ui.protocol.classList.add("hidden");
+    }
     closeCrewModal();
     return;
   }
   const athlete = plan.athlete;
   ui.summary.classList.remove("hidden");
   ui.summary.textContent = `${plan.race_name} · ${formatDuration(plan.predicted_duration_min)} · ${athlete.flat_pace_min_per_km.toFixed(2)} min/km · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
+  const protocol = (plan.warnings || []).find((line) => String(line).startsWith("Short Race Protocol"));
+  if (ui.protocol) {
+    ui.protocol.textContent = protocol || "";
+    ui.protocol.classList.toggle("hidden", !protocol);
+  }
   for (const warning of plan.warnings) {
+    if (String(warning).startsWith("Short Race Protocol")) continue;
     const item = document.createElement("li");
     item.textContent = warning;
     ui.warnings.append(item);
@@ -576,9 +588,15 @@ function shortIntake(stop) {
     return `Aid plate · ${Math.round(stop.carbs_g)}g`;
   }
   if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) return "Water and salt sip";
-  if (stop.form === "micro_dose" || stop.form === "liquid") return `Liquid ${Math.round(stop.carbs_g)}g · small sips`;
-  const name = stop.product || "Gel";
-  return `Take 1× ${name} (${Math.round(stop.carbs_g)}g)`;
+  const name = stop.product || "";
+  if (/tiny bites/i.test(stop.reason || "")) {
+    return `Tiny bites of ${name || "food"} (${Math.round(stop.carbs_g)}g)`;
+  }
+  if (stop.form === "micro_dose" || stop.form === "liquid") {
+    const label = name && !/gel/i.test(name) ? name : "Liquid";
+    return `${label} ${Math.round(stop.carbs_g)}g · small sips`;
+  }
+  return `Take 1× ${name || "Fuel"} (${Math.round(stop.carbs_g)}g)`;
 }
 
 function flavorTag(stop) {
@@ -1936,7 +1954,7 @@ function onMapAidPick(latitude, longitude) {
   ui.aidName.value = "";
 }
 
-function setFuelPreference(value) {
+function setFuelPreference(value, applyMenu = false) {
   state.fuelPreference = value || "gels_first";
   for (const button of document.querySelectorAll(".fuel-pref")) {
     if (button.dataset.preference === state.fuelPreference) {
@@ -1945,6 +1963,24 @@ function setFuelPreference(value) {
       button.removeAttribute("aria-checked");
     }
   }
+  if (applyMenu) applyStyleMenu(state.fuelPreference);
+}
+
+function applyStyleMenu(value) {
+  if (value === "real_food_heavy") {
+    state.vestFoods.delete("gel_25");
+    state.vestFoods.delete("iso_gel_22");
+    state.vestFoods.add("drink_30");
+    state.vestFoods.add("bar");
+    state.vestFoods.add("dates");
+  } else if (value === "gels_first") {
+    state.vestFoods.add("gel_25");
+    state.vestFoods.add("iso_gel_22");
+    state.vestFoods.delete("sandwich");
+    state.vestFoods.delete("bar");
+  }
+  renderFoods();
+  saveMenu();
 }
 
 function exportRaceCard() {
@@ -2476,7 +2512,7 @@ function bind() {
   ui.paneConfigure?.addEventListener("click", () => showSetupPane("configure"));
   ui.panePacking?.addEventListener("click", () => showSetupPane("packing"));
   for (const button of document.querySelectorAll(".fuel-pref")) {
-    button.addEventListener("click", () => setFuelPreference(button.dataset.preference));
+    button.addEventListener("click", () => setFuelPreference(button.dataset.preference, true));
   }
   ui.weight?.addEventListener("input", renderLocker);
 }
