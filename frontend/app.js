@@ -9,18 +9,9 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=12";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=13";
 
 const STORAGE_SCHEMA_VERSION = "v11";
-
-try {
-  if (localStorage.getItem("fuel_schema_version") !== STORAGE_SCHEMA_VERSION) {
-    localStorage.clear();
-    localStorage.setItem("fuel_schema_version", STORAGE_SCHEMA_VERSION);
-  }
-} catch {
-  /* private mode can block storage; the form still builds a plan */
-}
 
 const PRESETS = [
   { name: "Standard Gel", carbs_g: 25, caffeine_mg: 0, kind: "gel" },
@@ -389,10 +380,15 @@ async function loadRaces() {
   ui.raceSelect.value = state.raceId;
 }
 
+let buildingPlan = false;
+
 async function buildPlan(event) {
-  event.preventDefault();
+  event?.preventDefault?.();
+  if (buildingPlan) return;
+  buildingPlan = true;
   state.autoGps = true;
-  ui.build.disabled = true;
+  const buildBtn = document.querySelector("#build-plan");
+  if (buildBtn) buildBtn.disabled = true;
   try {
     armGpsWatch();
     const targetMin = readTargetMin();
@@ -421,9 +417,40 @@ async function buildPlan(event) {
     drawMap();
     await persist();
   } catch (error) {
+    console.error(error);
     setStatus(error?.message || "Could not build the plan.", true);
   } finally {
-    ui.build.disabled = false;
+    buildingPlan = false;
+    const buildBtn = document.querySelector("#build-plan");
+    if (buildBtn) buildBtn.disabled = false;
+  }
+}
+
+function wireCriticalControls() {
+  window.handleBuildPlan = buildPlan;
+  const buildBtn = document.querySelector("#build-plan");
+  if (buildBtn) {
+    buildBtn.disabled = false;
+    buildBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      buildPlan(event);
+    });
+  }
+  document.querySelector("#pane-configure")?.addEventListener("click", () => showSetupPane("configure"));
+  document.querySelector("#pane-packing")?.addEventListener("click", () => showSetupPane("packing"));
+  document.querySelector("#nav-setup")?.addEventListener("click", () => showTab("setup"));
+  document.querySelector("#nav-map")?.addEventListener("click", () => showTab("map"));
+  document.querySelector("#nav-live")?.addEventListener("click", () => showTab("live"));
+}
+
+function resetOutdatedStorage() {
+  try {
+    if (localStorage.getItem("fuel_schema_version") !== STORAGE_SCHEMA_VERSION) {
+      localStorage.clear();
+      localStorage.setItem("fuel_schema_version", STORAGE_SCHEMA_VERSION);
+    }
+  } catch (error) {
+    console.error(error);
   }
 }
 
@@ -2639,7 +2666,7 @@ function resetGut() {
 }
 
 function bind() {
-  listen("#setup-form", "submit", buildPlan);
+  listen("#setup-form", "submit", (event) => buildPlan(event));
   listen("#source-race", "click", () => setSource("race"));
   listen("#source-gpx", "click", () => {
     setSource("gpx");
@@ -2669,9 +2696,6 @@ function bind() {
   for (const button of document.querySelectorAll(".gut")) {
     button.addEventListener("click", () => setCarbs(Number(button.dataset.carbs)));
   }
-  listen("#nav-setup", "click", () => showTab("setup"));
-  listen("#nav-map", "click", () => showTab("map"));
-  listen("#nav-live", "click", () => showTab("live"));
   ui.countdown?.addEventListener("click", startClock);
   ui.log?.addEventListener("click", () => logIntake().catch((error) => setStatus(error.message)));
   ui.gps?.addEventListener("click", onUpdateGpsClick);
@@ -2783,8 +2807,6 @@ function bind() {
       closeCrewModal();
     }
   });
-  ui.paneConfigure?.addEventListener("click", () => showSetupPane("configure"));
-  ui.panePacking?.addEventListener("click", () => showSetupPane("packing"));
   for (const button of document.querySelectorAll(".fuel-pref")) {
     button.addEventListener("click", () => setFuelPreference(button.dataset.preference, true));
   }
@@ -2792,51 +2814,71 @@ function bind() {
 }
 
 async function init() {
-  preloadEnglishVoices();
-  loadStoredPreferences();
-  renderFoods();
-  renderGutPill();
-  bind();
-  setCarbs(60);
-  setSource("race");
   try {
-    const session = await loadSession();
-    restore(session);
-  } catch (error) {
-    setStatus("Saved race data on this phone could not be read.");
-  }
-  try {
-    await loadRaces();
-    if (state.raceId) {
-      ui.raceSelect.value = state.raceId;
+    resetOutdatedStorage();
+    preloadEnglishVoices();
+    loadStoredPreferences();
+    renderFoods();
+    renderGutPill();
+    bind();
+    setCarbs(60);
+    setSource("race");
+    try {
+      const session = await loadSession();
+      restore(session);
+    } catch (error) {
+      console.error(error);
+      setStatus("Saved race data on this phone could not be read.");
     }
-    applyTargetDefault();
+    try {
+      await loadRaces();
+      if (state.raceId && ui.raceSelect) {
+        ui.raceSelect.value = state.raceId;
+      }
+      applyTargetDefault();
+    } catch (error) {
+      console.error(error);
+      setStatus(error.message);
+    }
+    renderLocker();
+    renderPacking();
+    if (state.packedPlan) {
+      showSetupPane("packing");
+      state.autoGps = true;
+      armGpsWatch();
+    }
+    renderLive();
+    paintAutoGps();
+    setInterval(paintAutoGps, 1000);
+    ensureTicker();
+    if ("serviceWorker" in navigator) {
+      const hadWorker = Boolean(navigator.serviceWorker.controller);
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadWorker || reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
+      navigator.serviceWorker.register("/sw.js?v=13").then((registration) => {
+        registration.update().catch(() => {});
+      }).catch(() => {});
+    }
   } catch (error) {
-    setStatus(error.message);
-  }
-  renderLocker();
-  renderPacking();
-  if (state.packedPlan) {
-    showSetupPane("packing");
-    state.autoGps = true;
-    armGpsWatch();
-  }
-  renderLive();
-  paintAutoGps();
-  setInterval(paintAutoGps, 1000);
-  ensureTicker();
-  if ("serviceWorker" in navigator) {
-    const hadWorker = Boolean(navigator.serviceWorker.controller);
-    let reloaded = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!hadWorker || reloaded) return;
-      reloaded = true;
-      window.location.reload();
-    });
-    navigator.serviceWorker.register("/sw.js?v=12").then((registration) => {
-      registration.update().catch(() => {});
-    }).catch(() => {});
+    console.error(error);
   }
 }
 
-init();
+function boot() {
+  try {
+    wireCriticalControls();
+  } catch (error) {
+    console.error(error);
+  }
+  init();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}

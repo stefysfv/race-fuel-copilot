@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/style.css?v=12">
+  <link rel="stylesheet" href="/style.css?v=13">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -35,7 +35,7 @@
 <body data-tab="setup">
   <script>
     (function () {
-      var SHELL = "v12";
+      var SHELL = "v13";
       var guard = "fuel_sw_boot";
       try {
         if (sessionStorage.getItem(guard) === SHELL) return;
@@ -47,7 +47,7 @@
         var stale = regs.filter(function (reg) {
           var worker = reg.active || reg.waiting || reg.installing;
           var script = worker && worker.scriptURL ? worker.scriptURL : "";
-          return script.indexOf("v=12") === -1;
+          return script.indexOf("v=13") === -1;
         });
         if (!stale.length) {
           try { sessionStorage.setItem(guard, SHELL); } catch (error) {}
@@ -95,7 +95,7 @@
         <span id="setup-summary-text"></span>
         <span class="edit-label">Edit Setup ▾</span>
       </button>
-      <form id="setup-form" class="setup-form">
+      <form id="setup-form" class="setup-form" novalidate>
         <div class="course-row">
           <button id="source-race" class="sr-only" type="button" role="radio" aria-checked="true">Saved race</button>
           <select id="race-select" aria-label="Race"></select>
@@ -215,7 +215,7 @@
           <button id="gut-reset" class="text-btn" type="button">Reset</button>
         </p>
 
-        <button id="build-plan" class="thumb-btn primary liquid-pill" type="submit">Build Plan</button>
+        <button id="build-plan" class="thumb-btn primary liquid-pill" type="submit" onclick="window.handleBuildPlan && window.handleBuildPlan(event)">Build Plan</button>
       </form>
       </div>
 
@@ -362,6 +362,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=12"></script>
+  <script type="module" src="/app.js?v=13"></script>
 </body>
 </html>
