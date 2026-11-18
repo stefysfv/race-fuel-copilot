@@ -1,23 +1,19 @@
 """Turn a raw track into smoothed points and 500 m course segments.
 
-Accepts a GPX XML string or a `.gpx` file path from `races.json`. Distance
-uses the Haversine formula. Elevation is smoothed with a 5-point moving
-average before the track is sliced, which removes the small up-and-down
-noise typical of barometric GPS.
+Accepts GPX text. Distance uses the Haversine formula. Elevation is smoothed
+with a 5-point moving average before the track is sliced, which removes the
+small up-and-down noise typical of barometric GPS. Reading a GPX file from
+disk lives in `backend.adapters`.
 """
 
 from __future__ import annotations
 
+import bisect
 import math
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from pathlib import Path
 
-import gpxpy
-
-from backend.models import Race, TrackPoint
-
-# `gpx_parser.py` lives in `backend/`, so parents[1] is the project root.
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from backend.models import TrackPoint
 
 EARTH_RADIUS_M = 6_371_000.0
 SEGMENT_LENGTH_M = 500.0
@@ -95,58 +91,72 @@ def smooth_elevation(values: list[float], window: int = SMOOTHING_WINDOW) -> lis
     return smoothed
 
 
-def resolve_gpx_path(gpx_file: str) -> Path:
-    """Resolve a catalog path like `backend/data/gpx/salomon-vitosha-27.gpx`."""
+def _local_name(tag: str) -> str:
+    """Drop an XML namespace so GPX 1.0 and 1.1 tags match."""
 
-    path = Path(gpx_file)
-    if not path.is_absolute():
-        path = PROJECT_ROOT / path
-    return path
-
-
-def load_gpx_file(gpx_file: str) -> list[TrackPoint]:
-    """Read every track point from a GPX file on disk."""
-
-    path = resolve_gpx_path(gpx_file)
-    if not path.is_file():
-        raise ValueError(f"GPX file not found: {gpx_file}")
-    return parse_gpx_xml(path.read_text(encoding="utf-8"))
+    if tag.startswith("{"):
+        return tag.split("}", 1)[1]
+    return tag
 
 
-def attach_track(race: Race) -> Race:
-    """Return the race with `profile` filled from its GPX file.
+def _elevation_m(element: ET.Element) -> float:
+    """Read `<ele>`. A missing or blank elevation is 0 m, matching the old parser."""
 
-    Catalog races store a path instead of thousands of coordinates. Slicing
-    still happens later, in `prepare_course` and `slice_segments`.
-    """
+    for child in list(element):
+        if _local_name(child.tag) != "ele":
+            continue
+        text = (child.text or "").strip()
+        if not text:
+            return 0.0
+        try:
+            return float(text)
+        except ValueError as exc:
+            raise ValueError(f"Could not parse GPX: {exc}") from exc
+    return 0.0
 
-    if len(race.profile) >= 2 or not race.gpx_file:
-        return race
-    return race.model_copy(update={"profile": load_gpx_file(race.gpx_file)})
+
+def _points_named(root: ET.Element, name: str) -> list[TrackPoint]:
+    """Collect `trkpt` or `rtept` elements in document order."""
+
+    points: list[TrackPoint] = []
+    for element in root.iter():
+        if _local_name(element.tag) != name:
+            continue
+        lat_text = element.get("lat")
+        lon_text = element.get("lon")
+        if lat_text is None or lon_text is None:
+            continue
+        try:
+            lat = float(lat_text)
+            lon = float(lon_text)
+        except ValueError as exc:
+            raise ValueError(f"Could not parse GPX: {exc}") from exc
+        points.append(TrackPoint(lat=lat, lon=lon, elevation_m=_elevation_m(element)))
+    return points
 
 
 def parse_gpx_xml(xml_text: str) -> list[TrackPoint]:
-    """Read track points from a GPX document. Routes are used if there is no track."""
+    """Read track points from a GPX document. Routes are used if there is no track.
 
+    GPX 1.0 (`http://www.topografix.com/GPX/1/0`) and GPX 1.1
+    (`http://www.topografix.com/GPX/1/1`) are both accepted, with or without
+    a default namespace. `<trkpt>` wins. `<rtept>` is used only when the
+    document has no track points.
+    """
+
+    if not xml_text or not str(xml_text).strip():
+        raise ValueError("Could not parse GPX: document is empty")
     try:
-        gpx = gpxpy.parse(xml_text)
-    except Exception as exc:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as exc:
         raise ValueError(f"Could not parse GPX: {exc}") from exc
 
-    raw_points = [point for track in gpx.tracks for segment in track.segments for point in segment.points]
+    raw_points = _points_named(root, "trkpt")
     if not raw_points:
-        raw_points = [point for route in gpx.routes for point in route.points]
+        raw_points = _points_named(root, "rtept")
     if len(raw_points) < 2:
         raise ValueError("GPX must contain at least two track points")
-
-    return [
-        TrackPoint(
-            lat=point.latitude,
-            lon=point.longitude,
-            elevation_m=0.0 if point.elevation is None else float(point.elevation),
-        )
-        for point in raw_points
-    ]
+    return raw_points
 
 
 def prepare_course(raw_points: list[TrackPoint]) -> list[CoursePoint]:
@@ -176,26 +186,40 @@ def prepare_course(raw_points: list[TrackPoint]) -> list[CoursePoint]:
 
 
 def location_at_distance(points: list[CoursePoint], distance_m: float) -> CoursePoint:
-    """Interpolate lat, lon, and elevation at a distance along the course."""
+    """Interpolate lat, lon, and elevation at a distance along the course.
+
+    Distances only increase, so the span is found with a binary search.
+    """
 
     if not points:
         raise ValueError("Course is empty")
-    distance_m = min(max(distance_m, 0.0), points[-1].distance_m)
-    for index in range(len(points) - 1):
-        left = points[index]
-        right = points[index + 1]
-        if distance_m > right.distance_m and index < len(points) - 2:
-            continue
-        span = right.distance_m - left.distance_m
-        fraction = 0.0 if span <= 0 else (distance_m - left.distance_m) / span
-        fraction = min(max(fraction, 0.0), 1.0)
-        return CoursePoint(
-            lat=left.lat + (right.lat - left.lat) * fraction,
-            lon=left.lon + (right.lon - left.lon) * fraction,
-            elevation_m=left.elevation_m + (right.elevation_m - left.elevation_m) * fraction,
-            distance_m=distance_m,
-        )
-    return points[-1]
+    last = len(points) - 1
+    distance_m = min(max(distance_m, 0.0), points[last].distance_m)
+    if last == 0:
+        return points[0]
+    left, right = _span_at(points, distance_m)
+    span = right.distance_m - left.distance_m
+    fraction = 0.0 if span <= 0 else (distance_m - left.distance_m) / span
+    fraction = min(max(fraction, 0.0), 1.0)
+    return CoursePoint(
+        lat=left.lat + (right.lat - left.lat) * fraction,
+        lon=left.lon + (right.lon - left.lon) * fraction,
+        elevation_m=left.elevation_m + (right.elevation_m - left.elevation_m) * fraction,
+        distance_m=distance_m,
+    )
+
+
+def _span_at(points: list[CoursePoint], distance_m: float) -> tuple[CoursePoint, CoursePoint]:
+    """Return the two samples that bracket `distance_m`.
+
+    `distance_m` is already clamped to the course. Equal distances keep the
+    first span that reaches the query, matching a front-to-back scan.
+    """
+
+    last = len(points) - 1
+    index = bisect.bisect_left(points, distance_m, key=lambda point: point.distance_m)
+    left_index = 0 if index <= 0 else (last - 1 if index > last else index - 1)
+    return points[left_index], points[left_index + 1]
 
 
 def slice_segments(
@@ -257,19 +281,60 @@ def _build_segment(
     )
 
 
-def _gain_loss(points: list[CoursePoint], start_m: float, end_m: float) -> tuple[float, float]:
-    elevations = [location_at_distance(points, start_m).elevation_m]
-    for point in points:
-        if start_m < point.distance_m < end_m:
-            elevations.append(point.elevation_m)
-    elevations.append(location_at_distance(points, end_m).elevation_m)
+# Running gain and loss up to each sample. Keyed by the point list so each
+# slice reads two entries instead of walking the whole track again.
+_ELEVATION_PREFIX: dict[int, tuple[list[CoursePoint], list[float], list[float]]] = {}
 
+
+def _elevation_prefix(points: list[CoursePoint]) -> tuple[list[float], list[float]]:
+    """Prefix sums of positive and negative elevation steps between samples."""
+
+    cached = _ELEVATION_PREFIX.get(id(points))
+    if cached is not None and cached[0] is points:
+        return cached[1], cached[2]
+    gain_prefix = [0.0]
+    loss_prefix = [0.0]
     gain_m = 0.0
     loss_m = 0.0
-    for before, after in zip(elevations, elevations[1:]):
-        delta = after - before
+    previous = points[0].elevation_m
+    for point in points[1:]:
+        delta = point.elevation_m - previous
         if delta >= 0:
             gain_m += delta
         else:
             loss_m -= delta
-    return gain_m, loss_m
+        gain_prefix.append(gain_m)
+        loss_prefix.append(loss_m)
+        previous = point.elevation_m
+    if len(_ELEVATION_PREFIX) > 4:
+        _ELEVATION_PREFIX.clear()
+    _ELEVATION_PREFIX[id(points)] = (points, gain_prefix, loss_prefix)
+    return gain_prefix, loss_prefix
+
+
+def _add_step(gain_m: float, loss_m: float, delta: float) -> tuple[float, float]:
+    if delta >= 0:
+        return gain_m + delta, loss_m
+    return gain_m, loss_m - delta
+
+
+def _gain_loss(points: list[CoursePoint], start_m: float, end_m: float) -> tuple[float, float]:
+    """Elevation gained and lost between two distances.
+
+    Samples strictly inside the slice come from the prefix sums. The slice
+    still starts and ends on the interpolated elevations.
+    """
+
+    start_elevation = location_at_distance(points, start_m).elevation_m
+    end_elevation = location_at_distance(points, end_m).elevation_m
+    first_inside = bisect.bisect_right(points, start_m, key=lambda point: point.distance_m)
+    end_inside = bisect.bisect_left(points, end_m, key=lambda point: point.distance_m)
+    if first_inside >= end_inside:
+        return _add_step(0.0, 0.0, end_elevation - start_elevation)
+
+    gain_prefix, loss_prefix = _elevation_prefix(points)
+    gain_m, loss_m = _add_step(0.0, 0.0, points[first_inside].elevation_m - start_elevation)
+    if end_inside - 1 > first_inside:
+        gain_m += gain_prefix[end_inside - 1] - gain_prefix[first_inside]
+        loss_m += loss_prefix[end_inside - 1] - loss_prefix[first_inside]
+    return _add_step(gain_m, loss_m, end_elevation - points[end_inside - 1].elevation_m)

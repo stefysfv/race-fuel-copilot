@@ -11,15 +11,19 @@ race-fuel-copilot/
 ├── .cursorrules
 ├── SPEC.md
 ├── requirements.txt
+├── requirements-dev.txt
 ├── backend/
 │   ├── main.py              # FastAPI app, CORS, static file serving, API routes
 │   ├── models.py            # Pydantic schemas for requests, responses, and race data
 │   ├── gpx_parser.py        # GPX XML parsing, elevation smoothing, 500m slicing, Haversine
-│   ├── catalog.py           # Reads races.json. The engine package does not open files.
+│   ├── adapters/            # Server-only file access. The engine does not import this.
+│   │   ├── catalog.py       # Reads races.json
+│   │   └── gpx_files.py     # Reads a catalog GPX file into text
 │   ├── fuel_engine.py       # Re-exports backend.engine so older imports keep working
 │   ├── self_check.py        # Demo plan and invariant checks
 │   ├── engine/              # Pure plan math: arguments in, a plan out
 │   │   ├── __init__.py
+│   │   ├── entry.py         # generate_plan_json / recalibrate_json
 │   │   ├── constants.py
 │   │   ├── gap.py
 │   │   ├── zones.py

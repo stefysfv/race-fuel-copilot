@@ -1,0 +1,10 @@
+{
+  "name": "race-fuel-copilot",
+  "private": true,
+  "scripts": {
+    "test:offline": "playwright test tests/offline_race.spec.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1"
+  }
+}

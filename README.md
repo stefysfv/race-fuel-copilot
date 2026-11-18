@@ -2,7 +2,7 @@
 
 Topographical and physiological fueling co-pilot for mountain ultras. It turns a GPX into a carb, fluid, and sodium plan that follows the grade, the clock, and a live GPS fix.
 
-There is no hosted demo in this repository. Local setup below is for a computer at home. Race day uses the Render service described with `render.yaml`.
+There is no hosted demo in this repository. Race day is a static site. FastAPI is only the local dev server and the test harness.
 
 ## Not medical advice
 
@@ -45,14 +45,14 @@ Custom GPX uploads can include aid stations (`name`, `distance_km`, `has_water`,
 
 ## Tech stack and PWA
 
-- **API.** Python 3.12+, FastAPI, Pydantic v2. Sports math stays in `backend/engine/`. `backend/fuel_engine.py` re-exports it. GPX parsing stays in `backend/gpx_parser.py`.
+- **Engine.** Python 3.12+, Pydantic v2. Sports math stays in `backend/engine/`. `backend/fuel_engine.py` re-exports it. GPX parsing stays in `backend/gpx_parser.py`. The phone runs that package in Pyodide. FastAPI is the dev server.
 - **UI.** Vanilla HTML, CSS, and ES modules. Leaflet draws the route on OpenTopoMap. Chart.js draws elevation and zone color.
-- **Offline.** IndexedDB stores the active plan. The service worker is network-first for the app shell. Map tiles that were already viewed stay in the browser cache.
+- **Offline.** IndexedDB stores the active plan. The app shell is one cache, network-first. Pyodide and `engine.zip` are a second cache, cache-first, and a shell update does not delete it. Map tiles that were already viewed stay in the browser cache.
 - **Hands-free race mode.** `watchPosition` recalibrates about every 45 seconds and auto-logs an intake 30 seconds after `00:00` (with undo). Alerts play a double chime, speak the instruction with the Web Speech API, and post a service-worker notification for the lock screen: 2 minutes out, at `00:00`, and inside 500 m of an aid station. iOS delivers those after the app is on the Home Screen.
 
 ## Local setup and tests
 
-Python 3.12 or newer, from the repository root. A phone on the same Wi-Fi can open the app only while that computer is at home. On race day the phone is on the mountain, so the backend has to be reachable there.
+Python 3.12 or newer, from the repository root. Uvicorn serves the static app and the optional HTTP engine. A phone on the same Wi-Fi can open that computer only while it is at home.
 
 ```bash
 python -m venv .venv
@@ -61,7 +61,7 @@ python -m venv .venv
 Windows:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 .\.venv\Scripts\python.exe -m pytest
 ```
@@ -69,31 +69,49 @@ Windows:
 macOS or Linux:
 
 ```bash
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt
 .venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000
 .venv/bin/python -m pytest
 ```
 
 Open `http://127.0.0.1:8000` on the computer. `--host 0.0.0.0` lets a phone on the same home Wi-Fi use that computer's address. That path stops working once the phone leaves the house.
 
-`render.yaml` is a Render Blueprint for a free Python web service. The build command is `pip install -r requirements.txt`. The start command is `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`, with Python 3.12.8. Connect the repo in Render and apply that Blueprint, then open the service URL on the phone and add the app to the Home Screen.
+The page builds and recalibrates in the browser. `ENGINE_MODE` in `frontend/engine_client.js` is `"worker"`. Set it to `"http"`, or open `?engine=http`, to post plans to this FastAPI process instead. That flag is for local debugging.
 
-The free plan sleeps after it sits idle, and the next request waits while the service cold-starts. Open the app and generate the plan before the start, while you still have signal.
+Build `frontend/engine.zip` before the first worker load:
 
-The page and the API share one host, so the server allows no cross-origin browser calls unless `ALLOWED_ORIGINS` is set. That variable is a comma-separated list of origins, read when the process starts. Leave it unset for local dev and for the Render service. Set it only when a different site must call the API, for example `https://crew.example.com,http://127.0.0.1:8000`.
+```powershell
+.\.venv\Scripts\python.exe scripts\build_engine_bundle.py
+```
+
+## Static hosting
+
+Publish the `frontend/` directory on Cloudflare Pages or Netlify. There is no build step on the host: `engine.zip` and `vendor/pyodide/` are already in that folder. Leave FastAPI and `render.yaml` off the race-day site. They stay in the repo for tests and for `?engine=http`.
+
+After the first visit the banner reads **Ready for offline**. Add the site to the Home Screen. iOS can delete storage for a site it treats as unused, and `navigator.storage.persist()` is the request to keep it.
 
 ## What works offline
 
-Once a plan has been generated and the map has been opened, the phone can keep going without the server:
+After **Ready for offline**, the phone can do all of this with no signal:
 
-- The saved plan
-- The packing list
+- Generate a plan for a stored race or an uploaded GPX
+- Recalibrate from a GPS fix, including GI Rescue
+- The saved plan and the packing list
 - Map marker snapping onto the saved course
 - Map tiles that were already viewed
 
-Recalibration and plan regeneration need the server. With no signal, a GPS fix still moves the marker on the saved course and leaves the fuel plan as it was.
+OpenTopoMap tiles and the Inter font still need a network the first time they are requested. A shell update does not clear the Pyodide cache.
+
+`tests/offline_race.spec.mjs` loads the app, waits for that ready state, goes offline, builds a plan, and recalibrates. With uvicorn already on port 8000:
+
+```powershell
+npm install
+npx playwright install chromium
+npx playwright test tests/offline_race.spec.mjs
+```
 
 `tests/test_fuel_engine.py` covers the GAP target solve, zone boundaries, red-zone micro-dosing, hot-versus-cool sweat at 70 kg, savoury rotation and vest reduction at food stations, GI Rescue, and custom aid-station snapping.
+
 
 ## Code map
 
@@ -111,7 +129,8 @@ Recalibration and plan regeneration need the server. With no signal, a GPS fix s
 - **Delivery report** — `_delivered_grams_per_hour`, `_delivery_warnings`, `_totals` in `backend/engine/totals_warnings.py`.
 - **Plan entry** — `generate_plan`, `schedule_fuel` in `backend/engine/scheduler.py`.
 - **Live recalibration** — `snap_to_track`, `recalibrate` in `backend/engine/recalibrate.py`.
-- **Race files** — `load_race_catalog` in `backend/catalog.py`. The engine package does not read files.
+- **Race files** — `frontend/data/races.json` and `frontend/data/gpx/`. The dev server reads those same files from `backend/adapters/catalog.py`. GPX text is parsed in `backend/gpx_parser.py`. The engine package does not read files.
+- **Browser entry** — `generate_plan_json` and `recalibrate_json` in `backend/engine/entry.py`. The page calls them through `frontend/engine_client.js`.
 
 `frontend/app.js` is the page controller.
 

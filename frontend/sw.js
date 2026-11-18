@@ -1,19 +1,24 @@
-/** Cache the app shell so the packing list and live screen open with no signal.
+/** Two caches. A new app shell must not evict the Pyodide runtime. */
 
-API writes always go to the network. GET /api/races falls back to the last
-successful response.
-*/
+import { RUNTIME_CACHE, RUNTIME_FILES } from "./runtime_manifest.js";
 
-const CACHE = "race-fuel-v16";
+const SHELL_CACHE = "race-fuel-v17";
 const SHELL = [
   "/",
   "/index.html",
   "/style.css",
   "/app.js",
+  "/engine_client.js",
+  "/runtime_manifest.js",
   "/map_controller.js",
   "/offline_db.js",
   "/offline_engine.js",
   "/manifest.json",
+  "/data/races.json",
+  "/data/gpx/salomon-vitosha-12.gpx",
+  "/data/gpx/salomon-vitosha-27.gpx",
+  "/data/gpx/salomon-vitosha-40.gpx",
+  "/data/gpx/vitosha-100.gpx",
   "/vendor/leaflet.css",
   "/vendor/leaflet.js",
   "/vendor/chart.umd.min.js",
@@ -27,20 +32,29 @@ const SHELL = [
   "/icons/apple-touch-icon.png",
 ];
 
+function isRuntime(url) {
+  return RUNTIME_FILES.includes(url.pathname);
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
+  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL)));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))),
+    caches.keys().then((keys) => Promise.all(
+      keys
+        .filter((key) => key !== SHELL_CACHE && key !== RUNTIME_CACHE)
+        .filter((key) => key.startsWith("race-fuel-v") || key.startsWith("race-fuel-pyodide-"))
+        .map((key) => caches.delete(key)),
+    )),
   );
   self.clients.claim();
 });
 
 async function networkFirst(request) {
-  const cache = await caches.open(CACHE);
+  const cache = await caches.open(SHELL_CACHE);
   try {
     const response = await fetch(request);
     if (response.ok) {
@@ -48,12 +62,21 @@ async function networkFirst(request) {
     }
     return response;
   } catch (error) {
-    const cached = await cache.match(request);
-    if (cached) {
-      return cached;
-    }
+    const cached = await cache.match(request) || await cache.match(new URL(request.url).pathname);
+    if (cached) return cached;
     throw error;
   }
+}
+
+async function cacheFirst(request) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response.ok) {
+    cache.put(request, response.clone());
+  }
+  return response;
 }
 
 self.addEventListener("notificationclick", (event) => {
@@ -73,6 +96,10 @@ self.addEventListener("notificationclick", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.origin !== self.location.origin) {
+    return;
+  }
+  if (isRuntime(url)) {
+    event.respondWith(cacheFirst(event.request));
     return;
   }
   event.respondWith(networkFirst(event.request));

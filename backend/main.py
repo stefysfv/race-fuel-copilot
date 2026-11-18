@@ -27,9 +27,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.fuel_engine import generate_plan, get_race, load_race_catalog, recalibrate, snap_custom_aids
-from backend.gpx_parser import attach_track, parse_gpx_xml, prepare_course
-from backend.models import AidStation, GeneratePlanRequest, Race, RaceCatalog, RacePlan, RecalibrateRequest, RecalibrateResponse
+from backend.adapters.catalog import get_race, load_race_catalog, load_race_catalog_dict
+from backend.adapters.gpx_files import read_gpx_text
+from backend.engine.entry import generate_plan_json, recalibrate_json
+from backend.models import GeneratePlanRequest, RaceCatalog, RacePlan, RecalibrateRequest, RecalibrateResponse
 
 
 def allowed_origins() -> list[str]:
@@ -67,30 +68,23 @@ def list_races() -> RaceCatalog:
     return RaceCatalog(races=load_race_catalog())
 
 
-def _race_with_track(race_id: str) -> Race:
-    """Load one catalog race and slice-ready points from its GPX file."""
+def _gpx_text(body: GeneratePlanRequest | RecalibrateRequest) -> str | None:
+    """Read the catalog GPX, or pass through an upload. The engine only sees text."""
 
-    return attach_track(get_race(race_id))
-
-
-def _merge_aids(catalog: list[AidStation], custom: list[AidStation]) -> list[AidStation]:
-    """Keep catalog stations, then add typed ones that do not reuse a name."""
-
-    taken = {station.name.casefold() for station in catalog}
-    return [*catalog, *[station for station in custom if station.name.casefold() not in taken]]
+    if body.race_id and body.race_id.strip():
+        race = get_race(body.race_id)
+        if len(race.profile) >= 2 or not race.gpx_file:
+            return None
+        return read_gpx_text(race.gpx_file)
+    return body.gpx_xml
 
 
-def _plan_course(body: GeneratePlanRequest | RecalibrateRequest) -> tuple[str, str, float, list[AidStation], list]:
-    """Resolve a race or a GPX upload, and snap any custom aid stations onto it."""
+def _unknown_race(exc: ValueError, race_id: str | None) -> HTTPException | None:
+    """Keep the old 404 when the catalog has no such race."""
 
-    if body.race_id:
-        race = _race_with_track(body.race_id)
-        course = prepare_course(race.profile)
-        custom = snap_custom_aids(course, body.aid_stations)
-        return race.id, race.name, race.distance_km, _merge_aids(race.aid_stations, custom), race.profile
-    profile = parse_gpx_xml(body.gpx_xml or "")
-    course = prepare_course(profile)
-    return "uploaded", "Uploaded GPX", 0.0, snap_custom_aids(course, body.aid_stations), profile
+    if race_id and str(exc).startswith(f"Unknown race_id '{race_id}'"):
+        return HTTPException(status_code=404, detail=str(exc))
+    return None
 
 
 @app.post("/api/generate-plan", response_model=RacePlan)
@@ -98,19 +92,14 @@ def create_plan(body: GeneratePlanRequest) -> RacePlan:
     """Build a full-race fueling plan."""
 
     try:
-        race_id, race_name, distance_km, stations, profile = _plan_course(body)
-        return generate_plan(
-            race_id=race_id,
-            race_name=race_name,
-            declared_distance_km=distance_km,
-            aid_stations=stations,
-            profile=profile,
-            athlete=body.athlete,
-            packed_vest_items=body.packed_vest_items,
-        )
+        payload = generate_plan_json(body.model_dump(mode="json"), load_race_catalog_dict(), _gpx_text(body))
+        return RacePlan.model_validate(payload)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown race_id '{body.race_id}'") from None
     except ValueError as exc:
+        missing = _unknown_race(exc, body.race_id)
+        if missing is not None:
+            raise missing from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -119,23 +108,14 @@ def recalibrate_plan(body: RecalibrateRequest) -> RecalibrateResponse:
     """Snap a GPS fix to the track and return the plan for the ground still ahead."""
 
     try:
-        race_id, race_name, distance_km, stations, profile = _plan_course(body)
-        return recalibrate(
-            race_id=race_id,
-            race_name=race_name,
-            declared_distance_km=distance_km,
-            aid_stations=stations,
-            profile=profile,
-            athlete=body.athlete,
-            latitude=body.latitude,
-            longitude=body.longitude,
-            elapsed_min=body.elapsed_min,
-            gi_rescue=body.gi_rescue,
-            packed_vest_items=body.packed_vest_items,
-        )
+        payload = recalibrate_json(body.model_dump(mode="json"), load_race_catalog_dict(), _gpx_text(body))
+        return RecalibrateResponse.model_validate(payload)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown race_id '{body.race_id}'") from None
     except ValueError as exc:
+        missing = _unknown_race(exc, body.race_id)
+        if missing is not None:
+            raise missing from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

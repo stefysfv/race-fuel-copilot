@@ -1,15 +1,15 @@
 /** UI controller.
 
-The sports math stays on the server. This file collects the form, calls
-`/api/races`, `/api/generate-plan`, and `/api/recalibrate`, and paints the
-three tabs. A target finish is not an engine input: the flat GAP pace is
-solved with two plan requests so the predicted clock matches the hours the
-runner typed.
+The sports math runs in the browser worker through `engine_client.js`.
+This file collects the form and paints the three tabs. A target finish is
+not an engine input: the flat GAP pace is solved with two plan requests so
+the predicted clock matches the hours the runner typed.
 */
 
+import { generatePlan, listRaces, prepareOffline, recalibrate } from "./engine_client.js";
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=16";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=17";
 
 const STORAGE_SCHEMA_VERSION = "v11";
 
@@ -293,38 +293,6 @@ function courseBody(athlete) {
   return body;
 }
 
-function rejectionMessage(payload, status) {
-  const detail = payload?.detail;
-  if (typeof detail === "string" && detail.trim()) return detail;
-  if (Array.isArray(detail)) {
-    const lines = detail.slice(0, 3).map((item) => {
-      const loc = Array.isArray(item?.loc) ? item.loc.filter((part) => part !== "body").join(".") : "";
-      const msg = item?.msg || "Invalid value";
-      return loc ? `${loc}: ${msg}` : msg;
-    }).filter(Boolean);
-    if (lines.length) return lines.join(" ");
-  }
-  return `The server rejected that request (${status}).`;
-}
-
-async function postJson(path, body) {
-  let response;
-  try {
-    response = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    throw new Error("No connection to the fueling server.");
-  }
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(rejectionMessage(payload, response.status));
-  }
-  return payload;
-}
-
 function selectedRace() {
   return state.races.find((race) => race.id === state.raceId) || null;
 }
@@ -372,12 +340,7 @@ function setCarbs(grams) {
 }
 
 async function loadRaces() {
-  const response = await fetch("/api/races");
-  if (!response.ok) {
-    throw new Error("Could not load the race list.");
-  }
-  const payload = await response.json();
-  state.races = payload.races;
+  state.races = await listRaces();
   ui.raceSelect.replaceChildren();
   for (const race of state.races) {
     const option = document.createElement("option");
@@ -405,10 +368,10 @@ async function buildPlan(event) {
     armGpsWatch();
     const targetMin = readTargetMin();
     setStatus("Building the plan…");
-    const probe = await postJson("/api/generate-plan", courseBody(readAthlete(8)));
+    const probe = await generatePlan(courseBody(readAthlete(8)));
     let pace = 8 * (targetMin / probe.predicted_duration_min);
     pace = Math.min(19.9, Math.max(3.51, pace));
-    const plan = await postJson("/api/generate-plan", courseBody(readAthlete(Number(pace.toFixed(3)))));
+    const plan = await generatePlan(courseBody(readAthlete(Number(pace.toFixed(3)))));
     state.packedPlan = plan;
     state.livePlan = plan;
     state.logged = [];
@@ -1582,7 +1545,7 @@ async function sendFix(latitude, longitude, giRescue, source = "sim") {
     gi_rescue: giRescue,
   };
   try {
-    const result = await postJson("/api/recalibrate", body);
+    const result = await recalibrate(body);
     state.livePlan = result.remaining;
     if (result.remaining.aid_stations?.length) {
       state.aidStations = result.remaining.aid_stations;
@@ -2842,6 +2805,7 @@ function bind() {
 
 async function init() {
   try {
+    prepareOffline().catch((error) => console.error(error));
     resetOutdatedStorage();
     preloadEnglishVoices();
     loadStoredPreferences();
@@ -2886,7 +2850,7 @@ async function init() {
         reloaded = true;
         window.location.reload();
       });
-      navigator.serviceWorker.register("/sw.js?v=16").then((registration) => {
+      navigator.serviceWorker.register("/sw.js?v=17", { type: "module" }).then((registration) => {
         registration.update().catch(() => {});
       }).catch(() => {});
     }

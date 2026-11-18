@@ -167,6 +167,21 @@ main {
 }
 .status { min-height: 0; margin: 6px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
 .status:empty { display: none; margin: 0; }
+.offline-prep {
+  margin: 8px 0 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.offline-prep[data-state="ready"] { color: var(--green); }
+.offline-hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
 
 .kicker {
   display: block;

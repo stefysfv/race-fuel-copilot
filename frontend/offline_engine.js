@@ -1,9 +1,9 @@
 /** Offline snap-to-track.
 
 Fuel timing stays in the Python engine. This module only mirrors the
-equirectangular projection in `fuel_engine.snap_to_track`, using the plan
-segments already on the phone, so a GPS fix can still move the marker when
-`/api/recalibrate` cannot be reached.
+equirectangular projection in `snap_to_track`, using the plan segments already
+on the phone, so a GPS fix can still move the marker when the engine client
+cannot rebuild the plan.
 */
 
 const METERS_PER_DEG_LAT = 111320;

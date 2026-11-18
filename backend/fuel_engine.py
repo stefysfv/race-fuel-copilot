@@ -218,7 +218,7 @@ from backend.self_check import (
     run_self_check,
 )
 
-from backend.catalog import (
+from backend.adapters.catalog import (
     get_race,
     load_race_catalog,
 )

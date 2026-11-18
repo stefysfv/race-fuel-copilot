@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
+from backend.adapters.gpx_files import attach_track
 from backend.gpx_parser import (
-    attach_track,
     haversine_m,
     parse_gpx_xml,
     prepare_course,
@@ -23,7 +23,7 @@ from backend.models import (
     Segment,
 )
 
-from backend.catalog import load_race_catalog
+from backend.adapters.catalog import load_race_catalog
 
 from backend.engine.constants import (
     AID_BITE_CARBS_G,

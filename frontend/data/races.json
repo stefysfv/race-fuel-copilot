@@ -8,7 +8,7 @@
       "location": "Vitosha, Bulgaria",
       "summary": "Recorded 12.74 km from Aleko, over the south ridge to Cherni Vrah and back. Closest trail point to Kumata is 12.0 km, just before the finish.",
       "profile_source": "gpx",
-      "gpx_file": "backend/data/gpx/salomon-vitosha-12.gpx",
+      "gpx_file": "data/gpx/salomon-vitosha-12.gpx",
       "aid_stations": [
         {
           "name": "Cherni Vrah",
@@ -42,7 +42,7 @@
       "location": "Vitosha, Bulgaria",
       "summary": "Recorded 26.80 km from Aleko: Cherni Vrah, the Zlatni Mostove plateau, then the Boyana trail back to Aleko.",
       "profile_source": "gpx",
-      "gpx_file": "backend/data/gpx/salomon-vitosha-27.gpx",
+      "gpx_file": "data/gpx/salomon-vitosha-27.gpx",
       "aid_stations": [
         {
           "name": "Cherni Vrah",
@@ -87,7 +87,7 @@
       "location": "Vitosha, Bulgaria",
       "summary": "Recorded 40.14 km from Aleko, out to the southeast valley, over Cherni Vrah, then Zlatni Mostove and the Boyana trail.",
       "profile_source": "gpx",
-      "gpx_file": "backend/data/gpx/salomon-vitosha-40.gpx",
+      "gpx_file": "data/gpx/salomon-vitosha-40.gpx",
       "aid_stations": [
         {
           "name": "Kamen Del / Cherni Vrah",
@@ -132,7 +132,7 @@
       "location": "Vitosha, Bulgaria",
       "summary": "Recorded 100.40 km loop from Boyana around the foot of Vitosha. Aid stations sit on the track about 8–12 km apart.",
       "profile_source": "gpx",
-      "gpx_file": "backend/data/gpx/vitosha-100.gpx",
+      "gpx_file": "data/gpx/vitosha-100.gpx",
       "aid_stations": [
         {
           "name": "Tikhiyat Kat",
