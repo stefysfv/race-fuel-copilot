@@ -374,6 +374,10 @@ class CustomAidInput(APIModel):
     cutoff_hours: float | None = Field(default=None, gt=0, le=72)
 
 
+# The largest bundled GPX is about 3.2 MB. This cap leaves headroom and rejects a huge upload.
+GPX_XML_MAX_CHARS = 8_000_000
+
+
 class GeneratePlanRequest(APIModel):
     """Body for `POST /api/generate-plan`.
 
@@ -383,7 +387,11 @@ class GeneratePlanRequest(APIModel):
     """
 
     race_id: str | None = None
-    gpx_xml: str | None = None
+    gpx_xml: str | None = Field(
+        default=None,
+        max_length=GPX_XML_MAX_CHARS,
+        description="Raw GPX document. Longer than 8,000,000 characters is rejected.",
+    )
     athlete: AthleteInput = Field(default_factory=AthleteInput)
     aid_stations: list[CustomAidInput] = Field(default_factory=list, max_length=40)
     packed_vest_items: list[PackedVestItem] = Field(
@@ -414,7 +422,11 @@ class RecalibrateRequest(APIModel):
     """
 
     race_id: str | None = None
-    gpx_xml: str | None = None
+    gpx_xml: str | None = Field(
+        default=None,
+        max_length=GPX_XML_MAX_CHARS,
+        description="Raw GPX document. Longer than 8,000,000 characters is rejected.",
+    )
     athlete: AthleteInput = Field(default_factory=AthleteInput)
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
@@ -527,13 +539,16 @@ class PlanTotals(APIModel):
     """Sums of the scheduled stops.
 
     `carbs_g_per_kg_per_hour` is the athlete's target rate (grams per kilogram
-    per hour), not a sum of the stops.
+    per hour), not a sum of the stops. `carbs_g_per_hour_delivered` is the
+    carbs actually scheduled per hour from the end of the pre-race quiet
+    window to the finish.
     """
 
     carbs_g: float = Field(ge=0)
     fluid_ml: float = Field(ge=0)
     sodium_mg: float = Field(ge=0)
     carbs_g_per_kg_per_hour: float = Field(ge=0)
+    carbs_g_per_hour_delivered: float = Field(default=0, ge=0)
     stops_on_time: int = Field(ge=0)
     stops_shifted: int = Field(ge=0)
     stops_deferred: int = Field(ge=0)

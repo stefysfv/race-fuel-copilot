@@ -16,6 +16,7 @@ registered before the static mount, so `/api/...` is never swallowed by the PWA.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -30,6 +31,18 @@ from backend.fuel_engine import generate_plan, get_race, load_race_catalog, reca
 from backend.gpx_parser import attach_track, parse_gpx_xml, prepare_course
 from backend.models import AidStation, GeneratePlanRequest, Race, RaceCatalog, RacePlan, RecalibrateRequest, RecalibrateResponse
 
+
+def allowed_origins() -> list[str]:
+    """Origins that may call this API from another site.
+
+    `ALLOWED_ORIGINS` is a comma-separated list. Unset or blank allows none.
+    The PWA is served by this same process, so local dev and Render need no entry.
+    """
+
+    raw = os.environ.get("ALLOWED_ORIGINS", "")
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
 app = FastAPI(
     title="Trail & Ultra Race Fueling Co-Pilot",
     version="0.1.0",
@@ -37,7 +50,7 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

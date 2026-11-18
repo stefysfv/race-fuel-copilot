@@ -16,7 +16,6 @@ race-fuel-copilot/
 │   ├── models.py            # Pydantic schemas for requests, responses, and race data
 │   ├── gpx_parser.py        # GPX XML parsing, elevation smoothing, 500m slicing, Haversine
 │   ├── fuel_engine.py       # GAP pacing math, digestive zones, window-shifted fuel scheduler
-│   ├── push_service.py      # Web Push notification scheduling (VAPID / pywebpush)
 │   └── data/
 │       ├── races.json       # Predefined Bulgarian trail races & aid stations
 │       └── gpx/             # Folder for raw .gpx files

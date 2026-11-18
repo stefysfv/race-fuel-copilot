@@ -13,8 +13,27 @@ import math
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.fuel_engine import RED_MICRO_DOSE_G, classify_zone, generate_plan, snap_custom_aids, sweat_rates
-from backend.models import AidStation, AthleteInput, CustomAidInput, DigestiveZone, FuelForm, PackedVestItem, TrackPoint
+from backend.fuel_engine import (
+    RED_MICRO_DOSE_G,
+    _delivered_grams_per_hour,
+    _delivery_warnings,
+    classify_zone,
+    generate_plan,
+    snap_custom_aids,
+    sweat_rates,
+)
+from backend.models import (
+    AidLeg,
+    AidStation,
+    AthleteInput,
+    CustomAidInput,
+    DigestiveZone,
+    FuelForm,
+    FuelStop,
+    PackedVestItem,
+    Segment,
+    TrackPoint,
+)
 from backend.gpx_parser import location_at_distance, prepare_course
 from backend.main import app
 
@@ -725,3 +744,261 @@ def test_legacy_phone_payload_still_builds_a_plan() -> None:
     body = response.json()
     assert body["athlete"]["fuel_preference"] == "balanced_real_food"
     assert body["athlete"]["locker"][0]["kind"] == "bar"
+
+
+def test_oversized_gpx_is_rejected() -> None:
+    """An upload past 8,000,000 characters is a 422, before any plan is built."""
+
+    huge = "x" * 8_000_001
+    generated = client.post("/api/generate-plan", json={"gpx_xml": huge})
+    recalibrated = client.post(
+        "/api/recalibrate",
+        json={"gpx_xml": huge, "latitude": 42.5, "longitude": 23.3, "elapsed_min": 10},
+    )
+    for response in (generated, recalibrated):
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        assert any(item.get("loc", [None])[-1] == "gpx_xml" for item in detail)
+        assert any("8000000" in item.get("msg", "") for item in detail)
+
+
+def _clock_segment(start_m: float, end_m: float, start_min: float, end_min: float) -> Segment:
+    """One segment whose clock and distance are the only fields the report uses."""
+
+    span_m = end_m - start_m
+    minutes = end_min - start_min
+    km = span_m / 1000.0
+    return Segment(
+        index=0,
+        start_distance_m=start_m,
+        end_distance_m=end_m,
+        distance_m=span_m,
+        start_lat=42.6,
+        start_lon=23.3,
+        end_lat=42.6,
+        end_lon=23.3,
+        elevation_start_m=1000,
+        elevation_end_m=1000,
+        elevation_gain_m=0,
+        elevation_loss_m=0,
+        grade_percent=0,
+        zone=DigestiveZone.green,
+        cost_factor=1,
+        predicted_minutes=minutes,
+        start_minute=start_min,
+        end_minute=end_min,
+        predicted_pace_min_per_km=minutes / km,
+        gap_min_per_km=minutes / km,
+    )
+
+
+def _report_stop(minute: float, distance_km: float, carbs_g: float) -> FuelStop:
+    return FuelStop(
+        sequence=1,
+        ideal_minute=minute,
+        scheduled_minute=minute,
+        shift_minutes=0,
+        distance_km=distance_km,
+        latitude=42.6,
+        longitude=23.3,
+        segment_index=0,
+        grade_percent=0,
+        zone=DigestiveZone.green,
+        carbs_g=carbs_g,
+        fluid_ml=0,
+        sodium_mg=0,
+        form=FuelForm.gel,
+        reason="test feed",
+    )
+
+
+def _report_leg(from_name: str, to_name: str, from_km: float, to_km: float, minutes: float) -> AidLeg:
+    return AidLeg(
+        from_name=from_name,
+        to_name=to_name,
+        from_km=from_km,
+        to_km=to_km,
+        distance_km=to_km - from_km,
+        predicted_minutes=minutes,
+        carbs_g=0,
+        fluid_ml=0,
+        sodium_mg=0,
+        pack=[],
+    )
+
+
+def test_delivery_rate_ignores_the_quiet_window_and_a_zero_length_window() -> None:
+    """Carbs inside the first 50 minutes are not part of the delivered rate."""
+
+    stops = [_report_stop(20, 1.0, 100), _report_stop(80, 4.0, 120)]
+    assert _delivered_grams_per_hour(stops, 0, 170) == pytest.approx(60)
+    assert _delivered_grams_per_hour(stops, 0, 40) == 0
+
+
+def test_low_delivery_warns_and_a_fed_plan_does_not() -> None:
+    """Below 70% of the effective target warns. A plan on target stays quiet."""
+
+    athlete = AthleteInput(carbs_g_per_hour=60)
+    low_segments = [_clock_segment(0, 10_000, 0, 180)]
+    low_legs = [_report_leg("Start", "Finish", 0, 10, 180)]
+    low_stops = [_report_stop(80, 4.0, 30)]
+    low_rate = _delivered_grams_per_hour(low_stops, 0, 180)
+    low_notes = _delivery_warnings(low_stops, low_legs, low_segments, athlete, low_rate)
+    assert low_rate < 0.70 * 60
+    assert any("below 70%" in note for note in low_notes)
+    assert not any("0 g carbs" in note for note in low_notes)
+
+    fed_segments = [_clock_segment(0, 10_000, 0, 170)]
+    fed_legs = [_report_leg("Start", "Finish", 0, 10, 170)]
+    fed_stops = [_report_stop(80, 4.0, 120)]
+    fed_rate = _delivered_grams_per_hour(fed_stops, 0, 170)
+    fed_notes = _delivery_warnings(fed_stops, fed_legs, fed_segments, athlete, fed_rate)
+    assert fed_rate == pytest.approx(60)
+    assert fed_notes == []
+
+
+def test_a_long_unfueled_stretch_names_the_leg() -> None:
+    """70 minutes with nothing after the quiet window is named. The rate can still be on target."""
+
+    segments = [
+        _clock_segment(0, 5_000, 0, 230),
+        _clock_segment(5_000, 8_000, 230, 300),
+    ]
+    legs = [
+        _report_leg("Start", "Cherni Vrah", 0, 5, 230),
+        _report_leg("Cherni Vrah", "Finish", 5, 8, 70),
+    ]
+    stops = [_report_stop(80, 2.0, 250)]
+    rate = _delivered_grams_per_hour(stops, 0, 300)
+    notes = _delivery_warnings(stops, legs, segments, AthleteInput(carbs_g_per_hour=60), rate)
+    assert rate == pytest.approx(60)
+    assert not any("below 70%" in note for note in notes)
+    assert notes == ["Cherni Vrah → Finish: 70 min after the pre-race window with 0 g carbs delivered."]
+
+
+def test_short_race_and_scaled_target_do_not_false_warn() -> None:
+    """A short race skips the rate warning. The gut multiplier is not applied twice."""
+
+    segments = [_clock_segment(0, 10_000, 0, 180)]
+    legs = [_report_leg("Start", "Finish", 0, 10, 180)]
+    stops = [_report_stop(80, 4.0, 30)]
+    rate = _delivered_grams_per_hour(stops, 0, 180)
+    short = AthleteInput(carbs_g_per_hour=60, target_time_minutes=90)
+    assert _delivery_warnings(stops, legs, segments, short, rate) == []
+
+    # 60 g/h is under 70% of 75*1.25, and above 70% of the stored 75 g/h target.
+    scaled = AthleteInput(carbs_g_per_hour=75, carb_multiplier=1.25)
+    on_target = [_clock_segment(0, 10_000, 0, 170)]
+    on_stops = [_report_stop(80, 4.0, 120)]
+    on_rate = _delivered_grams_per_hour(on_stops, 0, 170)
+    assert _delivery_warnings(on_stops, legs, on_target, scaled, on_rate) == []
+
+
+def test_generated_plan_publishes_the_same_delivery_report() -> None:
+    plan = build_plan(
+        course_points([(20_000, 0.0)]),
+        AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60),
+    )
+    finish = plan.clock_start_min + plan.predicted_duration_min
+    delivered = _delivered_grams_per_hour(plan.fuel_stops, plan.clock_start_min, finish)
+    assert plan.totals.carbs_g_per_hour_delivered == pytest.approx(delivered)
+    for note in _delivery_warnings(
+        plan.fuel_stops,
+        plan.aid_legs,
+        plan.segments,
+        plan.athlete,
+        delivered,
+    ):
+        assert note in plan.warnings
+
+
+def _station_at(course, name: str, distance_m: float, *, has_food: bool) -> AidStation:
+    pin = location_at_distance(course, distance_m)
+    return AidStation(
+        name=name,
+        distance_km=distance_m / 1000.0,
+        lat=pin.lat,
+        lon=pin.lon,
+        elevation_m=pin.elevation_m,
+        has_water=True,
+        has_food=has_food,
+    )
+
+
+def _trail_stops(plan, leg):
+    return [
+        stop
+        for stop in plan.fuel_stops
+        if leg.from_km - 0.05 <= stop.distance_km < leg.to_km - 0.02 and not stop.at_aid_station
+    ]
+
+
+def test_descent_wording_follows_the_departure_station() -> None:
+    """A water-only station must not be described as if it served food."""
+
+    points = course_points([(4_000, 6.0), (8_000, -8.0), (8_000, -8.0)])
+    course = prepare_course(points)
+    plan = build_plan(
+        points,
+        AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60),
+        [
+            _station_at(course, "Cherni Vrah", 4_000, has_food=False),
+            _station_at(course, "Zlatni Mostove", 12_000, has_food=True),
+        ],
+    )
+    water_leg = next(leg for leg in plan.aid_legs if leg.from_name == "Cherni Vrah")
+    food_leg = next(leg for leg in plan.aid_legs if leg.from_name == "Zlatni Mostove")
+
+    assert "Leg averages" in water_leg.note
+    assert "water only" in water_leg.note
+    assert "The next food is at Zlatni Mostove" in water_leg.note
+    assert "station food" not in water_leg.note
+
+    assert "Leg averages" in food_leg.note
+    assert "Your Zlatni Mostove station food powers this segment." in food_leg.note
+
+    water_stops = _trail_stops(plan, water_leg)
+    food_stops = _trail_stops(plan, food_leg)
+    assert water_stops
+    assert food_stops
+    assert all("Leg averages" in stop.reason for stop in water_stops)
+    assert all("water only" in stop.reason for stop in water_stops)
+    assert all("station meal covers" not in stop.reason for stop in water_stops)
+    assert all("Leg averages" in stop.reason for stop in food_stops)
+    assert all("station meal covers" in stop.reason for stop in food_stops)
+
+
+def test_stop_reasons_name_the_chosen_food() -> None:
+    """The sentence names the product on the stop, not a gel or a liquid that was not picked."""
+
+    yellow_plan = build_plan(
+        course_points([(12_000, 7.0)]),
+        AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60),
+    )
+    yellow = [
+        stop
+        for stop in yellow_plan.fuel_stops
+        if stop.zone is DigestiveZone.yellow and stop.carbs_g > 0 and stop.product
+    ]
+    assert yellow
+    assert any(stop.form is FuelForm.gel for stop in yellow)
+    assert any(stop.form is FuelForm.liquid for stop in yellow)
+    for stop in yellow:
+        assert stop.product in stop.reason
+        if stop.form is FuelForm.gel:
+            assert "as liquid" not in stop.reason
+        if stop.form is FuelForm.liquid:
+            assert " g gel" not in stop.reason
+
+    flat = build_plan(
+        course_points([(20_000, 0.0)]),
+        AthleteInput(flat_pace_min_per_km=8.0, carbs_g_per_hour=60),
+    )
+    drinks = [
+        stop
+        for stop in flat.fuel_stops
+        if stop.product == "Drink Mix" and stop.carbs_g > 0 and stop.zone is DigestiveZone.green
+    ]
+    assert drinks
+    assert all(" g gel" not in stop.reason for stop in drinks)
+    assert all("Drink Mix" in stop.reason for stop in drinks)

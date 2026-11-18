@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=15";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=16";
 
 const STORAGE_SCHEMA_VERSION = "v11";
 
@@ -513,6 +513,12 @@ function toggleSetup() {
   showSetupPane(state.setupPane === "packing" ? "configure" : "packing");
 }
 
+function deliveryRateLabel(plan) {
+  const delivered = Math.round(plan.totals?.carbs_g_per_hour_delivered || 0);
+  const target = Math.round(plan.athlete?.carbs_g_per_hour || 0);
+  return `${delivered}/${target} g/h`;
+}
+
 function renderPacking() {
   const plan = state.packedPlan;
   ui.packing.replaceChildren();
@@ -531,7 +537,7 @@ function renderPacking() {
   }
   const athlete = plan.athlete;
   ui.summary.classList.remove("hidden");
-  ui.summary.textContent = `${plan.race_name} · ${formatDuration(plan.predicted_duration_min)} · ${athlete.flat_pace_min_per_km.toFixed(2)} min/km · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
+  ui.summary.textContent = `${plan.race_name} · ${formatDuration(plan.predicted_duration_min)} · ${athlete.flat_pace_min_per_km.toFixed(2)} min/km · ${deliveryRateLabel(plan)} · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
   const vestLine = plan.vest_inventory_summary || "";
   if (ui.vestUsage) {
     ui.vestUsage.textContent = vestLine;
@@ -2880,7 +2886,7 @@ async function init() {
         reloaded = true;
         window.location.reload();
       });
-      navigator.serviceWorker.register("/sw.js?v=15").then((registration) => {
+      navigator.serviceWorker.register("/sw.js?v=16").then((registration) => {
         registration.update().catch(() => {});
       }).catch(() => {});
     }

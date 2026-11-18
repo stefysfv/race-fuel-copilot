@@ -7,8 +7,8 @@
 - Never regenerate entire files in chat if only one function changes.
 
 ## Tech Stack Constraints
-- **Backend:** Python 3.12+, FastAPI, Pydantic, standard `xml.etree.ElementTree` or `gpxpy` for GPX parsing, `sqlite3` or local JSON for race storage, `pywebpush` for notifications.
-- **Frontend:** Vanilla HTML5, Tailwind CSS (via CDN for rapid prototyping), Vanilla ES6 JavaScript (modular), Leaflet.js with OpenTopoMap tiles, Chart.js for elevation profiles.
+- **Backend:** Python 3.12+, FastAPI, Pydantic, standard `xml.etree.ElementTree` or `gpxpy` for GPX parsing, `sqlite3` or local JSON for race storage.
+- **Frontend:** Vanilla HTML5, vanilla CSS, Vanilla ES6 JavaScript (modular), Leaflet.js with OpenTopoMap tiles, Chart.js for elevation profiles.
 - **No Frontend Framework Bloat:** Do NOT use React, Next.js, Vue, or complex npm build pipelines unless explicitly requested. Keep the frontend a fast, static Progressive Web App (PWA) with a Service Worker (`sw.js`) and `IndexedDB` for offline mountain resilience.
 
 ## Architecture Principles

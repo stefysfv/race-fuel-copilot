@@ -1051,7 +1051,7 @@ def generate_plan(
             total_m=total_m,
             stops=stops,
         )
-        _quiet_descent_stops(stops, legs, timed)
+        _quiet_descent_stops(stops, legs, timed, stations)
     inventory_summary = ""
     # A short race stays on one flask and one bite. The vest list is ignored there.
     if not _is_short_race(athlete) and packed_vest_items:
@@ -1067,7 +1067,12 @@ def generate_plan(
             warnings.append(extra_note)
     gain_m = sum(segment.elevation_gain_m for segment in timed)
     clock_start = timed[0].start_minute
-    duration = timed[-1].end_minute - clock_start
+    finish_minute = timed[-1].end_minute
+    duration = finish_minute - clock_start
+    totals = _totals(stops, athlete, start_minute=clock_start, finish_minute=finish_minute)
+    warnings.extend(
+        _delivery_warnings(stops, legs, timed, athlete, totals.carbs_g_per_hour_delivered)
+    )
     return RacePlan(
         race_id=race_id,
         race_name=race_name,
@@ -1084,7 +1089,7 @@ def generate_plan(
         fuel_stops=stops,
         aid_legs=legs,
         aid_stations=stations,
-        totals=_totals(stops, athlete),
+        totals=totals,
         warnings=warnings,
         vest_inventory_summary=inventory_summary,
     )
@@ -1177,6 +1182,8 @@ def schedule_fuel(
             reason = dose.reason
             if food_name:
                 product = food_name
+        named = product or food_name
+        reason = _align_reason_with_intake(reason, dose.form, named, dose.carbs_g)
         distance_m = _distance_at_minute(segment, when)
         location = location_at_distance(course, distance_m)
         stops.append(
@@ -1226,9 +1233,11 @@ def _coach_note(
     *,
     opening: bool,
     from_name: str,
+    to_name: str,
     minutes: float,
     grade: float,
     arrival_has_food: bool,
+    departure_has_food: bool | None,
 ) -> str:
     """One sentence a mountain coach would say about this leg."""
 
@@ -1238,11 +1247,7 @@ def _coach_note(
             "refuel at the station table at the top."
         )
     if grade < DESCENT_LOCK_GRADE:
-        source = from_name if from_name not in {"Start", "Current position"} else "the last aid station"
-        return (
-            f"Fast descent ({grade:.1f}% grade) — don't waste tempo chewing on the trail. "
-            f"Your {source} station food powers this segment."
-        )
+        return _descent_coach_note(from_name, to_name, grade, departure_has_food)
     if minutes > 70:
         return (
             "Take gels on the power-hike and on flat green. "
@@ -1273,19 +1278,67 @@ def _quiet_opening_stops(stops: list[FuelStop], race_start_min: float) -> None:
             _quiet_trail_stop(stop, "Pre-race meal covers this window. Water and electrolyte sip only.")
 
 
-def _quiet_descent_stops(stops: list[FuelStop], legs: list[AidLeg], segments: list[Segment]) -> None:
+def _departure_has_food(stations: list[AidStation], from_name: str) -> bool | None:
+    """Whether the station this leg leaves actually serves food.
+
+    Start and a recalibration pin are not stations, so they return None.
+    """
+
+    if from_name in {"Start", "Current position"}:
+        return None
+    departed = next((station for station in stations if station.name == from_name), None)
+    if departed is None:
+        return None
+    return departed.has_food
+
+
+def _descent_coach_note(
+    from_name: str,
+    to_name: str,
+    grade: float,
+    departure_has_food: bool | None,
+) -> str:
+    """The grade here is the leg average, not the grade under one stop."""
+
+    average = f"Fast descent. Leg averages {grade:.1f}%."
+    if departure_has_food is False:
+        return f"{average} {from_name} has water only. The next food is at {to_name}."
+    if departure_has_food is True:
+        return (
+            f"{average} Don't waste tempo chewing on the trail. "
+            f"Your {from_name} station food powers this segment."
+        )
+    return f"{average} Don't waste tempo chewing on the trail."
+
+
+def _descent_stop_reason(leg: AidLeg, grade: float, stations: list[AidStation]) -> str:
+    """Same fact as the coach note, written on each quieted stop."""
+
+    average = f"Leg averages {grade:.1f}%."
+    departure_has_food = _departure_has_food(stations, leg.from_name)
+    if departure_has_food is False:
+        return f"{average} {leg.from_name} has water only. The next food is at {leg.to_name}."
+    if departure_has_food is True:
+        return f"{average} No trail chewing — the {leg.from_name} station meal covers this leg."
+    return f"{average} No trail chewing on this descent."
+
+
+def _quiet_descent_stops(
+    stops: list[FuelStop],
+    legs: list[AidLeg],
+    segments: list[Segment],
+    stations: list[AidStation],
+) -> None:
     """A fast descent is for pace, not for unwrapping food."""
 
     for leg in legs:
         grade = _average_grade(segments, leg.from_km * 1000.0, leg.to_km * 1000.0)
         if grade >= DESCENT_LOCK_GRADE:
             continue
+        reason = _descent_stop_reason(leg, grade, stations)
         for stop in stops:
             if leg.from_km - 0.05 <= stop.distance_km < leg.to_km - 0.02:
-                _quiet_trail_stop(
-                    stop,
-                    f"Fast descent ({grade:.1f}%). No trail chewing — the station meal covers this leg.",
-                )
+                _quiet_trail_stop(stop, reason)
 
 
 def build_aid_legs(
@@ -1367,9 +1420,11 @@ def build_aid_legs(
         note = _coach_note(
             opening=index == 0,
             from_name=from_name,
+            to_name=to_name,
             minutes=minutes,
             grade=grade,
             arrival_has_food=bool(arrival_food),
+            departure_has_food=_departure_has_food(stations, from_name),
         )
         salt_here = 0
         if salt_left > 0 and sodium_mg >= 1 and trail + fluid_ml > 0:
@@ -1709,6 +1764,58 @@ def _dose_for_target(
         reason += " Half-size while GI Rescue eases off."
 
     return _Dose(carbs, base_fluid, base_sodium, form, gentle_left, reason)
+
+
+def _align_reason_with_intake(reason: str, form: FuelForm, product: str, carbs: float) -> str:
+    """Name the food this stop actually uses.
+
+    The dose sentence is written before the vest menu picks a gel, a drink,
+    or real food. This only rewrites that sentence.
+    """
+
+    name = product.strip()
+    if form is FuelForm.gel:
+        spoken = f"take a {carbs:.0f} g {name or 'gel'}"
+        half = f"Half dose as gel ({carbs:.0f} g{', ' + name if name else ''})"
+    elif form is FuelForm.liquid:
+        spoken = f"take {carbs:.0f} g of {name or 'liquid'}"
+        half = f"Half dose as liquid ({carbs:.0f} g{', ' + name if name else ''})"
+    elif form is FuelForm.real_food:
+        spoken = f"take {carbs:.0f} g of {name or 'real food'}"
+        half = f"Half dose as real food ({carbs:.0f} g{', ' + name if name else ''})"
+    else:
+        return reason
+    reason = _replace_gel_claim(reason, spoken)
+    return _replace_liquid_half_dose(reason, half)
+
+
+def _replace_gel_claim(reason: str, spoken: str) -> str:
+    """Swap 'take a 30 g gel' for the product that was chosen."""
+
+    for needle in ("take a ", "Take a "):
+        start = reason.find(needle)
+        if start == -1:
+            continue
+        end = reason.find(" g gel", start)
+        if end == -1:
+            continue
+        grams = reason[start + len(needle):end]
+        if not grams.isdigit():
+            continue
+        phrase = spoken[0].upper() + spoken[1:] if needle.startswith("T") else spoken
+        return reason[:start] + phrase + reason[end + len(" g gel"):]
+    return reason
+
+
+def _replace_liquid_half_dose(reason: str, half: str) -> str:
+    prefix = "Half dose as liquid ("
+    start = reason.find(prefix)
+    if start == -1:
+        return reason
+    end = reason.find(")", start)
+    if end == -1:
+        return reason
+    return reason[:start] + half + reason[end + 1:]
 
 
 def _green_reason(shift_min: float, grade_text: str, carbs: float) -> str:
@@ -2487,7 +2594,97 @@ def _pack_plain(
     return items
 
 
-def _totals(stops: list[FuelStop], athlete: AthleteInput) -> PlanTotals:
+def _active_fuel_minutes(start_minute: float, finish_minute: float) -> float:
+    """Minutes from the end of the pre-race quiet window to the finish.
+
+    A plan that starts after that window counts its whole duration. A plan
+    that ends inside the window counts as zero so the rate is never divided
+    by nothing.
+    """
+
+    active_start = max(start_minute, PRE_RACE_QUIET_MIN)
+    return max(0.0, finish_minute - active_start)
+
+
+def _delivered_grams_per_hour(
+    stops: list[FuelStop],
+    start_minute: float,
+    finish_minute: float,
+) -> float:
+    """Carbs scheduled after the quiet window, per hour until the finish."""
+
+    active_min = _active_fuel_minutes(start_minute, finish_minute)
+    if active_min <= 0:
+        return 0.0
+    carbs = sum(stop.carbs_g for stop in stops if stop.scheduled_minute >= PRE_RACE_QUIET_MIN)
+    return carbs / (active_min / 60.0)
+
+
+def _leg_minutes_after_quiet(leg: AidLeg, segments: list[Segment]) -> float:
+    """How much of this leg sits after the pre-race quiet window."""
+
+    start_min = _minute_at_distance(segments, leg.from_km * 1000.0)
+    end_min = _minute_at_distance(segments, leg.to_km * 1000.0)
+    return max(0.0, end_min - max(start_min, PRE_RACE_QUIET_MIN))
+
+
+def _carbs_delivered_on_leg(leg: AidLeg, stops: list[FuelStop]) -> float:
+    """Carbs on stops that fall on this leg after the quiet window."""
+
+    return sum(
+        stop.carbs_g
+        for stop in stops
+        if stop.scheduled_minute >= PRE_RACE_QUIET_MIN
+        and leg.from_km - 0.05 <= stop.distance_km < leg.to_km
+    )
+
+
+def _effective_carb_target(athlete: AthleteInput) -> float:
+    """Hourly target the plan was built against.
+
+    `generate_plan` already stores carbs_g_per_hour * carb_multiplier on the
+    athlete, so this is that product and must not be scaled a second time.
+    """
+
+    return athlete.carbs_g_per_hour
+
+
+def _delivery_warnings(
+    stops: list[FuelStop],
+    legs: list[AidLeg],
+    segments: list[Segment],
+    athlete: AthleteInput,
+    delivered_g_per_hour: float,
+) -> list[str]:
+    """Honest gaps. This does not add or move any fuel."""
+
+    notes: list[str] = []
+    target = _effective_carb_target(athlete)
+    if not _is_short_race(athlete) and target > 0 and delivered_g_per_hour < 0.70 * target:
+        notes.append(
+            f"Delivered {delivered_g_per_hour:.0f} g/h after the pre-race window, "
+            f"below 70% of the {target:.0f} g/h target."
+        )
+    for leg in legs:
+        after_min = _leg_minutes_after_quiet(leg, segments)
+        if after_min <= 60.0:
+            continue
+        if _carbs_delivered_on_leg(leg, stops) > 0:
+            continue
+        notes.append(
+            f"{leg.from_name} → {leg.to_name}: {after_min:.0f} min after the pre-race window "
+            "with 0 g carbs delivered."
+        )
+    return notes
+
+
+def _totals(
+    stops: list[FuelStop],
+    athlete: AthleteInput,
+    *,
+    start_minute: float,
+    finish_minute: float,
+) -> PlanTotals:
     """Count stops that landed on time, moved inside the window, or withheld calories."""
 
     on_time = 0
@@ -2508,6 +2705,7 @@ def _totals(stops: list[FuelStop], athlete: AthleteInput) -> PlanTotals:
         fluid_ml=sum(stop.fluid_ml for stop in stops),
         sodium_mg=sum(stop.sodium_mg for stop in stops),
         carbs_g_per_kg_per_hour=athlete.carbs_g_per_hour / athlete.weight_kg,
+        carbs_g_per_hour_delivered=_delivered_grams_per_hour(stops, start_minute, finish_minute),
         stops_on_time=on_time,
         stops_shifted=shifted,
         stops_deferred=deferred,

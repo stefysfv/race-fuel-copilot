@@ -15,22 +15,8 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/style.css?v=15">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            ink: "#111827",
-            accent: "#FF5500",
-            zone: { green: "#10B981", yellow: "#F59E0B", red: "#EF4444" }
-          }
-        }
-      }
-    };
-  </script>
+  <link rel="stylesheet" href="/vendor/leaflet.css">
+  <link rel="stylesheet" href="/style.css?v=16">
   <style>
     html, body { height: 100dvh; width: 100vw; margin: 0; overflow: hidden; }
   </style>
@@ -38,7 +24,7 @@
 <body data-tab="setup">
   <script>
     (function () {
-      var SHELL = "v15";
+      var SHELL = "v16";
       var guard = "fuel_sw_boot";
       try {
         if (sessionStorage.getItem(guard) === SHELL) return;
@@ -50,7 +36,7 @@
         var stale = regs.filter(function (reg) {
           var worker = reg.active || reg.waiting || reg.installing;
           var script = worker && worker.scriptURL ? worker.scriptURL : "";
-          return script.indexOf("v=15") === -1;
+          return script.indexOf("v=16") === -1;
         });
         if (!stale.length) {
           try { sessionStorage.setItem(guard, SHELL); } catch (error) {}
@@ -145,6 +131,7 @@
             </div>
           </div>
         </div>
+        <p class="micro setup-note">Not medical advice. Carb, fluid, and sodium figures are estimates and defaults, so test them in training and adjust.</p>
         </div>
 
         <details id="vest-drawer" class="drawer liquid-glass">
@@ -365,8 +352,8 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=15"></script>
+  <script src="/vendor/leaflet.js"></script>
+  <script src="/vendor/chart.umd.min.js"></script>
+  <script type="module" src="/app.js?v=16"></script>
 </body>
 </html>
