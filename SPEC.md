@@ -15,7 +15,23 @@ race-fuel-copilot/
 │   ├── main.py              # FastAPI app, CORS, static file serving, API routes
 │   ├── models.py            # Pydantic schemas for requests, responses, and race data
 │   ├── gpx_parser.py        # GPX XML parsing, elevation smoothing, 500m slicing, Haversine
-│   ├── fuel_engine.py       # GAP pacing math, digestive zones, window-shifted fuel scheduler
+│   ├── catalog.py           # Reads races.json. The engine package does not open files.
+│   ├── fuel_engine.py       # Re-exports backend.engine so older imports keep working
+│   ├── self_check.py        # Demo plan and invariant checks
+│   ├── engine/              # Pure plan math: arguments in, a plan out
+│   │   ├── __init__.py
+│   │   ├── constants.py
+│   │   ├── gap.py
+│   │   ├── zones.py
+│   │   ├── sweat.py
+│   │   ├── timing.py
+│   │   ├── doses_menu.py
+│   │   ├── short_race.py
+│   │   ├── coach_text.py
+│   │   ├── packing.py
+│   │   ├── totals_warnings.py
+│   │   ├── scheduler.py
+│   │   └── recalibrate.py
 │   └── data/
 │       ├── races.json       # Predefined Bulgarian trail races & aid stations
 │       └── gpx/             # Folder for raw .gpx files

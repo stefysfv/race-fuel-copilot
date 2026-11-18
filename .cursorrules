@@ -13,4 +13,4 @@
 
 ## Architecture Principles
 - Always follow the data schemas and mathematical formulas defined in `SPEC.md`.
-- Keep business logic (pacing, elevation math, fueling schedules) strictly inside Python modules (`gpx_parser.py`, `fuel_engine.py`) and mirror only the lightweight GPS snap-to-track and offline fallback calculation in frontend JS (`offline_engine.js`).
+- Keep business logic (pacing, elevation math, fueling schedules) strictly inside `backend/engine/` and GPX parsing in `gpx_parser.py`. `fuel_engine.py` only re-exports the engine. Mirror only the lightweight GPS snap-to-track and offline fallback calculation in frontend JS (`offline_engine.js`).

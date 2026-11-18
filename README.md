@@ -45,7 +45,7 @@ Custom GPX uploads can include aid stations (`name`, `distance_km`, `has_water`,
 
 ## Tech stack and PWA
 
-- **API.** Python 3.12+, FastAPI, Pydantic v2. Sports math stays in `backend/fuel_engine.py` and `backend/gpx_parser.py`.
+- **API.** Python 3.12+, FastAPI, Pydantic v2. Sports math stays in `backend/engine/`. `backend/fuel_engine.py` re-exports it. GPX parsing stays in `backend/gpx_parser.py`.
 - **UI.** Vanilla HTML, CSS, and ES modules. Leaflet draws the route on OpenTopoMap. Chart.js draws elevation and zone color.
 - **Offline.** IndexedDB stores the active plan. The service worker is network-first for the app shell. Map tiles that were already viewed stay in the browser cache.
 - **Hands-free race mode.** `watchPosition` recalibrates about every 45 seconds and auto-logs an intake 30 seconds after `00:00` (with undo). Alerts play a double chime, speak the instruction with the Web Speech API, and post a service-worker notification for the lock screen: 2 minutes out, at `00:00`, and inside 500 m of an aid station. iOS delivers those after the app is on the Home Screen.
@@ -97,16 +97,21 @@ Recalibration and plan regeneration need the server. With no signal, a GPS fix s
 
 ## Code map
 
-`backend/fuel_engine.py` is one module. The sections below are the functions to open first.
+`backend/fuel_engine.py` re-exports the engine. Open the module that owns the behavior.
 
-- **Zones, GAP, sweat** — `classify_zone`, `gap_cost_factor`, `sweat_rates`, `build_timed_segments` (around lines 367–494).
-- **Short races** — `_short_race_bite`, `_short_race_stops`, `_limit_short_race` (around 496–733).
-- **Plan entry** — `generate_plan`, `schedule_fuel` (around 989–1212).
-- **Coach text** — `_coach_note`, `_quiet_opening_stops`, `_quiet_descent_stops` (around 1214–1342).
-- **Packing** — `build_aid_legs`, `_pack_items` (around 1344–1470 and 2413–2595).
-- **Live recalibration** — `snap_to_track`, `recalibrate` (around 1500–1607).
-- **Doses and menu** — `_dose_for_target`, `_apply_food_preference`, `_savoury_minute` (around 1693–1767 and 1909–2064).
-- **Delivery report** — `_delivered_grams_per_hour`, `_delivery_warnings`, `_totals` (around 2597–2715).
+- **Constants** — `backend/engine/constants.py`.
+- **GAP** — `metabolic_cost_j_per_kg_m`, `gap_cost_factor` in `backend/engine/gap.py`.
+- **Zones** — `classify_zone`, `_green_max_for` in `backend/engine/zones.py`.
+- **Sweat** — `sweat_rates` in `backend/engine/sweat.py`.
+- **Timing** — `build_timed_segments`, `_place_feed`, `_stop_on_clock` in `backend/engine/timing.py`.
+- **Doses and menu** — `_dose_for_target`, `_apply_food_preference`, `_savoury_minute` in `backend/engine/doses_menu.py`.
+- **Short races** — `_short_race_bite`, `_short_race_stops`, `_limit_short_race` in `backend/engine/short_race.py`.
+- **Coach text** — `_coach_note`, `_quiet_opening_stops`, `_quiet_descent_stops` in `backend/engine/coach_text.py`.
+- **Packing** — `build_aid_legs`, `_pack_items` in `backend/engine/packing.py`.
+- **Delivery report** — `_delivered_grams_per_hour`, `_delivery_warnings`, `_totals` in `backend/engine/totals_warnings.py`.
+- **Plan entry** — `generate_plan`, `schedule_fuel` in `backend/engine/scheduler.py`.
+- **Live recalibration** — `snap_to_track`, `recalibrate` in `backend/engine/recalibrate.py`.
+- **Race files** — `load_race_catalog` in `backend/catalog.py`. The engine package does not read files.
 
 `frontend/app.js` is the page controller.
 
