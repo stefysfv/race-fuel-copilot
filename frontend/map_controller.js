@@ -50,7 +50,13 @@ function elevationAt(segments, distanceKm) {
 }
 
 export function createMapView(mapElement, chartCanvas) {
-  const map = L.map(mapElement, { zoomControl: true, attributionControl: true });
+  const map = L.map(mapElement, {
+    zoomControl: true,
+    attributionControl: true,
+    dragging: true,
+    touchZoom: true,
+  });
+  map.getContainer().style.touchAction = "none";
   map.attributionControl.setPrefix(false);
   L.tileLayer(TILES, { maxZoom: 17, attribution: ATTRIBUTION }).addTo(map);
   map.setView([42.56, 23.29], 12);

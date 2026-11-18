@@ -9,7 +9,7 @@ runner typed.
 
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=14";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=15";
 
 const STORAGE_SCHEMA_VERSION = "v11";
 
@@ -595,7 +595,7 @@ function stepLeg(delta) {
 
 function packCard(leg) {
   const card = document.createElement("article");
-  card.className = "pack-card";
+  card.className = "pack-card leg-card";
   const salt = leg.pack.filter((item) => /salt capsule/i.test(item.item));
   const chew = leg.pack.filter((item) => !/flask/i.test(item.item) && !/salt capsule/i.test(item.item));
   const sips = leg.pack.filter((item) => /flask/i.test(item.item));
@@ -610,24 +610,28 @@ function packCard(leg) {
     : `<p class="pass-badge">Pass through station — water refill only if needed</p>`;
   const coach = leg.note ? `<p class="coach-note">${escapeHtml(leg.note)}</p>` : "";
   card.innerHTML = `
-    <div class="pack-top">
-      <h2>${escapeHtml(leg.from_name)} → ${station} <span class="km">(${Number(leg.distance_km).toFixed(1)} km)</span></h2>
-      <span class="time-badge">${compactHours(leg.predicted_minutes)} · +${legGain(leg)}m</span>
+    <div class="leg-card-header">
+      <div class="pack-top">
+        <h2>${escapeHtml(leg.from_name)} → ${station} <span class="km">(${Number(leg.distance_km).toFixed(1)} km)</span></h2>
+        <span class="time-badge">${compactHours(leg.predicted_minutes)} · +${legGain(leg)}m</span>
+      </div>
+      ${coach}
+      <div class="macros">
+        <div><strong>${grouped(leg.carbs_g)}g</strong><span>Carbs</span></div>
+        <div><strong>${grouped(leg.fluid_ml)}ml</strong><span>Fluid</span></div>
+        <div><strong>${grouped(leg.sodium_mg)}mg</strong><span>Sodium</span></div>
+      </div>
     </div>
-    ${coach}
-    <div class="macros">
-      <div><strong>${grouped(leg.carbs_g)}g</strong><span>Carbs</span></div>
-      <div><strong>${grouped(leg.fluid_ml)}ml</strong><span>Fluid</span></div>
-      <div><strong>${grouped(leg.sodium_mg)}mg</strong><span>Sodium</span></div>
-    </div>
-    <section class="carry-block">
-      <p class="kicker">On the trail (consume while moving)</p>
-      ${trail}
-    </section>
-    <section class="table-block">
-      <p class="kicker">At ${station} checkpoint table (eat before leaving)</p>
-      ${meal}
-    </section>`;
+    <div class="leg-card-scroll">
+      <section class="carry-block">
+        <p class="kicker">On the trail (consume while moving)</p>
+        ${trail}
+      </section>
+      <section class="table-block">
+        <p class="kicker">At ${station} checkpoint table (eat before leaving)</p>
+        ${meal}
+      </section>
+    </div>`;
   return card;
 }
 
@@ -842,7 +846,7 @@ function showTab(name) {
   document.body.dataset.tab = name;
   if (name === "map") {
     drawMap();
-    setTimeout(() => mapView?.resize(), 60);
+    setTimeout(() => mapView?.resize(), 150);
   }
   if (name === "live") {
     renderLive();
@@ -2876,7 +2880,7 @@ async function init() {
         reloaded = true;
         window.location.reload();
       });
-      navigator.serviceWorker.register("/sw.js?v=14").then((registration) => {
+      navigator.serviceWorker.register("/sw.js?v=15").then((registration) => {
         registration.update().catch(() => {});
       }).catch(() => {});
     }
