@@ -1909,9 +1909,11 @@ def _segment_index_at(segments: list[Segment], distance_m: float) -> int:
 def _savoury_minute(athlete: AthleteInput, finish_min: float) -> float:
     """When green feeds should leave the sweet rotation.
 
-    The gut quiz can start that at 1.5 h. Otherwise it starts at 2.5 h, and a
-    race longer than 3.5 h still switches by 3.5 h or halfway, whichever the
-    clock reaches first among those marks.
+    Savoury rotation starts at 2.5 hours (150 minutes), or at 1.5 hours
+    (90 minutes) when the early savoury preference is on. A race longer
+    than 3.5 hours compares those marks with 3.5 hours and halfway, then
+    keeps the earlier one. Both starting marks are already earlier, so
+    that comparison does not move the switch.
     """
 
     start = EARLY_SAVOURY_MIN if athlete.early_savoury else SAVOURY_START_MIN
