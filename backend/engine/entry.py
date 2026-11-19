@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from backend.engine.recalibrate import recalibrate, snap_custom_aids
 from backend.engine.scheduler import generate_plan
+from backend.engine.timing import flat_pace_for_target
 from backend.engine.zones import preview_course_zones
 from backend.gpx_parser import parse_gpx_xml, prepare_course, slice_segments
 from backend.models import AidStation, GeneratePlanRequest, Race, RecalibrateRequest
@@ -95,13 +96,17 @@ def generate_plan_json(request: dict, race_catalog: dict, gpx_text: str | None) 
         parsed.aid_stations,
         catalog,
     )
+    athlete = parsed.athlete
+    if parsed.match_target_time and athlete.target_time_minutes is not None:
+        pace = flat_pace_for_target(profile, athlete.target_time_minutes)
+        athlete = athlete.model_copy(update={"flat_pace_min_per_km": pace})
     plan = generate_plan(
         race_id=race_id,
         race_name=race_name,
         declared_distance_km=distance_km,
         aid_stations=stations,
         profile=profile,
-        athlete=parsed.athlete,
+        athlete=athlete,
         packed_vest_items=parsed.packed_vest_items,
     )
     return plan.model_dump(mode="json")

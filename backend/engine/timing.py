@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import math
+
 from backend.gpx_parser import (
     CoursePoint,
     CourseSegment,
     location_at_distance,
+    prepare_course,
+    slice_segments,
 )
 
 from backend.models import (
@@ -15,6 +19,7 @@ from backend.models import (
     FuelStop,
     Segment,
     StopReason,
+    TrackPoint,
 )
 
 from backend.engine.reasons import shift_reasons
@@ -28,6 +33,31 @@ from backend.engine.zones import (
     classify_zone,
     zone_edges_for,
 )
+
+
+# Same limits the form used when it sent a second plan request.
+_PROBE_PACE = 8.0
+_PACE_MIN = 3.51
+_PACE_MAX = 19.9
+
+
+def flat_pace_for_target(profile: list[TrackPoint], target_min: float) -> float:
+    """Flat pace that makes the segment clock land on `target_min`.
+
+    Duration is linear in flat pace, apart from the 0.01 minute slice floor.
+    Probe the clock at 8 min/km, then `pace = 8 * target / that duration`.
+    Clamp to 3.51–19.9 min/km and round to 3 decimals the way the form did
+    (`Number(pace.toFixed(3))`) so one fuel plan matches the old two-call solve.
+    """
+
+    probe = AthleteInput(flat_pace_min_per_km=_PROBE_PACE)
+    segments = build_timed_segments(slice_segments(prepare_course(profile)), probe)
+    duration = segments[-1].end_minute if segments else 0.0
+    if duration <= 0:
+        return _PROBE_PACE
+    raw = _PROBE_PACE * (target_min / duration)
+    clamped = min(_PACE_MAX, max(_PACE_MIN, raw))
+    return math.floor(clamped * 1000.0 + 0.5) / 1000.0
 
 
 def build_timed_segments(

@@ -2,7 +2,7 @@
 
 Use this on a real phone before race day. Open the site with `?diag=1` so the diagnostics panel is on screen. The panel has **Copy as JSON**. Paste that JSON into the notes column after each check.
 
-Worker ready time is the wait from idle startup until the engine answers. **cold** means a Pyodide file was missing from the cache when startup began. **cached** means every Pyodide file was already stored. Last plan time is the most recent engine call. Build Plan makes two calls, so copy the JSON after the packing list appears. Last recalibrate time is the most recent recalibration only.
+Worker ready time is the wait from idle startup until the engine answers. **cold** means a Pyodide file was missing from the cache when startup began. **cached** means every Pyodide file was already stored. Last plan time is the most recent engine call. Build Plan makes one call. Copy the JSON after the packing list appears. Last recalibrate time is the most recent recalibration only.
 
 The Offline tab is a checklist. It should read `offline ready: yes` before you turn the radio off. The Home Screen line is a hint. It does not decide offline ready.
 

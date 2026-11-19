@@ -1021,7 +1021,7 @@ def test_pace_scales_duration_and_weight_does_not(case: PlanCase, data: st.DataO
 @SLOW
 @given(case=plan_cases(), data=st.data())
 def test_target_time_lands_within_half_a_minute(case: PlanCase, data: st.DataObject) -> None:
-    """The app probes at 8 min/km, then pace = 8 * target / predicted, clamped like the client."""
+    """Pace = 8 * target / duration at 8 min/km, clamped like Build Plan. One plan uses that pace."""
 
     built = build_course(case)
     target = data.draw(_floats(AthleteInput, "target_time_minutes"))

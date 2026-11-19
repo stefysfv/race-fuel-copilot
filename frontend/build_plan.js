@@ -1,4 +1,4 @@
-/** Build Plan: scale a flat pace so the predicted finish matches the typed target. */
+/** Build Plan: one engine call. The engine scales pace to the typed finish. */
 
 import { engineIsReady, generatePlan, onEngineStatus } from "./engine_client.js";
 import { armGpsWatch, resetSim } from "./gps.js";
@@ -34,10 +34,9 @@ export async function buildPlan(event) {
     armGpsWatch();
     const targetMin = readTargetMin();
     setStatus(starting ? "Starting engine..." : "Building the plan…");
-    const probe = await generatePlan(courseBody(readAthlete(8)));
-    let pace = 8 * (targetMin / probe.predicted_duration_min);
-    pace = Math.min(19.9, Math.max(3.51, pace));
-    const plan = await generatePlan(courseBody(readAthlete(Number(pace.toFixed(3)))));
+    const body = courseBody(readAthlete(8));
+    body.match_target_time = true;
+    const plan = await generatePlan(body);
     state.packedPlan = plan;
     state.livePlan = plan;
     state.logged = [];

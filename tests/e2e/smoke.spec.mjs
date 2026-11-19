@@ -54,6 +54,16 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
   page.on("pageerror", (error) => {
     console.log(`PAGEERROR ${error.message}`);
   });
+  await page.addInitScript(() => {
+    const original = Worker.prototype.postMessage;
+    window.__planCalls = 0;
+    Worker.prototype.postMessage = function (message, ...args) {
+      if (message && message.type === "generate_plan") {
+        window.__planCalls += 1;
+      }
+      return original.call(this, message, ...args);
+    };
+  });
 
   await test.step("load the app and pick the bundled 12 km race", async () => {
     await page.goto("/");
@@ -73,6 +83,7 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await expect(summary).toBeVisible({ timeout: PLAN_MS });
     await expect(summary).toContainText("Salomon Vitosha Trail 12 km");
     await expect(summary).toContainText("/60 g/h");
+    await expect.poll(() => page.evaluate(() => window.__planCalls)).toBe(1);
     const card = page.getByTestId("packing-list").locator(".pack-card").first();
     await expect(card).toBeVisible();
     await expect(card).toContainText("Cherni Vrah");
@@ -114,6 +125,7 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await expect(page.locator(".gut[data-carbs='90']")).toHaveAttribute("aria-checked", "true");
     await page.getByTestId("build-plan").click();
     await expect(page.getByTestId("summary")).toContainText("/90 g/h", { timeout: PLAN_MS });
+    await expect.poll(() => page.evaluate(() => window.__planCalls)).toBe(1);
     await expect(page.getByTestId("summary")).toContainText("Salomon Vitosha Trail 12 km");
     await expect(page.getByTestId("packing-list").locator(".pack-card").first()).toContainText("Cherni Vrah");
   });
@@ -137,6 +149,7 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await expect(page.getByTestId("race-select")).toBeDisabled();
     await page.getByTestId("build-plan").click();
     await expect(page.getByTestId("summary")).toContainText("Uploaded GPX", { timeout: PLAN_MS });
+    await expect.poll(() => page.evaluate(() => window.__planCalls)).toBe(2);
     await expect(page.getByTestId("packing-list").locator(".pack-card").first()).toBeVisible();
     await page.locator("#nav-map").click();
     await expect.poll(async () => {

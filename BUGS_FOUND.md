@@ -12,6 +12,4 @@ The engine does assign a gel on yellow. On the default 27 km plan, the stop at 6
 
 ## Build Plan asks the engine twice
 
-`frontend/build_plan.js` `buildPlan` calls `generatePlan` once at a flat 8 min/km, then calls `generatePlan` again with a pace scaled so the predicted finish matches the hours and minutes on the form.
-
-`docs/device-test.md` says Build Plan makes two calls, and that the diagnostics "last plan time" is only the most recent one. The first call is still made. Left unchanged.
+**Fixed.** `buildPlan` calls `generatePlan` once. The request sets `match_target_time`. The engine probes the segment clock at 8 min/km, sets `pace = 8 × target / duration` (clamped to 3.51–19.9 min/km, rounded to 3 decimals), and builds the fuel plan once. A request without the flag keeps the pace it was given, so a target time on its own does not rewrite the catalog plans. Race id and uploaded GPX still share that one request.

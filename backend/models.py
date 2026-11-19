@@ -441,6 +441,13 @@ class GeneratePlanRequest(APIModel):
         max_length=24,
         description="Exact vest inventory. Empty keeps the usual food rotation.",
     )
+    match_target_time: bool = Field(
+        default=False,
+        description=(
+            "When true, set flat pace from target_time_minutes using the segment "
+            "clock, then build the fuel plan once. Off, the sent pace is kept."
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod

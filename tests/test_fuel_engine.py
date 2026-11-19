@@ -1,7 +1,8 @@
 """Unit and API tests for the terrain-aware fueling engine.
 
-Duration scales in a straight line with flat GAP pace, so a target finish is
-two plan builds: probe at 8 min/km, then pace = 8 * target / probe duration.
+Duration scales in a straight line with flat GAP pace. Build Plan sends one
+request with `match_target_time`. The engine probes the segment clock at
+8 min/km, then builds the fuel plan once at pace = 8 * target / that duration.
 A red window feeds 15 g and drops the rest. Nothing is added to the next window.
 GI Rescue is the `gi_rescue` flag on `POST /api/recalibrate`.
 """
@@ -13,6 +14,7 @@ import math
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.engine.timing import flat_pace_for_target
 from backend.fuel_engine import (
     RED_MICRO_DOSE_G,
     _delivered_grams_per_hour,
@@ -86,11 +88,9 @@ def build_plan(
 
 
 def pace_for_target(points: list[TrackPoint], target_min: float) -> float:
-    """Same two-call solve the app uses. Duration is linear in flat pace."""
+    """Same scale Build Plan asks the engine to apply inside one plan."""
 
-    probe = build_plan(points, AthleteInput(flat_pace_min_per_km=8.0))
-    pace = 8.0 * (target_min / probe.predicted_duration_min)
-    return min(19.9, max(3.51, round(pace, 3)))
+    return flat_pace_for_target(points, target_min)
 
 
 def minute_at(plan, distance_m: float) -> float:
@@ -138,6 +138,36 @@ def test_constant_grade_course_keeps_its_zone(grade: float, zone: DigestiveZone)
     middle = plan.segments[len(plan.segments) // 2]
     assert middle.zone is zone
     assert middle.grade_percent == pytest.approx(grade, abs=0.4)
+
+
+def test_match_target_time_builds_one_plan_at_the_scaled_pace() -> None:
+    """The flag scales pace inside one generate-plan. Without it, pace stays put."""
+
+    points = course_points([(5_000, 8.0), (5_000, -4.0), (6_000, 0.0)])
+    target_min = 180.0
+    pace = pace_for_target(points, target_min)
+    solved = client.post(
+        "/api/generate-plan",
+        json={
+            "gpx_xml": to_gpx(points),
+            "match_target_time": True,
+            "athlete": {"flat_pace_min_per_km": 8.0, "target_time_minutes": target_min},
+        },
+    )
+    assert solved.status_code == 200, solved.text
+    body = solved.json()
+    assert body["athlete"]["flat_pace_min_per_km"] == pytest.approx(pace)
+    assert body["predicted_duration_min"] == pytest.approx(target_min, abs=0.5)
+
+    kept = client.post(
+        "/api/generate-plan",
+        json={
+            "gpx_xml": to_gpx(points),
+            "athlete": {"flat_pace_min_per_km": 8.0, "target_time_minutes": target_min},
+        },
+    )
+    assert kept.status_code == 200, kept.text
+    assert kept.json()["athlete"]["flat_pace_min_per_km"] == pytest.approx(8.0)
 
 
 def test_target_time_solver_matches_segment_sum() -> None:

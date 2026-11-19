@@ -19,7 +19,7 @@ A fixed “one gel every 30 minutes” timer ignores four things that decide whe
 
 ## Algorithmic architecture
 
-**Minetti GAP solver.** Segment time is `kilometres × flat pace × C(grade) / C(0)` using the Minetti 2002 cost polynomial. Uphill costs more than flat; a mild downhill costs less. Minetti is a running-cost model. Very steep climbs are usually power-hiked, so predicted time on them is approximate. Finish time is not an engine field. Duration is linear in flat pace, so the client probes at 8 min/km and scales once: `pace = 8 × target / predicted`. The sum of segment times lands on that target (within half a minute inside the pace limits).
+**Minetti GAP solver.** Segment time is `kilometres × flat pace × C(grade) / C(0)` using the Minetti 2002 cost polynomial. Uphill costs more than flat; a mild downhill costs less. Minetti is a running-cost model. Very steep climbs are usually power-hiked, so predicted time on them is approximate. Finish time is not an engine field. Duration is linear in flat pace. Build Plan sends one request. The engine probes the segment clock at 8 min/km and builds the fuel plan once at `pace = 8 × target / predicted`. The sum of segment times lands on that target (within half a minute inside the pace limits).
 
 **Green / yellow / red zoning.** Each ~500 m slice is classified from net grade. These lines are practical heuristics for when a full gel is a poor bet, not established physiological cutoffs.
 
