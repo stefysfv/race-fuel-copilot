@@ -269,7 +269,7 @@ async function init() {
         reloaded = true;
         window.location.reload();
       });
-      navigator.serviceWorker.register("/sw.js?v=22", { type: "module" }).then((registration) => {
+      navigator.serviceWorker.register("/sw.js?v=23", { type: "module" }).then((registration) => {
         registration.update().catch(() => {});
       }).catch(() => {});
     }

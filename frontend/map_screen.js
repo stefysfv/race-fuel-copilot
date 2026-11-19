@@ -1,6 +1,6 @@
 /** Course map: the Leaflet view, the runner dot, and the real GPS dot. */
 
-import { createMapView } from "./map_controller.js?v=22";
+import { createMapView } from "./map_controller.js?v=23";
 import { renderStopList } from "./stop_list.js";
 import { snapToSegments } from "./offline_engine.js";
 import { state, ui } from "./state.js";

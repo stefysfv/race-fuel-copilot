@@ -61,6 +61,7 @@ export function renderPacking() {
   renderLegStepper(legs);
   const shown = state.legView === "all" ? legs : (legs[state.legView] ? [legs[state.legView]] : []);
   ui.packing.classList.toggle("is-all", state.legView === "all");
+  if (shown.length) ui.packing.append(hydrationNote());
   for (const leg of shown) {
     ui.packing.append(packCard(leg));
   }
@@ -104,9 +105,23 @@ export function stepLeg(delta) {
   renderPacking();
 }
 
+function hourlyRate(value) {
+  const rate = Number(value);
+  return Number.isFinite(rate) ? Math.round(rate) : 0;
+}
+
+function hydrationNote() {
+  const note = document.createElement("p");
+  note.className = "micro hydration-note";
+  note.textContent = "Fluid is a ceiling: up to the hourly rate, drink to thirst. In a long, cool race, drinking the whole planned volume can outrun thirst and dilute blood sodium. Sodium is a typical range for this temperature; adjust it for how salty you sweat.";
+  return note;
+}
+
 export function packCard(leg) {
   const card = document.createElement("article");
   card.className = "pack-card leg-card";
+  const fluidRate = hourlyRate(state.packedPlan?.athlete?.fluid_ml_per_hour);
+  const sodiumRate = hourlyRate(state.packedPlan?.athlete?.sodium_mg_per_hour);
   const salt = leg.pack.filter((item) => /salt capsule/i.test(item.item));
   const chew = leg.pack.filter((item) => !/flask/i.test(item.item) && !/salt capsule/i.test(item.item));
   const sips = leg.pack.filter((item) => /flask/i.test(item.item));
@@ -129,8 +144,8 @@ export function packCard(leg) {
       ${coach}
       <div class="macros">
         <div><strong>${grouped(leg.carbs_g)}g</strong><span>Carbs</span></div>
-        <div><strong>${grouped(leg.fluid_ml)}ml</strong><span>Fluid</span></div>
-        <div><strong>${grouped(leg.sodium_mg)}mg</strong><span>Sodium</span></div>
+        <div><strong class="macro-rate">up to ${grouped(fluidRate)} ml/h</strong><span class="macro-plain">drink to thirst</span></div>
+        <div><strong class="macro-rate">about ${grouped(sodiumRate)} mg/h</strong><span class="macro-plain">typical range, adjust for sweat saltiness</span></div>
       </div>
     </div>
     <div class="leg-card-scroll">

@@ -485,7 +485,10 @@ def _flask_item(
     carry = min(needed, cap)
     if needed > carry:
         refills = needed - carry
-        note = f"Refill {refills}× at mid-leg fountain/stream — total {round(fluid_ml):,} ml."
+        note = (
+            f"Refill {refills}× at mid-leg fountain/stream if you need water"
+            f" — up to {round(fluid_ml):,} ml on this leg (drink to thirst)."
+        )
     else:
         note = "Water/Electrolytes."
     detail = f"{mix_note} {note}".strip() if mix_note else note

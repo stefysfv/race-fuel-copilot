@@ -2,7 +2,7 @@
 
 export const RUNTIME_CACHE = "race-fuel-pyodide-314.0.8";
 
-export const SHELL_CACHE = "race-fuel-v22";
+export const SHELL_CACHE = "race-fuel-v23";
 
 export const RUNTIME_FILES = [
   "/vendor/pyodide/pyodide.mjs",

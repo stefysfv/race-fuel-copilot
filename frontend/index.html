@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/vendor/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=22">
+  <link rel="stylesheet" href="/style.css?v=23">
   <style>
     html, body { height: 100dvh; width: 100vw; margin: 0; overflow: hidden; }
   </style>
@@ -24,7 +24,7 @@
 <body data-tab="setup">
   <script>
     (function () {
-      var SHELL = "v22";
+      var SHELL = "v23";
       var guard = "fuel_sw_boot";
       try {
         if (sessionStorage.getItem(guard) === SHELL) return;
@@ -36,7 +36,7 @@
         var stale = regs.filter(function (reg) {
           var worker = reg.active || reg.waiting || reg.installing;
           var script = worker && worker.scriptURL ? worker.scriptURL : "";
-          return script.indexOf("v=22") === -1;
+          return script.indexOf("v=23") === -1;
         });
         if (!stale.length) {
           try { sessionStorage.setItem(guard, SHELL); } catch (error) {}
@@ -135,7 +135,7 @@
             </div>
           </div>
         </div>
-        <p class="micro setup-note">Not medical advice. Carb, fluid, and sodium figures are estimates and defaults, so test them in training and adjust.</p>
+        <p class="micro setup-note">This plan is guidance, not medical or dietetic advice. Carb, fluid, and sodium figures are estimates and defaults, so test them in training and adjust.</p>
         </div>
 
         <details id="vest-drawer" class="drawer liquid-glass">
@@ -405,6 +405,6 @@
 
   <script src="/vendor/leaflet.js"></script>
   <script src="/vendor/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=22"></script>
+  <script type="module" src="/app.js?v=23"></script>
 </body>
 </html>

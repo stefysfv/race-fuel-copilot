@@ -5233,7 +5233,7 @@
         {
           "item": "500ml Flask",
           "quantity": 2,
-          "detail": "Refill 2× at mid-leg fountain/stream — total 1,685 ml."
+          "detail": "Refill 2× at mid-leg fountain/stream if you need water — up to 1,685 ml on this leg (drink to thirst)."
         }
       ],
       "note": "Pre-race meal covers the first 50 min. Sip flask on the climb; refuel at the station table at the top."
@@ -5289,7 +5289,7 @@
         {
           "item": "500ml Flask",
           "quantity": 2,
-          "detail": "Refill 1× at mid-leg fountain/stream — total 1,132 ml."
+          "detail": "Refill 1× at mid-leg fountain/stream if you need water — up to 1,132 ml on this leg (drink to thirst)."
         }
       ],
       "note": "Short leg. Sip fluids and save the bigger meal for the station table."
@@ -5350,7 +5350,7 @@
         {
           "item": "500ml Flask",
           "quantity": 2,
-          "detail": "Refill 3× at mid-leg fountain/stream — total 2,001 ml."
+          "detail": "Refill 3× at mid-leg fountain/stream if you need water — up to 2,001 ml on this leg (drink to thirst)."
         }
       ],
       "note": "Take gels on the power-hike and on flat green. Leave the steep red and the fast descents clear."
@@ -5378,7 +5378,7 @@
         {
           "item": "500ml Flask",
           "quantity": 2,
-          "detail": "Refill 2× at mid-leg fountain/stream — total 1,800 ml."
+          "detail": "Refill 2× at mid-leg fountain/stream if you need water — up to 1,800 ml on this leg (drink to thirst)."
         }
       ],
       "note": "Take gels on the power-hike and on flat green. Leave the steep red and the fast descents clear."
@@ -5406,7 +5406,7 @@
         {
           "item": "500ml Flask",
           "quantity": 2,
-          "detail": "Refill 1× at mid-leg fountain/stream — total 1,411 ml."
+          "detail": "Refill 1× at mid-leg fountain/stream if you need water — up to 1,411 ml on this leg (drink to thirst)."
         }
       ],
       "note": "Take gels on the power-hike and on flat green. Leave the steep red and the fast descents clear."
@@ -5439,7 +5439,7 @@
         {
           "item": "500ml Flask",
           "quantity": 2,
-          "detail": "Refill 2× at mid-leg fountain/stream — total 1,926 ml."
+          "detail": "Refill 2× at mid-leg fountain/stream if you need water — up to 1,926 ml on this leg (drink to thirst)."
         }
       ],
       "note": "Take gels on the power-hike and on flat green. Leave the steep red and the fast descents clear."
@@ -5472,7 +5472,7 @@
         {
           "item": "500ml Flask",
           "quantity": 2,
-          "detail": "Refill 2× at mid-leg fountain/stream — total 1,866 ml."
+          "detail": "Refill 2× at mid-leg fountain/stream if you need water — up to 1,866 ml on this leg (drink to thirst)."
         }
       ],
       "note": "Take gels on the power-hike and on flat green. Leave the steep red and the fast descents clear."
@@ -5495,7 +5495,7 @@
         {
           "item": "500ml Flask",
           "quantity": 2,
-          "detail": "Refill 1× at mid-leg fountain/stream — total 1,479 ml."
+          "detail": "Refill 1× at mid-leg fountain/stream if you need water — up to 1,479 ml on this leg (drink to thirst)."
         }
       ],
       "note": "Fast descent. Leg averages -3.5%. Don't waste tempo chewing on the trail. Your Simeonovo / Dragalevtsi station food powers this segment."
