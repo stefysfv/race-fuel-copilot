@@ -12,11 +12,13 @@ from backend.gpx_parser import (
 from backend.models import (
     AidStation,
     AthleteInput,
+    ForfeitedDose,
     FuelForm,
     FuelStop,
     PackedVestItem,
     Race,
     RacePlan,
+    ReasonCode,
     Segment,
     TrackPoint,
 )
@@ -30,6 +32,7 @@ from backend.engine.constants import (
     AID_LEG_MIN_MINUTES,
     GAP_MODEL_NAME,
     RESCUE_COOLDOWN_MIN,
+    RESCUE_EASE_CARBS_G,
     RESCUE_GENTLE_FEEDS,
     RESCUE_NIL_CARB_MIN,
     RESCUE_SIP_INTERVAL_MIN,
@@ -53,6 +56,8 @@ from backend.engine.packing import (
     _consume_packed_vest,
     build_aid_legs,
 )
+
+from backend.engine.reasons import dropped, make_reason, shift_reasons
 
 from backend.engine.short_race import (
     _is_short_race,
@@ -111,6 +116,7 @@ def generate_plan(
 
     total_m = course[-1].distance_m
     stations = _stations_on_course(aid_stations, total_m, warnings)
+    forfeited: list[ForfeitedDose] = []
     if _is_short_race(athlete):
         warnings.insert(0, SHORT_RACE_NOTE)
         bite = _short_race_bite(athlete)
@@ -128,7 +134,7 @@ def generate_plan(
             bite,
         )
     else:
-        stops = schedule_fuel(
+        stops, forfeited = schedule_fuel(
             timed,
             course,
             athlete,
@@ -136,7 +142,7 @@ def generate_plan(
             rescue_start_min=rescue_start_min,
         )
         stops = _insert_aid_bites(stops, stations, timed, athlete)
-        _quiet_opening_stops(stops, timed[0].start_minute)
+        forfeited.extend(_quiet_opening_stops(stops, timed[0].start_minute))
         legs = build_aid_legs(
             stations,
             timed,
@@ -145,7 +151,8 @@ def generate_plan(
             total_m=total_m,
             stops=stops,
         )
-        _quiet_descent_stops(stops, legs, timed, stations)
+        forfeited.extend(_quiet_descent_stops(stops, legs, timed, stations))
+        forfeited.sort(key=lambda item: (item.at_min, item.code.value, item.carbs_g))
     inventory_summary = ""
     # A short race stays on one flask and one bite. The vest list is ignored there.
     if not _is_short_race(athlete) and packed_vest_items:
@@ -181,6 +188,7 @@ def generate_plan(
         zone_counts=_zone_counts(timed),
         segments=timed,
         fuel_stops=stops,
+        forfeited=forfeited,
         aid_legs=legs,
         aid_stations=stations,
         totals=totals,
@@ -208,7 +216,7 @@ def schedule_fuel(
     athlete: AthleteInput,
     not_before_min: float = 0.0,
     rescue_start_min: float | None = None,
-) -> list[FuelStop]:
+) -> tuple[list[FuelStop], list[ForfeitedDose]]:
     """Place each feed on the safest segment inside a +/- 6 minute window.
 
     Every window is planned on its own. A red window does not add carbs to
@@ -216,7 +224,7 @@ def schedule_fuel(
     """
 
     if not segments:
-        return []
+        return [], []
 
     finish_min = segments[-1].end_minute
     targets = _feed_targets(
@@ -227,6 +235,7 @@ def schedule_fuel(
     )
     gentle_left = RESCUE_GENTLE_FEEDS if rescue_start_min is not None else 0
     stops: list[FuelStop] = []
+    forfeited: list[ForfeitedDose] = []
     caffeine_used = 0.0
     race_start = segments[0].start_minute
     menu_clock = _MenuClock()
@@ -234,6 +243,10 @@ def schedule_fuel(
     for target in targets:
         placed = _place_feed(segments, target.minute, prefer_safe=target.kind == "normal")
         if placed is None:
+            missed = _unplaced_carbs(target.kind, athlete)
+            row = dropped(target.minute, missed, ReasonCode.UNPLACED)
+            if row is not None:
+                forfeited.append(row)
             continue
         segment, when = placed
         dose = _dose_for_target(
@@ -278,6 +291,10 @@ def schedule_fuel(
                 product = food_name
         named = product or food_name
         reason = _align_reason_with_intake(reason, dose.form, named, dose.carbs_g)
+        for carbs_g, code, params in dose.drops:
+            row = dropped(when, carbs_g, code, **params)
+            if row is not None:
+                forfeited.append(row)
         distance_m = _distance_at_minute(segment, when)
         location = location_at_distance(course, distance_m)
         stops.append(
@@ -300,9 +317,24 @@ def schedule_fuel(
                 caffeine_mg=caffeine_mg,
                 product=product or food_name,
                 flavor=flavor,
+                reasons=shift_reasons(target.minute, when, segment.grade_percent, segment.index) + list(dose.reasons),
             )
         )
-    return stops
+    return stops, forfeited
+
+
+def _unplaced_carbs(kind: str, athlete: AthleteInput) -> float:
+    """Grams a slot would have served when no segment sits inside the window.
+
+    A nil rescue sip is 0 g, so it is not recorded. An ease sip is the 12 g
+    that could not be placed. A normal slot is one full window.
+    """
+
+    if kind == "rescue_nil":
+        return 0.0
+    if kind == "rescue_ease":
+        return RESCUE_EASE_CARBS_G
+    return athlete.carbs_g_per_hour * athlete.feed_interval_min / 60.0
 
 
 def _feed_targets(
@@ -321,7 +353,7 @@ def _feed_targets(
         while sip_at < cooldown_end and sip_at < finish_min - 2:
             if sip_at >= not_before_min - 1e-6:
                 kind = "rescue_nil" if sip_at < rescue_start_min + RESCUE_NIL_CARB_MIN else "rescue_ease"
-                targets.append(_Target(sip_at, kind))
+                targets.append(_Target(sip_at, kind, sip_at - rescue_start_min))
             sip_at += RESCUE_SIP_INTERVAL_MIN
 
     ideal = float(interval_min)
@@ -389,6 +421,7 @@ def _insert_aid_bites(
                 product="Aid station plate",
                 flavor="Savoury/Salty",
                 at_aid_station=True,
+                reasons=[make_reason(ReasonCode.AID_RESTOCK, plate_carbs_g=plate_carbs)],
             )
         )
         for stop in stops:
@@ -396,6 +429,7 @@ def _insert_aid_bites(
                 continue
             if abs(stop.scheduled_minute - minute) > 15:
                 continue
+            before = stop.carbs_g
             stop.carbs_g = max(0.0, stop.carbs_g - plate_carbs)
             stop.caffeine_mg = 0.0
             if stop.carbs_g < 5:
@@ -405,6 +439,11 @@ def _insert_aid_bites(
                 stop.reason = f"Skip the vest snack. {plate_label}"
             else:
                 stop.reason += f" The aid-station plate covers {plate_carbs:.0f} g of this window."
+            covered = before - stop.carbs_g
+            if covered > 0:
+                stop.reasons.append(
+                    make_reason(ReasonCode.AID_COVERED, plate_carbs_g=plate_carbs, covered_g=covered)
+                )
             break
     merged = stops + bites
     merged.sort(key=lambda stop: (stop.scheduled_minute, stop.distance_km))

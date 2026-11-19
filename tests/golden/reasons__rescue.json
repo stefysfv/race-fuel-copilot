@@ -1,0 +1,165 @@
+{
+  "stops": [
+    {
+      "sequence": 1,
+      "ideal_minute": 30.0,
+      "scheduled_minute": 30.0,
+      "carbs_g": 0.0,
+      "reasons": [
+        {
+          "code": "GI_RESCUE_HALF",
+          "params": {
+            "carbs_g": 15.0
+          }
+        },
+        {
+          "code": "QUIET_WINDOW",
+          "params": {
+            "quiet_until_min": 50.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 2,
+      "ideal_minute": 60.0,
+      "scheduled_minute": 60.0,
+      "carbs_g": 15.0,
+      "reasons": [
+        {
+          "code": "GI_RESCUE_HALF",
+          "params": {
+            "carbs_g": 15.0
+          }
+        },
+        {
+          "code": "OPENING_SOLID",
+          "params": {
+            "carbs_g": 15.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 3,
+      "ideal_minute": 80.0,
+      "scheduled_minute": 80.0,
+      "carbs_g": 0.0,
+      "reasons": [
+        {
+          "code": "GI_RESCUE_NIL",
+          "params": {
+            "minutes_into_rescue": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 4,
+      "ideal_minute": 90.0,
+      "scheduled_minute": 90.0,
+      "carbs_g": 0.0,
+      "reasons": [
+        {
+          "code": "GI_RESCUE_NIL",
+          "params": {
+            "minutes_into_rescue": 10.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 5,
+      "ideal_minute": 100.0,
+      "scheduled_minute": 100.0,
+      "carbs_g": 12.0,
+      "reasons": [
+        {
+          "code": "GI_RESCUE_EASE",
+          "params": {
+            "carbs_g": 12.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 6,
+      "ideal_minute": 110.0,
+      "scheduled_minute": 110.0,
+      "carbs_g": 12.0,
+      "reasons": [
+        {
+          "code": "GI_RESCUE_EASE",
+          "params": {
+            "carbs_g": 12.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 7,
+      "ideal_minute": 120.0,
+      "scheduled_minute": 120.0,
+      "carbs_g": 12.0,
+      "reasons": [
+        {
+          "code": "GI_RESCUE_EASE",
+          "params": {
+            "carbs_g": 12.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 8,
+      "ideal_minute": 150.0,
+      "scheduled_minute": 150.0,
+      "carbs_g": 30.0,
+      "reasons": [
+        {
+          "code": "SAVOURY_SLOT",
+          "params": {
+            "switch_min": 150.0,
+            "carbs_g": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 9,
+      "ideal_minute": 180.0,
+      "scheduled_minute": 180.0,
+      "carbs_g": 30.0,
+      "reasons": []
+    },
+    {
+      "sequence": 10,
+      "ideal_minute": 210.0,
+      "scheduled_minute": 210.0,
+      "carbs_g": 30.0,
+      "reasons": []
+    }
+  ],
+  "forfeited": [
+    {
+      "at_min": 30.0,
+      "carbs_g": 15.0,
+      "code": "GI_RESCUE_HALF",
+      "params": {}
+    },
+    {
+      "at_min": 30.0,
+      "carbs_g": 15.0,
+      "code": "QUIET_WINDOW",
+      "params": {
+        "quiet_until_min": 50.0
+      }
+    },
+    {
+      "at_min": 60.0,
+      "carbs_g": 15.0,
+      "code": "GI_RESCUE_HALF",
+      "params": {}
+    }
+  ]
+}

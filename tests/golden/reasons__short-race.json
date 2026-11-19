@@ -1,0 +1,47 @@
+{
+  "stops": [
+    {
+      "sequence": 1,
+      "ideal_minute": 25.0,
+      "scheduled_minute": 25.0,
+      "carbs_g": 0.0,
+      "reasons": [
+        {
+          "code": "SHORT_RACE_SIP",
+          "params": {
+            "carbs_g": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 2,
+      "ideal_minute": 52.8,
+      "scheduled_minute": 52.8,
+      "carbs_g": 25.0,
+      "reasons": [
+        {
+          "code": "SHORT_RACE_BITE",
+          "params": {
+            "carbs_g": 25.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 3,
+      "ideal_minute": 75.0,
+      "scheduled_minute": 75.0,
+      "carbs_g": 0.0,
+      "reasons": [
+        {
+          "code": "SHORT_RACE_SIP",
+          "params": {
+            "carbs_g": 0.0
+          }
+        }
+      ]
+    }
+  ],
+  "forfeited": []
+}

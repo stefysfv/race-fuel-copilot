@@ -1,6 +1,6 @@
 /** Where the runner is on the plan: next fuel stop, current segment, next aid. */
 
-import { positionOnCourse } from "./map_controller.js?v=19";
+import { positionOnCourse } from "./map_controller.js?v=20";
 import { segmentAtMinute } from "./offline_engine.js";
 import { state } from "./state.js";
 import { elapsedMin } from "./ui_helpers.js";

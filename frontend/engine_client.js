@@ -20,7 +20,7 @@ import {
 
 export const ENGINE_MODE = "worker";
 
-const SHELL_WORKER = "/sw.js?v=19";
+const SHELL_WORKER = "/sw.js?v=20";
 let catalogText = "";
 let catalog = null;
 const gpxByRace = new Map();

@@ -1,0 +1,85 @@
+{
+  "stops": [
+    {
+      "sequence": 1,
+      "ideal_minute": 30.0,
+      "scheduled_minute": 30.0,
+      "carbs_g": 0.0,
+      "reasons": [
+        {
+          "code": "QUIET_WINDOW",
+          "params": {
+            "quiet_until_min": 50.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 2,
+      "ideal_minute": 60.0,
+      "scheduled_minute": 60.0,
+      "carbs_g": 30.0,
+      "reasons": [
+        {
+          "code": "OPENING_SOLID",
+          "params": {
+            "carbs_g": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 3,
+      "ideal_minute": 90.0,
+      "scheduled_minute": 90.0,
+      "carbs_g": 30.0,
+      "reasons": []
+    },
+    {
+      "sequence": 4,
+      "ideal_minute": 120.0,
+      "scheduled_minute": 120.0,
+      "carbs_g": 30.0,
+      "reasons": []
+    },
+    {
+      "sequence": 5,
+      "ideal_minute": 150.0,
+      "scheduled_minute": 150.0,
+      "carbs_g": 30.0,
+      "reasons": [
+        {
+          "code": "SAVOURY_SLOT",
+          "params": {
+            "switch_min": 150.0,
+            "carbs_g": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 6,
+      "ideal_minute": 180.0,
+      "scheduled_minute": 180.0,
+      "carbs_g": 30.0,
+      "reasons": []
+    },
+    {
+      "sequence": 7,
+      "ideal_minute": 210.0,
+      "scheduled_minute": 210.0,
+      "carbs_g": 30.0,
+      "reasons": []
+    }
+  ],
+  "forfeited": [
+    {
+      "at_min": 30.0,
+      "carbs_g": 30.0,
+      "code": "QUIET_WINDOW",
+      "params": {
+        "quiet_until_min": 50.0
+      }
+    }
+  ]
+}

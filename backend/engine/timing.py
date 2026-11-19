@@ -14,7 +14,10 @@ from backend.models import (
     FuelForm,
     FuelStop,
     Segment,
+    StopReason,
 )
+
+from backend.engine.reasons import shift_reasons
 
 from backend.engine.constants import WINDOW_MIN
 
@@ -93,6 +96,7 @@ def _stop_on_clock(
     reason: str,
     product: str,
     flavor: str,
+    extra_reasons: list[StopReason] | None = None,
 ) -> FuelStop | None:
     """One stop near `ideal`, staying inside the terrain window when it can."""
 
@@ -124,6 +128,7 @@ def _stop_on_clock(
         reason=reason,
         product=product,
         flavor=flavor,
+        reasons=shift_reasons(ideal, when, segment.grade_percent, segment.index) + list(extra_reasons or []),
     )
 
 

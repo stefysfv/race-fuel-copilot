@@ -1,6 +1,7 @@
 /** Course map: the Leaflet view, the runner dot, and the real GPS dot. */
 
-import { createMapView } from "./map_controller.js?v=19";
+import { createMapView } from "./map_controller.js?v=20";
+import { renderStopList } from "./stop_list.js";
 import { snapToSegments } from "./offline_engine.js";
 import { state, ui } from "./state.js";
 import { setStatus } from "./ui_helpers.js";
@@ -22,16 +23,20 @@ export function drawMap() {
   if (!state.packedPlan) {
     ui.mapEmpty.classList.remove("hidden");
     ui.mapBlock.classList.add("hidden");
+    renderStopList(null);
     return;
   }
   ui.mapEmpty.classList.add("hidden");
   ui.mapBlock.classList.remove("hidden");
   try {
+    const plan = state.livePlan || state.packedPlan;
+    renderStopList(plan);
     const view = mapApi();
     view.setCourse({
       segments: state.packedPlan.segments,
       aidStations: state.aidStations,
-      fuelStops: (state.livePlan || state.packedPlan).fuel_stops,
+      fuelStops: plan.fuel_stops,
+      forfeited: plan.forfeited || [],
     });
     const farOff = Boolean(state.realGps && state.snap && state.snap.offCourseM > 250);
     if (state.snap) {

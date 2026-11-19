@@ -479,6 +479,55 @@ class Segment(APIModel):
     gap_min_per_km: float = Field(gt=0)
 
 
+class ReasonCode(str, Enum):
+    """Why a stop moved, or why its carbs are not the full window.
+
+    One code per scheduler branch. The words live in the frontend.
+    """
+
+    SHIFTED_EARLIER = "SHIFTED_EARLIER"
+    SHIFTED_LATER = "SHIFTED_LATER"
+    YELLOW_HALF = "YELLOW_HALF"
+    SKIPPED_RED_ZONE = "SKIPPED_RED_ZONE"
+    GI_RESCUE_NIL = "GI_RESCUE_NIL"
+    GI_RESCUE_EASE = "GI_RESCUE_EASE"
+    GI_RESCUE_RED = "GI_RESCUE_RED"
+    GI_RESCUE_HALF = "GI_RESCUE_HALF"
+    QUIET_WINDOW = "QUIET_WINDOW"
+    DESCENT_LOCK = "DESCENT_LOCK"
+    AID_RESTOCK = "AID_RESTOCK"
+    AID_COVERED = "AID_COVERED"
+    OPENING_SOLID = "OPENING_SOLID"
+    SOLID_SLOT = "SOLID_SLOT"
+    SAVOURY_SLOT = "SAVOURY_SLOT"
+    PORTION = "PORTION"
+    NO_VEST_FOOD = "NO_VEST_FOOD"
+    NO_CLIMB_FOOD = "NO_CLIMB_FOOD"
+    PACKED_VEST = "PACKED_VEST"
+    SHORT_RACE_BITE = "SHORT_RACE_BITE"
+    SHORT_RACE_SIP = "SHORT_RACE_SIP"
+    UNPLACED = "UNPLACED"
+
+
+class StopReason(APIModel):
+    """One structured reason on a stop. `params` are numbers, never sentences."""
+
+    code: ReasonCode
+    params: dict[str, float] = Field(default_factory=dict)
+
+
+class ForfeitedDose(APIModel):
+    """Carbs a window calculated and then did not leave on a stop.
+
+    `carbs_g` is always above zero. A 0 g rescue sip is not a forfeited row.
+    """
+
+    at_min: float
+    carbs_g: float = Field(gt=0)
+    code: ReasonCode
+    params: dict[str, float] = Field(default_factory=dict)
+
+
 class FuelStop(APIModel):
     """One planned intake, already moved onto the safest nearby terrain."""
 
@@ -501,6 +550,7 @@ class FuelStop(APIModel):
     product: str = ""
     flavor: str = ""
     at_aid_station: bool = False
+    reasons: list[StopReason] = Field(default_factory=list)
 
 
 class PackItem(APIModel):
@@ -576,6 +626,7 @@ class RacePlan(APIModel):
     zone_counts: dict[str, int]
     segments: list[Segment]
     fuel_stops: list[FuelStop]
+    forfeited: list[ForfeitedDose] = Field(default_factory=list)
     aid_legs: list[AidLeg]
     aid_stations: list[AidStation] = Field(default_factory=list)
     totals: PlanTotals

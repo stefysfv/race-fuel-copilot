@@ -1,13 +1,23 @@
-/** Chart.js elevation profile and fuel-stop markers.
+/** Chart.js elevation profile, fuel-stop markers, and hollow forfeited-dose markers.
 
 Zone colors are the same hex values as `style.css`.
 */
+
+import { forfeitText } from "./reason_strings.js";
 
 export const ZONE = {
   green: "#10B981",
   yellow: "#F59E0B",
   red: "#EF4444",
 };
+
+function distanceKmAtMinute(segments, minute) {
+  const segment = segments.find((item) => minute >= item.start_minute && minute <= item.end_minute)
+    || segments[segments.length - 1];
+  const span = segment.end_minute - segment.start_minute;
+  const fraction = span <= 0 ? 0 : Math.min(1, Math.max(0, (minute - segment.start_minute) / span));
+  return (segment.start_distance_m + fraction * (segment.end_distance_m - segment.start_distance_m)) / 1000;
+}
 
 function elevationAt(segments, distanceKm) {
   const distanceM = distanceKm * 1000;
@@ -19,7 +29,7 @@ function elevationAt(segments, distanceKm) {
 }
 
 /** Destroys the previous chart and returns the new one so the map can resize it. */
-export function drawElevationChart(canvas, previous, segments, fuelStops) {
+export function drawElevationChart(canvas, previous, segments, fuelStops, forfeited = []) {
   const elevation = [{
     x: segments[0].start_distance_m / 1000,
     y: segments[0].elevation_start_m,
@@ -32,6 +42,14 @@ export function drawElevationChart(canvas, previous, segments, fuelStops) {
     y: elevationAt(segments, stop.distance_km),
     zone: stop.zone,
   }));
+  const missed = (forfeited || []).map((item) => {
+    const x = distanceKmAtMinute(segments, item.at_min);
+    return {
+      x,
+      y: elevationAt(segments, x),
+      text: forfeitText(item),
+    };
+  });
 
   if (previous) {
     previous.destroy();
@@ -60,6 +78,16 @@ export function drawElevationChart(canvas, previous, segments, fuelStops) {
           pointBorderColor: "#0B0F17",
           pointBorderWidth: 1,
         },
+        {
+          type: "scatter",
+          label: "Forfeited",
+          data: missed,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          pointBackgroundColor: "rgba(0,0,0,0)",
+          pointBorderColor: "#334155",
+          pointBorderWidth: 2,
+        },
       ],
     },
     options: {
@@ -70,6 +98,7 @@ export function drawElevationChart(canvas, previous, segments, fuelStops) {
         tooltip: {
           callbacks: {
             label(item) {
+              if (item.dataset.label === "Forfeited") return item.raw.text;
               return `${item.dataset.label}: ${item.parsed.y.toFixed(0)} m at ${item.parsed.x.toFixed(1)} km`;
             },
           },

@@ -1,6 +1,7 @@
 /** Leaflet course map. The elevation chart lives in elevation_chart.js. */
 
 import { ZONE, drawElevationChart } from "./elevation_chart.js";
+import { shortWhy } from "./reason_strings.js";
 
 const TILES = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
 const ATTRIBUTION = "© OpenTopoMap · OSM";
@@ -53,7 +54,7 @@ export function createMapView(mapElement, chartCanvas) {
   let chart = null;
   let lastBounds = null;
 
-  function setCourse({ segments, aidStations, fuelStops }) {
+  function setCourse({ segments, aidStations, fuelStops, forfeited }) {
     routeLayer.clearLayers();
     aidLayer.clearLayers();
     fuelLayer.clearLayers();
@@ -96,7 +97,7 @@ export function createMapView(mapElement, chartCanvas) {
         fillColor: ZONE[stop.zone] || ZONE.green,
         fillOpacity: 0.95,
       }).bindPopup(
-        `<strong>${escapeHtml(stop.zone)} · ${stop.carbs_g.toFixed(0)} g</strong><br>${escapeHtml(stop.reason)}`,
+        `<strong>${escapeHtml(stop.zone)} · ${stop.carbs_g.toFixed(0)} g</strong><br>${escapeHtml(shortWhy(stop))}<br>${escapeHtml(stop.reason)}`,
       ).addTo(fuelLayer);
     }
 
@@ -104,7 +105,7 @@ export function createMapView(mapElement, chartCanvas) {
       lastBounds = bounds;
       map.fitBounds(bounds, { padding: [24, 24] });
     }
-    chart = drawElevationChart(chartCanvas, chart, segments, fuelStops || []);
+    chart = drawElevationChart(chartCanvas, chart, segments, fuelStops || [], forfeited || []);
   }
 
   function setRunner(latitude, longitude, pan = true) {

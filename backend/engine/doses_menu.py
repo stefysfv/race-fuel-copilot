@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from backend.models import (
     AthleteInput,
     CustomFoodItem,
     DigestiveZone,
     FuelForm,
+    ReasonCode,
     Segment,
 )
+
+from backend.engine.reasons import make_reason
 
 from backend.engine.constants import (
     AID_BITE_CARBS_G,
@@ -234,6 +237,15 @@ def station_plate(athlete: AthleteInput) -> tuple[float, str, float]:
 class _Target:
     minute: float
     kind: str  # "normal", "rescue_nil", or "rescue_ease"
+    offset_min: float = 0.0  # minutes after a rescue start; 0 for a normal slot
+
+
+def _remember_drop(drops: list, carbs_g: float, code: ReasonCode, **params: float) -> None:
+    """Keep a positive carb cut so the scheduler can place it on the clock."""
+
+    if carbs_g <= 0:
+        return
+    drops.append((float(carbs_g), code, {key: float(value) for key, value in params.items()}))
 
 
 @dataclass
@@ -244,6 +256,9 @@ class _Dose:
     form: FuelForm
     gentle_left: int
     reason: str
+    reasons: list = field(default_factory=list)
+    # (carbs dropped, code, params). The scheduler stamps the clock minute.
+    drops: list = field(default_factory=list)
 
 
 def _dose_for_target(
@@ -266,8 +281,12 @@ def _dose_for_target(
     base_fluid = ml_per_hour * hours
     base_sodium = sodium_per_hour * hours
     grade_text = f"{grade_percent:+.1f}%"
+    reasons: list = []
+    drops: list = []
 
     if target.kind == "rescue_nil":
+        # The sip is defined as 0 g, so it is not a forfeited row.
+        reasons.append(make_reason(ReasonCode.GI_RESCUE_NIL, minutes_into_rescue=target.offset_min))
         return _Dose(
             0.0,
             RESCUE_SIP_FLUID_ML,
@@ -275,9 +294,14 @@ def _dose_for_target(
             FuelForm.rescue_sip,
             gentle_left,
             "GI Rescue: no calories yet. Take a small water and salt sip only.",
+            reasons,
+            drops,
         )
     if target.kind == "rescue_ease":
         if zone == DigestiveZone.red:
+            reasons.append(make_reason(ReasonCode.GI_RESCUE_RED, grade_percent=grade_percent))
+            # The ease dose would have been 12 g. Red skips those calories.
+            drops.append((RESCUE_EASE_CARBS_G, ReasonCode.GI_RESCUE_RED, {"grade_percent": float(grade_percent)}))
             return _Dose(
                 0.0,
                 RESCUE_SIP_FLUID_ML,
@@ -285,7 +309,10 @@ def _dose_for_target(
                 FuelForm.rescue_sip,
                 gentle_left,
                 f"GI Rescue: grade {grade_text} is still red, so skip calories and sip.",
+                reasons,
+                drops,
             )
+        reasons.append(make_reason(ReasonCode.GI_RESCUE_EASE, carbs_g=RESCUE_EASE_CARBS_G))
         return _Dose(
             RESCUE_EASE_CARBS_G,
             RESCUE_EASE_FLUID_ML,
@@ -293,6 +320,8 @@ def _dose_for_target(
             FuelForm.liquid,
             gentle_left,
             f"GI Rescue: {RESCUE_EASE_CARBS_G:.0f} g of liquid carb while the stomach settles.",
+            reasons,
+            drops,
         )
 
     if zone == DigestiveZone.green:
@@ -303,6 +332,8 @@ def _dose_for_target(
         carbs = base_carbs * 0.5
         form = FuelForm.liquid
         reason = _yellow_reason(shift_min, grade_text, carbs)
+        reasons.append(make_reason(ReasonCode.YELLOW_HALF, grade_percent=grade_percent, carbs_g=carbs))
+        _remember_drop(drops, base_carbs - carbs, ReasonCode.YELLOW_HALF, grade_percent=grade_percent)
     else:
         carbs = min(RED_MICRO_DOSE_G, base_carbs)
         forfeited = base_carbs - carbs
@@ -313,13 +344,25 @@ def _dose_for_target(
         )
         if forfeited >= 1:
             reason += f" The other {forfeited:.0f} g in this window is forfeited."
+        reasons.append(
+            make_reason(
+                ReasonCode.SKIPPED_RED_ZONE,
+                grade_percent=grade_percent,
+                carbs_g=carbs,
+                forfeited_g=forfeited,
+            )
+        )
+        _remember_drop(drops, forfeited, ReasonCode.SKIPPED_RED_ZONE, grade_percent=grade_percent)
 
     if gentle_left > 0 and carbs > 0:
+        before = carbs
         carbs *= 0.5
         gentle_left -= 1
         reason += " Half-size while GI Rescue eases off."
+        reasons.append(make_reason(ReasonCode.GI_RESCUE_HALF, carbs_g=carbs))
+        _remember_drop(drops, before - carbs, ReasonCode.GI_RESCUE_HALF)
 
-    return _Dose(carbs, base_fluid, base_sodium, form, gentle_left, reason)
+    return _Dose(carbs, base_fluid, base_sodium, form, gentle_left, reason, reasons, drops)
 
 
 def _align_reason_with_intake(reason: str, form: FuelForm, product: str, carbs: float) -> str:
@@ -429,6 +472,7 @@ def _apply_named_food(
 
     if item.uses_portion:
         dose.carbs_g = max(1.0, float(round(item.carbs_g * portion_scale)))
+        dose.reasons.append(make_reason(ReasonCode.PORTION, carbs_g=dose.carbs_g))
     if item.kind == "solid":
         dose.form = FuelForm.real_food
     elif item.kind == "liquid":
@@ -463,7 +507,7 @@ def _apply_food_preference(
     if dose.form is FuelForm.micro_dose and _gels_selected(athlete):
         return "", ""
     if not _gels_selected(athlete) and (dose.form is FuelForm.micro_dose or zone in {DigestiveZone.red, DigestiveZone.yellow}):
-        return _climb_without_gel(dose, athlete, zone)
+        return _climb_without_gel(dose, athlete, zone, grade_percent)
 
     foods = _resolved_foods(athlete.vest_foods, VEST_MENU, athlete.custom_vest_items)
     if not _gels_selected(athlete):
@@ -471,9 +515,12 @@ def _apply_food_preference(
     elif not foods:
         foods = [VEST_MENU["gel_25"]]
     if not foods:
+        removed = dose.carbs_g
         dose.form = FuelForm.sip
         dose.carbs_g = 0
         dose.reason += " No gel is in the vest, and no other vest food is selected."
+        dose.reasons.append(make_reason(ReasonCode.NO_VEST_FOOD, forfeited_g=removed))
+        _remember_drop(dose.drops, removed, ReasonCode.NO_VEST_FOOD, forfeited_g=removed)
         return "", ""
     if clock is None:
         clock = _MenuClock()
@@ -497,7 +544,9 @@ def _apply_food_preference(
         if not clock.opening_solid and small and when >= PRE_RACE_QUIET_MIN and not solid_blocked:
             clock.opening_solid = True
             clock.last_solid_min = when
-            return pick(small[:1])
+            picked = pick(small[:1])
+            dose.reasons.append(make_reason(ReasonCode.OPENING_SOLID, carbs_g=dose.carbs_g))
+            return picked
         return pick(easy or light or foods[:1])
 
     due = when - clock.last_solid_min >= SOLID_EVERY_MIN
@@ -509,16 +558,31 @@ def _apply_food_preference(
             ]
             if solids:
                 clock.last_solid_min = when
-                return pick(solids)
+                picked = pick(solids)
+                dose.reasons.append(
+                    make_reason(
+                        ReasonCode.SAVOURY_SLOT,
+                        switch_min=_savoury_minute(athlete, finish_min),
+                        carbs_g=dose.carbs_g,
+                    )
+                )
+                return picked
         else:
             between = [item for item in foods if item.kind == "solid" and item.key != "sandwich"]
             if between:
                 clock.last_solid_min = when
-                return pick(between)
+                picked = pick(between)
+                dose.reasons.append(make_reason(ReasonCode.SOLID_SLOT, carbs_g=dose.carbs_g))
+                return picked
     return pick(easy or foods[:1])
 
 
-def _climb_without_gel(dose: _Dose, athlete: AthleteInput, zone: DigestiveZone) -> tuple[str, str]:
+def _climb_without_gel(
+    dose: _Dose,
+    athlete: AthleteInput,
+    zone: DigestiveZone,
+    grade_percent: float,
+) -> tuple[str, str]:
     """Cover a hard climb without inventing a gel.
 
     Drink mix is the fast substitute. If that is off too, the softest solid
@@ -543,9 +607,20 @@ def _climb_without_gel(dose: _Dose, athlete: AthleteInput, zone: DigestiveZone) 
     if soft is None:
         soft = next((item for item in foods if item.kind == "solid"), None)
     if soft is None:
+        removed = dose.carbs_g
         dose.form = FuelForm.sip
         dose.carbs_g = 0
         dose.reason += " No gel or drink mix in the vest. Sip water and salt on this climb."
+        dose.reasons.append(
+            make_reason(ReasonCode.NO_CLIMB_FOOD, grade_percent=grade_percent, forfeited_g=removed)
+        )
+        _remember_drop(
+            dose.drops,
+            removed,
+            ReasonCode.NO_CLIMB_FOOD,
+            grade_percent=grade_percent,
+            forfeited_g=removed,
+        )
         return "", ""
     dose.form = FuelForm.micro_dose if zone is DigestiveZone.red else FuelForm.real_food
     dose.reason += f" No gel or drink mix. Take tiny bites of {soft.name}."

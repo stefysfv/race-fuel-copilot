@@ -1,0 +1,70 @@
+{
+  "stops": [
+    {
+      "sequence": 1,
+      "ideal_minute": 30.0,
+      "scheduled_minute": 30.0,
+      "carbs_g": 0.0,
+      "reasons": [
+        {
+          "code": "QUIET_WINDOW",
+          "params": {
+            "quiet_until_min": 50.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 2,
+      "ideal_minute": 60.0,
+      "scheduled_minute": 60.0,
+      "carbs_g": 0.0,
+      "reasons": [
+        {
+          "code": "OPENING_SOLID",
+          "params": {
+            "carbs_g": 30.0
+          }
+        },
+        {
+          "code": "AID_COVERED",
+          "params": {
+            "plate_carbs_g": 28.0,
+            "covered_g": 30.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 3,
+      "ideal_minute": 64.0,
+      "scheduled_minute": 64.0,
+      "carbs_g": 28.0,
+      "reasons": [
+        {
+          "code": "AID_RESTOCK",
+          "params": {
+            "plate_carbs_g": 28.0
+          }
+        }
+      ]
+    },
+    {
+      "sequence": 4,
+      "ideal_minute": 90.0,
+      "scheduled_minute": 90.0,
+      "carbs_g": 30.0,
+      "reasons": []
+    }
+  ],
+  "forfeited": [
+    {
+      "at_min": 30.0,
+      "carbs_g": 30.0,
+      "code": "QUIET_WINDOW",
+      "params": {
+        "quiet_until_min": 50.0
+      }
+    }
+  ]
+}

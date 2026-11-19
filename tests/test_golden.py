@@ -48,6 +48,24 @@ ATHLETES: dict[str, dict[str, Any]] = {
 client = TestClient(app)
 
 
+# Reasons and forfeited rows are additive. Older snapshots do not contain them.
+_ADDITIVE_KEYS = frozenset({"reasons", "forfeited"})
+
+
+def _strip_additive(value: Any) -> Any:
+    """Drop the reason fields so an existing snapshot still matches."""
+
+    if isinstance(value, list):
+        return [_strip_additive(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _strip_additive(item)
+            for key, item in value.items()
+            if key not in _ADDITIVE_KEYS
+        }
+    return value
+
+
 def _round_numbers(value: Any) -> Any:
     """Round every float to 6 decimal places. Leave ints, bools, and strings."""
 
@@ -120,7 +138,7 @@ def _format_diff(name: str, diffs: list[tuple[str, Any, Any]]) -> str:
 def assert_golden(name: str, payload: Any, update: bool) -> None:
     """Compare one response with its snapshot, or rewrite that snapshot."""
 
-    actual = _round_numbers(payload)
+    actual = _round_numbers(_strip_additive(payload))
     path = GOLDEN_DIR / name
     if update:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -130,7 +148,7 @@ def assert_golden(name: str, payload: Any, update: bool) -> None:
         raise AssertionError(
             f"Missing golden snapshot {path}. Re-run with --update-golden to write it."
         )
-    expected = json.loads(path.read_text(encoding="utf-8"))
+    expected = _strip_additive(json.loads(path.read_text(encoding="utf-8")))
     diffs = _diff_paths(expected, actual)
     if diffs:
         raise AssertionError(_format_diff(name, diffs))

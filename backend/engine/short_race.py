@@ -12,8 +12,11 @@ from backend.models import (
     FuelForm,
     FuelStop,
     PackItem,
+    ReasonCode,
     Segment,
 )
+
+from backend.engine.reasons import make_reason
 
 from backend.engine.constants import (
     FLASK_ML,
@@ -161,6 +164,7 @@ def _short_race_stops(
             reason=f"{SHORT_RACE_NOTE} {bite.detail}",
             product=bite.name,
             flavor=bite.flavor,
+            extra_reasons=[make_reason(ReasonCode.SHORT_RACE_BITE, carbs_g=bite.carbs_g)],
         )
         if feed is not None:
             stops.append(feed)
@@ -181,6 +185,7 @@ def _short_race_stops(
                     reason=SHORT_RACE_SIP,
                     product="Flask",
                     flavor="",
+                    extra_reasons=[make_reason(ReasonCode.SHORT_RACE_SIP, carbs_g=0.0)],
                 )
                 if sip is not None:
                     stops.append(sip)

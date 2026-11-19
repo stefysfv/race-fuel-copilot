@@ -42,6 +42,7 @@ from backend.engine.constants import (
 )
 from backend.engine.gap import gap_cost_factor
 from backend.engine.recalibrate import recalibrate, snap_to_track
+from backend.engine.reasons import SHIFT_EPSILON_MIN
 from backend.engine.scheduler import generate_plan
 from backend.engine.short_race import _is_short_race
 from backend.engine.sweat import sweat_rates
@@ -68,6 +69,9 @@ from backend.models import (
 CLIMB_GRADE = YELLOW_UPHILL_MAX + 5.0
 DESCENT_GRADE = YELLOW_DOWNHILL_MIN - 3.0
 METERS_PER_DEG_LAT = EARTH_RADIUS_M * math.pi / 180.0
+# Repeated `lat += dlat` can land a few ulps past a start that sits exactly on
+# 90 - distance/METERS_PER_DEG_LAT. Keep the drawn origin under that line.
+LAT_WALK_MARGIN_DEG = 1e-4
 STEP_M = 200.0
 TOOTH_M = 1_000.0
 
@@ -429,13 +433,14 @@ def plan_cases(draw: st.DrawFn) -> PlanCase:
         )
     )
     # 0.5 km is inside Race.distance_km (0, 500]. Shorter tracks collapse under float lat.
+    # Leave LAT_WALK_MARGIN_DEG under the pole so the northward walk stays <= 90.
     dlat = distance_km * 1000.0 / METERS_PER_DEG_LAT
     lat_low, lat_high, _, _ = _bounds(TrackPoint, "lat")
     assert lat_high is not None
     lat = draw(
         st.floats(
             min_value=lat_low,
-            max_value=lat_high - dlat,
+            max_value=lat_high - dlat - LAT_WALK_MARGIN_DEG,
             allow_nan=False,
             allow_infinity=False,
         )
@@ -852,6 +857,16 @@ def assert_plan(plan: RacePlan, built: BuiltCourse) -> None:
     _assert_doses(plan, built.athlete)
     _assert_caffeine_and_sweat(plan, built.athlete)
     _assert_legs_and_stations(plan, built.athlete, built.stations, course_m)
+    _assert_shift_has_reason(plan)
+
+
+def _assert_shift_has_reason(plan: RacePlan) -> None:
+    """A stop off its nominal slot explains the move. Forfeited rows have grams."""
+
+    for stop in plan.fuel_stops:
+        if abs(stop.scheduled_minute - stop.ideal_minute) > SHIFT_EPSILON_MIN:
+            assert stop.reasons
+    assert all(item.carbs_g > 0 for item in plan.forfeited)
 
 
 def _round_half_up(value: float, digits: int) -> float:
@@ -886,6 +901,14 @@ def test_plan_is_finite_json_and_deterministic(case: PlanCase) -> None:
     payload = plan.model_dump(mode="json")
     assert json.loads(json.dumps(payload, allow_nan=False)) == payload
     assert again.model_dump(mode="json") == payload
+
+
+@FAST
+@given(case=plan_cases())
+def test_shifted_stop_has_a_reason(case: PlanCase) -> None:
+    """Property: scheduled time off the nominal slot means at least one reason."""
+
+    _assert_shift_has_reason(_generate(build_course(case)))
 
 
 @FAST

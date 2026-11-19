@@ -20,8 +20,11 @@ from backend.models import (
     LockerItem,
     PackItem,
     PackedVestItem,
+    ReasonCode,
     Segment,
 )
+
+from backend.engine.reasons import make_reason, shift_reasons
 
 from backend.engine.coach_text import (
     _coach_note,
@@ -153,6 +156,13 @@ def _stamp_packed(stop: FuelStop, item: PackedVestItem) -> None:
     stop.form = _packed_form(item)
     stop.flavor = "Savoury/Salty" if item.flavor == "savoury" else "Sweet"
     stop.reason = f"Packed vest: {item.name}"
+    # The stamp replaces the window grams. Keep only the clock move.
+    kept = [
+        entry
+        for entry in stop.reasons
+        if entry.code in {ReasonCode.SHIFTED_EARLIER, ReasonCode.SHIFTED_LATER}
+    ]
+    stop.reasons = kept + [make_reason(ReasonCode.PACKED_VEST, carbs_g=float(item.carbs_g))]
 
 
 def _leg_index_for_km(legs: list[AidLeg], distance_km: float) -> int:
@@ -283,6 +293,7 @@ def _consume_packed_vest(
                         sodium_mg=0.0,
                         form=FuelForm.gel,
                         reason="Open vest slot",
+                        reasons=shift_reasons(minute, when, segment.grade_percent, segment.index),
                     )
                     if take(extra_stop):
                         stops.append(extra_stop)

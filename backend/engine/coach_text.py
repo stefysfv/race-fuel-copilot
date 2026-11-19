@@ -5,10 +5,14 @@ from __future__ import annotations
 from backend.models import (
     AidLeg,
     AidStation,
+    ForfeitedDose,
     FuelForm,
     FuelStop,
+    ReasonCode,
     Segment,
 )
+
+from backend.engine.reasons import dropped, make_reason
 
 from backend.engine.constants import (
     DESCENT_LOCK_GRADE,
@@ -47,26 +51,49 @@ def _coach_note(
     return "Short leg. Sip fluids and save the bigger meal for the station table."
 
 
-def _quiet_trail_stop(stop: FuelStop, reason: str) -> None:
-    """Turn a trail feed into a water sip. Station plates stay on the table."""
+def _quiet_trail_stop(
+    stop: FuelStop,
+    reason: str,
+    code: ReasonCode,
+    **params: float,
+) -> ForfeitedDose | None:
+    """Turn a trail feed into a water sip. Station plates stay on the table.
+
+    A stop that already has no carbs keeps the sentence and does not become
+    a forfeited row.
+    """
 
     if stop.at_aid_station or stop.form is FuelForm.rescue_sip:
-        return
+        return None
+    removed = stop.carbs_g
     stop.carbs_g = 0
     stop.caffeine_mg = 0
     stop.form = FuelForm.sip
     stop.product = "Water"
     stop.flavor = ""
     stop.reason = reason
+    if removed <= 0:
+        return None
+    stop.reasons.append(make_reason(code, **params))
+    return dropped(stop.scheduled_minute, removed, code, **params)
 
 
-def _quiet_opening_stops(stops: list[FuelStop], race_start_min: float) -> None:
+def _quiet_opening_stops(stops: list[FuelStop], race_start_min: float) -> list[ForfeitedDose]:
     """The pre-race meal covers the first 50 minutes. No gel or solid on the trail."""
 
     limit = race_start_min + PRE_RACE_QUIET_MIN
+    forfeited: list[ForfeitedDose] = []
     for stop in stops:
         if stop.scheduled_minute < limit:
-            _quiet_trail_stop(stop, "Pre-race meal covers this window. Water and electrolyte sip only.")
+            row = _quiet_trail_stop(
+                stop,
+                "Pre-race meal covers this window. Water and electrolyte sip only.",
+                ReasonCode.QUIET_WINDOW,
+                quiet_until_min=limit,
+            )
+            if row is not None:
+                forfeited.append(row)
+    return forfeited
 
 
 def _departure_has_food(stations: list[AidStation], from_name: str) -> bool | None:
@@ -119,9 +146,10 @@ def _quiet_descent_stops(
     legs: list[AidLeg],
     segments: list[Segment],
     stations: list[AidStation],
-) -> None:
+) -> list[ForfeitedDose]:
     """A fast descent is for pace, not for unwrapping food."""
 
+    forfeited: list[ForfeitedDose] = []
     for leg in legs:
         grade = _average_grade(segments, leg.from_km * 1000.0, leg.to_km * 1000.0)
         if grade >= DESCENT_LOCK_GRADE:
@@ -129,4 +157,7 @@ def _quiet_descent_stops(
         reason = _descent_stop_reason(leg, grade, stations)
         for stop in stops:
             if leg.from_km - 0.05 <= stop.distance_km < leg.to_km - 0.02:
-                _quiet_trail_stop(stop, reason)
+                row = _quiet_trail_stop(stop, reason, ReasonCode.DESCENT_LOCK, grade_percent=grade)
+                if row is not None:
+                    forfeited.append(row)
+    return forfeited
