@@ -5,12 +5,28 @@
 - Write clean, modular, well-commented Python 3.12+ code using type hints (`typing`, `pydantic`) so the logic is easy to trace and learn from.
 - Prefer surgical diffs and small, single-responsibility functions over monolithic files.
 - Never regenerate entire files in chat if only one function changes.
+- Before a change that touches more than one file, state a brief plan: what will change, which files, and what stays untouched.
 
-## Tech Stack Constraints
-- **Backend:** Python 3.12+, FastAPI, Pydantic, standard `xml.etree.ElementTree` or `gpxpy` for GPX parsing, `sqlite3` or local JSON for race storage.
-- **Frontend:** Vanilla HTML5, vanilla CSS, Vanilla ES6 JavaScript (modular), Leaflet.js with OpenTopoMap tiles, Chart.js for elevation profiles.
-- **No Frontend Framework Bloat:** Do NOT use React, Next.js, Vue, or complex npm build pipelines unless explicitly requested. Keep the frontend a fast, static Progressive Web App (PWA) with a Service Worker (`sw.js`) and `IndexedDB` for offline mountain resilience.
+## Engine
+- The fueling engine is pure Python in `backend/engine/`. Pydantic is its only runtime dependency.
+- Do not import FastAPI, gpxpy, sqlite3, or any other third-party library from the engine.
+- Parse GPX in `backend/gpx_parser.py` with the standard library (`xml.etree.ElementTree`).
+- `backend/fuel_engine.py` only re-exports the engine. `backend/self_check.py` checks plans; it is not part of the engine zip.
+- Follow the schemas and formulas in `SPEC.md`.
+- Do not change engine math or golden snapshots unless the task says so. Golden tests and invariant tests must pass without silent edits to expected values.
+- Mirror only the lightweight GPS snap-to-track and offline fallback in `frontend/offline_engine.js`.
 
-## Architecture Principles
-- Always follow the data schemas and mathematical formulas defined in `SPEC.md`.
-- Keep business logic (pacing, elevation math, fueling schedules) strictly inside `backend/engine/` and GPX parsing in `gpx_parser.py`. `fuel_engine.py` only re-exports the engine. Mirror only the lightweight GPS snap-to-track and offline fallback calculation in frontend JS (`offline_engine.js`).
+## Frontend
+- Vanilla HTML, CSS, and ES modules. No React, Next.js, Vue, or a bundler unless explicitly requested.
+- Progressive Web App: `frontend/sw.js` and IndexedDB. Leaflet (OpenTopoMap) and Chart.js are vendored.
+- No external CDNs. Ship libraries from `frontend/vendor/`.
+- App-shell requests are stale-while-revalidate. Pyodide and `engine.zip` stay cache-first in a separate cache.
+- When a file in `SHELL_FILES` changes, bump `SHELL_CACHE` and set `SHELL_FILES_HASH` in `frontend/runtime_manifest.js`. The hash test names the new digest.
+
+## Dependencies
+- Pin direct dependencies to an exact version in `requirements.txt`, `requirements-dev.txt`, and `package.json`.
+
+## Tests
+- `python -m pytest` covers goldens, invariants, the engine zip, and the shell-cache hash.
+- `python -m backend.fuel_engine` runs the self-check and must pass.
+- Do not update a golden or weaken an invariant to hide a failure unless that change was requested.

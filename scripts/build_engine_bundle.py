@@ -1,79 +1,73 @@
 """Zip the pure engine for the browser worker.
 
-Writes ``frontend/engine.zip`` and a copy for the spike page. The archive contains ``backend/engine``
-plus the two modules that package imports and that do not touch the disk:
-``backend/gpx_parser.py`` and ``backend/models.py``. Adapters, FastAPI, and
-the self-check are not included.
+Writes ``frontend/engine.zip``. The archive contains ``backend/engine`` plus
+the modules that package imports and that do not touch the disk:
+``backend/__init__.py``, ``backend/gpx_parser.py``, and ``backend/models.py``.
+Adapters, FastAPI, and the self-check are not included.
 
-The same command copies the catalog, the GPX files, and the golden snapshots
-the spike page fetches into ``frontend/spike/fixtures/``.
+Member order is sorted, text is stored with LF newlines, and zip metadata is
+fixed so two builds of the same sources match.
 """
 
 from __future__ import annotations
 
-import shutil
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ZIP_PATH = ROOT / "frontend" / "engine.zip"
-SPIKE_ZIP = ROOT / "frontend" / "spike" / "engine.zip"
-FIXTURE_DIR = ROOT / "frontend" / "spike" / "fixtures"
 
 # Pages under backend/ that the engine imports. They stay out of backend/engine
 # because the server adapters live beside them, and they do no file I/O.
-ENGINE_NEIGHBORS = ("gpx_parser.py", "models.py", "__init__.py")
+ENGINE_NEIGHBORS = ("__init__.py", "gpx_parser.py", "models.py")
 
-FIXTURES = (
-    ("frontend/data/races.json", "races.json"),
-    ("frontend/data/gpx/salomon-vitosha-27.gpx", "salomon-vitosha-27.gpx"),
-    ("frontend/data/gpx/salomon-vitosha-40.gpx", "salomon-vitosha-40.gpx"),
-    ("frontend/data/gpx/vitosha-100.gpx", "vitosha-100.gpx"),
-    (
-        "tests/golden/generate-plan__salomon-vitosha-40__default.json",
-        "golden/generate-plan__salomon-vitosha-40__default.json",
-    ),
-    (
-        "tests/golden/generate-plan__vitosha-100__default.json",
-        "golden/generate-plan__vitosha-100__default.json",
-    ),
-    (
-        "tests/golden/recalibrate__mid-race.json",
-        "golden/recalibrate__mid-race.json",
-    ),
-)
+# ZIP epoch. A moving timestamp would change the archive when the code did not.
+_ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 
 
-def _zip_engine(destination: Path) -> None:
-    """Write the engine archive. Paths inside the zip use forward slashes."""
+def _lf(data: bytes) -> bytes:
+    """Store text with LF newlines. The engine archive is Python source only."""
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    engine_dir = ROOT / "backend" / "engine"
-    with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path in engine_dir.rglob("*"):
-            if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":
-                continue
-            arcname = Path("backend") / "engine" / path.relative_to(engine_dir)
-            archive.write(path, arcname.as_posix())
-        for name in ENGINE_NEIGHBORS:
-            archive.write(ROOT / "backend" / name, f"backend/{name}")
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
-def _stage_fixtures() -> None:
-    """Copy the files the spike page loads. The page cannot read backend/."""
+def engine_members(root: Path | None = None) -> list[tuple[str, bytes]]:
+    """Archive paths and LF-normalized bytes, in the order written to the zip."""
 
-    for source, target in FIXTURES:
-        destination = FIXTURE_DIR / target
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ROOT / source, destination)
+    base = root or ROOT
+    engine_dir = base / "backend" / "engine"
+    paths = [
+        path
+        for path in engine_dir.rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+    ]
+    members: list[tuple[str, bytes]] = []
+    for path in sorted(paths, key=lambda item: item.relative_to(engine_dir).as_posix()):
+        name = "backend/engine/" + path.relative_to(engine_dir).as_posix()
+        members.append((name, _lf(path.read_bytes())))
+    for name in ENGINE_NEIGHBORS:
+        path = base / "backend" / name
+        members.append((f"backend/{name}", _lf(path.read_bytes())))
+    return members
+
+
+def write_engine_zip(destination: Path | None = None, root: Path | None = None) -> Path:
+    """Write the deterministic engine archive and return its path."""
+
+    target = destination or ZIP_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, data in engine_members(root):
+            info = zipfile.ZipInfo(filename=name, date_time=_ZIP_DATE)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            archive.writestr(info, data, compresslevel=9)
+    return target
 
 
 def main() -> None:
-    _zip_engine(ZIP_PATH)
-    SPIKE_ZIP.parent.mkdir(parents=True, exist_ok=True)
-    SPIKE_ZIP.write_bytes(ZIP_PATH.read_bytes())
-    _stage_fixtures()
-    print(f"Wrote {ZIP_PATH.relative_to(ROOT)} ({ZIP_PATH.stat().st_size} bytes)")
+    path = write_engine_zip()
+    print(f"Wrote {path.relative_to(ROOT)} ({path.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":

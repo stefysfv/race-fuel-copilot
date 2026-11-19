@@ -82,20 +82,30 @@ self.addEventListener("message", (event) => {
   event.source?.postMessage(reply);
 });
 
-async function networkFirst(request) {
+/**
+ * Serve a cached shell response immediately, and refresh that entry in the
+ * background. A cache miss waits for the network.
+ */
+async function staleWhileRevalidate(event) {
+  const request = event.request;
   const cache = await caches.open(SHELL_CACHE);
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch (error) {
-    const cached = await cache.match(request, { ignoreVary: true })
-      || await cache.match(new URL(request.url).pathname, { ignoreVary: true });
-    if (cached) return cached;
-    throw error;
+  const cached = await cache.match(request, { ignoreVary: true })
+    || await cache.match(new URL(request.url).pathname, { ignoreVary: true });
+  const refresh = fetch(request)
+    .then((response) => {
+      if (response.ok) {
+        return cache.put(request, response.clone()).then(() => response);
+      }
+      return response;
+    })
+    .catch(() => null);
+  if (cached) {
+    event.waitUntil(refresh.then(() => undefined));
+    return cached;
   }
+  const response = await refresh;
+  if (response) return response;
+  throw new Error("App shell is not cached and the network failed.");
 }
 
 async function cacheFirst(request) {
@@ -132,5 +142,5 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(cacheFirst(event.request));
     return;
   }
-  event.respondWith(networkFirst(event.request));
+  event.respondWith(staleWhileRevalidate(event));
 });

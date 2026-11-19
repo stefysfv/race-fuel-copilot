@@ -2,7 +2,14 @@
 
 export const RUNTIME_CACHE = "race-fuel-pyodide-314.0.8";
 
-export const SHELL_CACHE = "race-fuel-v27";
+export const SHELL_CACHE = "race-fuel-v28";
+
+/**
+ * sha256 of every SHELL_FILES body, LF-normalized, in list order.
+ * This line is left out of the hash so the value can name itself.
+ * tests/test_shell_cache.py recomputes it.
+ */
+export const SHELL_FILES_HASH = "a76fcb1e44cbc172ad2e00bcc2b7a091afd60a159a8c33a2e0db58e6deea30c4";
 
 export const RUNTIME_FILES = [
   "/vendor/pyodide/pyodide.mjs",
@@ -75,8 +82,7 @@ export const SHELL_FILES = [
   "/icons/apple-touch-icon.png",
 ];
 
-/** Spike pages and golden fixtures stay out of the production precache. */
+/** Fixture snapshots stay out of the production precache. */
 export function isProductionAsset(url) {
-  const path = String(url).toLowerCase();
-  return !path.includes("/spike/") && !path.includes("golden");
+  return !String(url).toLowerCase().includes("golden");
 }

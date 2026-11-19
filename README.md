@@ -47,7 +47,7 @@ Custom GPX uploads can include aid stations (`name`, `distance_km`, `has_water`,
 
 - **Engine.** Python 3.12+, Pydantic v2. Sports math stays in `backend/engine/`. `backend/fuel_engine.py` re-exports it. GPX parsing stays in `backend/gpx_parser.py`. The phone runs that package in Pyodide. FastAPI is the dev server.
 - **UI.** Vanilla HTML, CSS, and ES modules. Leaflet draws the route on OpenTopoMap. Chart.js draws elevation and zone color.
-- **Offline.** IndexedDB stores the active plan. The app shell is one cache, network-first. Pyodide and `engine.zip` are a second cache, cache-first, and a shell update does not delete it. Map tiles that were already viewed stay in the browser cache.
+- **Offline.** IndexedDB stores the active plan. The app shell is one cache, stale-while-revalidate: a cached file is shown immediately and refreshed in the background. Pyodide and `engine.zip` are a second cache, cache-first, and a shell update does not delete it. Map tiles that were already viewed stay in the browser cache.
 - **Hands-free race mode.** `watchPosition` recalibrates about every 45 seconds and auto-logs an intake 30 seconds after `00:00` (with undo). Alerts play a double chime, speak the instruction with the Web Speech API, and post a service-worker notification for the lock screen: 2 minutes out, at `00:00`, and inside 500 m of an aid station. iOS delivers those after the app is on the Home Screen.
 
 ## Local setup and tests

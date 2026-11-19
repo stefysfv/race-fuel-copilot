@@ -265,7 +265,7 @@ def find_gpx_files(root: Path) -> list[Path]:
 
 
 def choose_unique(paths: list[Path]) -> list[tuple[Path, list[Path]]]:
-    """One path per file hash. Prefer the catalog copy over the spike fixture."""
+    """One path per file hash. Prefer the catalog copy when the bytes match."""
 
     groups: dict[str, list[Path]] = defaultdict(list)
     for path in paths:

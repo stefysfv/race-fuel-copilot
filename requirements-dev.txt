@@ -3,8 +3,8 @@
 -r requirements.txt
 
 # `httpx` is what FastAPI's TestClient uses to call the API.
-pytest>=8.0.0
-httpx>=0.27.0
+pytest==9.2.0
+httpx==0.28.1
 
 # Property tests for engine invariants. The race-day site does not import this.
-hypothesis>=6.100.0
+hypothesis==6.170.15

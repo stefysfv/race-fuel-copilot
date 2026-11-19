@@ -115,8 +115,8 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await page.waitForFunction(() => navigator.serviceWorker.controller);
     await page.locator("#pane-configure").click();
     await context.setOffline(true);
-    // Reload with the radio off. The service worker is network-first, so an
-    // online reload would fetch a missing shell file and hide it.
+    // Reload with the radio off. The shell is served from cache, so a missing
+    // network response cannot blank the page.
     await page.reload({ waitUntil: "load" });
     await expect(page.getByTestId("summary")).toContainText("Salomon Vitosha Trail 12 km", { timeout: 30000 });
     await page.locator("#pane-configure").click();

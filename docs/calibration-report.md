@@ -12,7 +12,6 @@ The question was whether recorded moving time, sliced the way the engine slices 
 | `frontend/data/gpx/salomon-vitosha-27.gpx` | Every point, 2018-05-27 07:30–09:51 | Yes |
 | `frontend/data/gpx/salomon-vitosha-40.gpx` | Every point, 2018-05-27 07:30–11:40 | No. 11.39 km is held at 25 km/h or faster |
 | `frontend/data/gpx/vitosha-100.gpx` | None | No |
-| `frontend/spike/fixtures/*.gpx` | Copies of the files above | Skipped so the same track is not counted twice |
 
 The 40 km file is a timestamped GPX, and it is not a running effort. 11.39 km (19.1 min) stays at or above 25 km/h for stretches of at least 200 m, at 1.6–1.8 min/km, including 0.79 km on 0% to +10%. Median speed is 14 km/h, the 90th percentile is 39 km/h, and the maximum is 50 km/h. It also has 2,296 steps with a non-positive timestamp. Those fast kilometres were left out of the pool. The grade table for this file in `docs/calibration/pace-by-grade.txt` drops them, so that table is not a Minetti test.
 
