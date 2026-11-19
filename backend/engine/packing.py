@@ -33,6 +33,7 @@ from backend.engine.coach_text import (
 
 from backend.engine.constants import (
     AID_LEG_MIN_MINUTES,
+    CAFFEINE_MG_PER_KG,
     CAPSULE_SODIUM_MG,
     CARRYOVER_WINDOW_MIN,
     DESCENT_LOCK_GRADE,
@@ -48,6 +49,7 @@ from backend.engine.constants import (
     PRE_RACE_FOOD_STATION_MIN,
     PRE_RACE_QUIET_MIN,
     PRE_RACE_SHORT_LEG_MIN,
+    RED_MICRO_DOSE_G,
     SOLID_EVERY_MIN,
     _REPEAT_PENALTY,
     _ZONE_FIT_BONUS,
@@ -58,6 +60,7 @@ from backend.engine.doses_menu import (
     _MenuItem,
     _gels_selected,
     _resolved_foods,
+    _savoury_minute,
     station_plate,
 )
 
@@ -106,6 +109,98 @@ def _is_vest_slot(stop: FuelStop) -> bool:
     return stop.form not in {FuelForm.sip, FuelForm.rescue_sip}
 
 
+def _is_counted_solid(stop: FuelStop) -> bool:
+    """A real bite on the trail. Station plates are a meal, not a vest solid."""
+
+    return stop.form is FuelForm.real_food and stop.carbs_g > 0 and not stop.at_aid_station
+
+
+def _whole_pieces(remaining: float, portion: float) -> int:
+    """How many whole portions fit in `remaining`.
+
+    A custom portion can be a subnormal float, around 1e-308. Dividing by it
+    is infinity, and `int(infinity)` raises OverflowError. That value is not
+    a bite the vest can count, so the count is 0 instead of a crash.
+    """
+
+    if portion <= 0 or not math.isfinite(portion) or not math.isfinite(remaining):
+        return 0
+    raw = remaining // portion
+    if not math.isfinite(raw) or raw < 1 or raw > 1_000_000:
+        return 0
+    return int(raw)
+
+
+def _ceil_pieces(remaining: float, portion: float) -> int:
+    """Round a portion count up, with the same guard as `_whole_pieces`."""
+
+    if portion <= 0 or remaining <= 0 or not math.isfinite(portion) or not math.isfinite(remaining):
+        return 0
+    raw = remaining / portion
+    if not math.isfinite(raw) or raw > 1_000_000:
+        return 0
+    return int(math.ceil(raw - 1e-12))
+
+
+def _solid_stamp_blocked(
+    item: PackedVestItem,
+    stop: FuelStop,
+    solid_minutes: list[float],
+    savoury_at: float,
+) -> bool:
+    """True when this piece would break the solid gap or the savoury clock.
+
+    Red ground is delivered as a micro-dose, so it is not a solid bite.
+    Replacing a solid keeps that stop's own minute and checks the others.
+    """
+
+    if stop.zone is DigestiveZone.red or item.form != "solid":
+        return False
+    when = stop.scheduled_minute
+    if item.flavor == "savoury" and when + 1e-6 < savoury_at:
+        return True
+    own = when if _is_counted_solid(stop) else None
+    for minute in solid_minutes:
+        if own is not None and abs(minute - own) <= 0.05:
+            continue
+        if abs(minute - when) < SOLID_EVERY_MIN - 0.05:
+            return True
+    return False
+
+
+def _packed_dose(
+    stop: FuelStop,
+    item: PackedVestItem,
+    caffeine_room: float,
+) -> tuple[float, FuelForm, float]:
+    """Carbs, form, and caffeine this piece may deliver on this stop.
+
+    A red window stays a micro-dose of at most 15 g, and it does not take
+    caffeine. Anywhere else a gel may take caffeine only up to the room left
+    under the 5 mg/kg cap.
+    """
+
+    if stop.zone is DigestiveZone.red:
+        carbs = min(float(item.carbs_g), RED_MICRO_DOSE_G, float(stop.carbs_g))
+        return carbs, FuelForm.micro_dose, 0.0
+    caffeine = 0.0
+    if item.form == "gel" and caffeine_room > 1e-6:
+        caffeine = min(float(item.caffeine_mg), caffeine_room)
+    return float(item.carbs_g), _packed_form(item), caffeine
+
+
+def _note_solid(stop: FuelStop, was_solid: bool, solid_minutes: list[float]) -> None:
+    """Keep the solid clock in step with a stop whose form just changed."""
+
+    now = _is_counted_solid(stop)
+    if was_solid and not now:
+        solid_minutes[:] = [
+            minute for minute in solid_minutes if abs(minute - stop.scheduled_minute) > 0.05
+        ]
+    elif now and not was_solid:
+        solid_minutes.append(stop.scheduled_minute)
+
+
 def _choose_packed(
     stocks: list[_VestStock],
     zone: DigestiveZone,
@@ -115,6 +210,9 @@ def _choose_packed(
     budget_g: float,
     consume_all: bool,
     blocked_ids: set[str] | None = None,
+    stop: FuelStop | None = None,
+    solid_minutes: list[float] | None = None,
+    savoury_at: float = 0.0,
 ) -> _VestStock | None:
     """Pick the next piece.
 
@@ -131,7 +229,13 @@ def _choose_packed(
             continue
         if blocked_ids and stock.item.id in blocked_ids:
             continue
-        if not consume_all and placed_carbs + stock.item.carbs_g > budget_g + 0.5:
+        if stop is not None and _solid_stamp_blocked(stock.item, stop, solid_minutes or [], savoury_at):
+            continue
+        # A red stamp only delivers the micro-dose, so that is what it costs.
+        cost = float(stock.item.carbs_g)
+        if zone is DigestiveZone.red:
+            cost = min(cost, RED_MICRO_DOSE_G)
+        if not consume_all and placed_carbs + cost > budget_g + 0.5:
             continue
         ratio = stock.remaining / stock.initial
         others_left = any(
@@ -148,12 +252,21 @@ def _choose_packed(
     return best
 
 
-def _stamp_packed(stop: FuelStop, item: PackedVestItem) -> None:
+def _stamp_packed(
+    stop: FuelStop,
+    item: PackedVestItem,
+    *,
+    carbs_g: float,
+    caffeine_mg: float,
+    form: FuelForm,
+) -> None:
+    """Write one packed piece onto a stop, using the dose the rules allowed."""
+
     stop.product = item.name
-    stop.carbs_g = float(item.carbs_g)
+    stop.carbs_g = carbs_g
     stop.sodium_mg = float(item.sodium_mg)
-    stop.caffeine_mg = float(item.caffeine_mg) if item.form == "gel" else 0.0
-    stop.form = _packed_form(item)
+    stop.caffeine_mg = caffeine_mg
+    stop.form = form
     stop.flavor = "Savoury/Salty" if item.flavor == "savoury" else "Sweet"
     stop.reason = f"Packed vest: {item.name}"
     # The stamp replaces the window grams. Keep only the clock move.
@@ -162,7 +275,7 @@ def _stamp_packed(stop: FuelStop, item: PackedVestItem) -> None:
         for entry in stop.reasons
         if entry.code in {ReasonCode.SHIFTED_EARLIER, ReasonCode.SHIFTED_LATER}
     ]
-    stop.reasons = kept + [make_reason(ReasonCode.PACKED_VEST, carbs_g=float(item.carbs_g))]
+    stop.reasons = kept + [make_reason(ReasonCode.PACKED_VEST, carbs_g=carbs_g)]
 
 
 def _leg_index_for_km(legs: list[AidLeg], distance_km: float) -> int:
@@ -194,12 +307,15 @@ def _consume_packed_vest(
     course: list[CoursePoint],
     items: list[PackedVestItem],
     feed_interval_min: int,
+    athlete: AthleteInput,
 ) -> tuple[str, str]:
     """Spend the packed vest across the race, alternating foods.
 
-    Every piece is scheduled when its carbs fit in the race budget. A vest
-    that is bigger than the race is only eaten up to that budget. A short
-    race never reaches this function.
+    Every piece is scheduled when its carbs fit the race budget and the
+    bite rules. A red stop keeps the micro-dose. Caffeine stops at 5 mg/kg.
+    Solids stay 90 minutes apart, and savoury solids wait for the palate
+    switch. A piece that cannot follow those rules stays in the vest.
+    A short race never reaches this function.
     """
 
     stocks = [
@@ -218,9 +334,14 @@ def _consume_packed_vest(
     last_id: str | None = None
     used_in_leg: list[dict[str, int]] = [{} for _ in legs]
     by_id = {stock.item.id: stock.item for stock in stocks}
+    finish_min = segments[-1].end_minute if segments else 0.0
+    savoury_at = _savoury_minute(athlete, finish_min)
+    caffeine_cap = athlete.weight_kg * CAFFEINE_MG_PER_KG
+    caffeine_used = sum(stop.caffeine_mg for stop in stops)
+    solid_minutes = [stop.scheduled_minute for stop in stops if _is_counted_solid(stop)]
 
     def take(stop: FuelStop) -> bool:
-        nonlocal placed_g, last_id
+        nonlocal placed_g, last_id, caffeine_used
         leg_index = _leg_index_for_km(legs, stop.distance_km)
         blocked: set[str] = set()
         if segments and stop.scheduled_minute < segments[0].start_minute + 0.45 * (
@@ -238,14 +359,23 @@ def _consume_packed_vest(
             budget_g,
             consume_all,
             blocked,
+            stop,
+            solid_minutes,
+            savoury_at,
         )
         if choice is None:
             return False
-        _stamp_packed(stop, choice.item)
+        was_solid = _is_counted_solid(stop)
+        previous_caffeine = stop.caffeine_mg
+        room = caffeine_cap - (caffeine_used - previous_caffeine)
+        delivered, form, caffeine = _packed_dose(stop, choice.item, room)
+        _stamp_packed(stop, choice.item, carbs_g=delivered, caffeine_mg=caffeine, form=form)
+        caffeine_used += caffeine - previous_caffeine
         choice.remaining -= 1
-        placed_g += choice.item.carbs_g
+        placed_g += delivered
         used_in_leg[leg_index][choice.item.id] = used_in_leg[leg_index].get(choice.item.id, 0) + 1
         last_id = choice.item.id
+        _note_solid(stop, was_solid, solid_minutes)
         return True
 
     for stop in stops:
@@ -410,6 +540,13 @@ def build_aid_legs(
         elif opening_cap:
             trail = min(trail, GEL_CARBS_G)
             cover = max(0.0, carbs_g - station_carbs - trail)
+        # The plate at this station and the plate carried in from the last
+        # one are both part of this leg. When both are large, shrink the
+        # carryover so the three buckets match the leg budget. The plate
+        # at the table stays.
+        if station_carbs + cover > carbs_g + 1e-6:
+            cover = max(0.0, carbs_g - station_carbs)
+            trail = max(0.0, carbs_g - station_carbs - cover)
         note = _coach_note(
             opening=index == 0,
             from_name=from_name,
@@ -611,7 +748,7 @@ def _pack_named_portions(
 
     food_lines: list[PackItem] = []
     if solid is not None and slots > 0 and remaining >= solid.carbs_g:
-        quantity = min(slots, int(remaining // solid.carbs_g))
+        quantity = min(slots, _whole_pieces(remaining, solid.carbs_g))
         if quantity >= 1:
             food_lines.append(
                 PackItem(
@@ -622,15 +759,16 @@ def _pack_named_portions(
             )
             remaining -= quantity * solid.carbs_g
     if gel is not None and remaining >= 1:
-        quantity = math.ceil(remaining / gel.carbs_g)
-        food_lines.append(
-            PackItem(
-                item=gel.name,
-                quantity=quantity,
-                detail=_eat_detail(gel.carbs_g, quantity, leg_minutes),
+        quantity = _ceil_pieces(remaining, gel.carbs_g)
+        if quantity >= 1:
+            food_lines.append(
+                PackItem(
+                    item=gel.name,
+                    quantity=quantity,
+                    detail=_eat_detail(gel.carbs_g, quantity, leg_minutes),
+                )
             )
-        )
-        remaining = 0
+            remaining = 0
     elif remaining >= 1 and foods and not food_lines:
         only = foods[0]
         food_lines.append(
@@ -726,7 +864,10 @@ def _pack_items(
         plain = next((item for item in locker if item.caffeine_mg <= 0), None)
     remaining = max(0.0, carbs_g - covered)
     if plain is not None and remaining >= 1:
-        quantity = math.ceil(remaining / plain.carbs_g)
+        quantity = _ceil_pieces(remaining, plain.carbs_g)
+        if quantity < 1:
+            plain = None
+    if plain is not None and remaining >= 1:
         items.append(
             PackItem(
                 item=plain.name,

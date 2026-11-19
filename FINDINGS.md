@@ -2,7 +2,7 @@
 
 Hypothesis checks in `tests/test_invariants.py` cover the approved plan rules. Each open item below is a small input that breaks one of those rules. The property tests skip that case with a comment so the rest of the rule still runs. The open `test_logged_*` tests are expected failures that keep the example executable.
 
-Seven items are fixed. Four remain open: the two packed-vest findings, the tiny-portion overflow, and the plate-plus-carryover leg.
+All eleven items are fixed. The property tests in `tests/test_invariants.py` run with no expected failures.
 
 ## On-pace recalibration clears the next 50 minutes
 
@@ -38,15 +38,17 @@ The 60 minute oat bar used to be "Half-size while GI Rescue eases off." (15 g), 
 
 ## Packed vest overwrites a red micro-dose and the caffeine cap
 
+**Fixed.** A packed piece on red is still a micro-dose of at most 15 g. Caffeine from the packed vest and from auto-assigned gels stops at 5 mg/kg.
+
 All-climb 8 km (constant 15%), `weight_kg=30.1`, one packed gel: 40 g carbs, 400 mg caffeine, quantity 1.
 
-The caffeine cap is `30.1 * 5 = 150.5` mg. The plan schedules 400 mg. The 60 minute stop is on red and is that gel (`form=gel`, 40 g). A red window with no safer ground inside ±6 minutes is supposed to be a liquid micro-dose of at most 15 g. The 90 minute stop, which the vest does not stamp, is still that 15 g micro-dose.
+The caffeine cap is `30.1 * 5 = 150.5` mg. The 60 minute stop is on red. It stays a 15 g micro-dose, and the plan does not schedule the 400 mg. The 90 minute stop, which the vest does not stamp, is still that 15 g micro-dose.
 
 ## Packed vest ignores the 90 minute solid gap and the savoury clock
 
-Flat 16 km, default athlete, two packed salted chips (solid, savoury, 20 g).
+**Fixed.** A packed solid is not placed within 90 minutes of another solid, and a savoury solid waits until the savoury clock.
 
-The vest stamps solids at 60 minutes and 90 minutes. That is a 30 minute gap, and both are savoury, before the 150 minute switch. The default rotation spaces solids by 90 minutes and holds savoury food until that mark. The stamp runs after those rules.
+Flat 16 km finishes near minute 128. After the quiet window, two trail bites cannot sit 90 minutes apart, so the two savoury chips stay in the vest instead of landing at minute 60 and minute 90. On a longer flat race the chips that do fit are 90 minutes apart and not before minute 150.
 
 ## The opening quiet window erases rescue ease feeds
 
@@ -68,12 +70,16 @@ Flat 16 km, default athlete, one food station at 8 km (minute 64). `rescue_start
 
 ## A tiny custom portion overflows packing
 
+**Fixed.** A portion count whose division is not a finite number of pieces is 0. `generate_plan` returns a plan.
+
 Flat 17 km. Athlete hourly carbs 2 g, `carb_multiplier=1.25`, `vest_foods=[]`, and one custom vest food named "a" with `carbs_g=2.2250738585072014e-308` (the smallest positive float, still inside `gt=0, le=120`).
 
-`generate_plan` raises `OverflowError: cannot convert float infinity to integer`. The packer does `remaining // portion_carbs`. That quotient is infinity, and `int` rejects it. A portion of `1e-300` g does not crash. The property draws stay at or above one microgram so the rest of the suite can run.
+The packer used to do `remaining // portion_carbs`. That quotient is infinity, and `int` rejected it with `OverflowError`. The same portion now contributes no counted pieces, and the plan still has its segments.
 
 ## A plate plus carryover can exceed the leg budget
 
+**Fixed.** Vest carbs, the station plate, and carryover add up to the leg budget. When both plates are larger than the leg, the plate at the table stays and the carryover shrinks.
+
 Flat 12 km, default athlete, food stations at 6 km and 11 km.
 
-The leg from the first station to the second is 40 minutes and is budgeted at 46 g (`duration × 60 g/h × 1.15`). It also carries a 28 g plate at the arrival and 28 g of carryover from the plate just eaten. Vest carbs are 0. The three buckets sum to 56 g, which is more than the 46 g leg. The leg total itself still matches duration × rate × 1.15. The split does not.
+The leg from the first station to the second is 40 minutes and is budgeted at 46 g (`duration × 60 g/h × 1.15`). It used to carry a 28 g plate at the arrival and 28 g of carryover from the plate just eaten, with vest carbs at 0. Those three buckets were 56 g. Carryover is now the room left after the 28 g plate, and the three buckets match the 46 g leg. The leg total is still duration × rate × 1.15.

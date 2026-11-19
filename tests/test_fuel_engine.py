@@ -657,7 +657,11 @@ def test_fast_descent_carries_no_trail_food() -> None:
 
 
 def test_packed_vest_alternates_and_is_finished() -> None:
-    """3 gels, 2 sandwiches, and 2 bars are mixed across legs and all eaten."""
+    """Gels, sandwiches, and bars alternate. Solids stay 90 minutes apart.
+
+    The race can hold three solids (minute 60, 150, and 240). The second bar
+    would be the fourth solid, so it stays in the vest.
+    """
 
     points = course_points([(36_000, 0.0)])
     course = prepare_course(points)
@@ -691,9 +695,16 @@ def test_packed_vest_alternates_and_is_finished() -> None:
     packed = [stop.product for stop in plan.fuel_stops if stop.reason.startswith("Packed vest")]
     assert packed.count("Standard Gel") == 3
     assert packed.count("Half Sandwich") == 2
-    assert packed.count("Oat Bar") == 2
+    assert packed.count("Oat Bar") == 1
     for index in range(len(packed) - 2):
         assert len(set(packed[index:index + 3])) > 1
+    solids = [
+        stop
+        for stop in plan.fuel_stops
+        if stop.form is FuelForm.real_food and stop.carbs_g > 0 and not stop.at_aid_station
+    ]
+    assert [stop.scheduled_minute for stop in solids] == pytest.approx([60, 150, 240])
+    assert all(stop.scheduled_minute >= 150 or stop.flavor != "Savoury/Salty" for stop in solids)
     legs_used = sum(
         1
         for leg in plan.aid_legs
@@ -702,15 +713,15 @@ def test_packed_vest_alternates_and_is_finished() -> None:
     assert legs_used >= 2
     assert "3/3 Standard Gel" in plan.vest_inventory_summary
     assert "2/2 Half Sandwich" in plan.vest_inventory_summary
-    assert "2/2 Oat Bar" in plan.vest_inventory_summary
-    assert "0 left at finish" in plan.vest_inventory_summary
+    assert "1/2 Oat Bar" in plan.vest_inventory_summary
+    assert "1 left at finish" in plan.vest_inventory_summary
 
     def packed_qty(name: str) -> int:
         return sum(item.quantity for leg in plan.aid_legs for item in leg.pack if item.item == name)
 
     assert packed_qty("Standard Gel") == 3
     assert packed_qty("Half Sandwich") == 2
-    assert packed_qty("Oat Bar") == 2
+    assert packed_qty("Oat Bar") == 1
 
 
 def test_legacy_phone_payload_still_builds_a_plan() -> None:

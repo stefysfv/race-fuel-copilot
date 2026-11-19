@@ -1504,7 +1504,7 @@
       "vest_carbs_g": 0.0,
       "station_carbs_g": 28.0,
       "station_meal": "Aid Station Plate: 2 pieces banana / salted potatoes / orange wedges + broth/cola",
-      "carryover_carbs_g": 28.0,
+      "carryover_carbs_g": 24.576527,
       "pack": [
         {
           "item": "500ml Flask",

@@ -2,8 +2,8 @@
 
 Numeric draws read the bounds off the Pydantic fields in `backend/models.py`.
 The four bundled GPX courses are included, plus synthetic flat, all-climb, and
-sawtooth profiles. Logged engine violations are listed in `FINDINGS.md` and
-skipped with a comment below. This file does not change plan output.
+sawtooth profiles. The logged examples in `FINDINGS.md` are covered by
+`test_logged_*`. This file does not change plan output.
 """
 
 from __future__ import annotations
@@ -196,11 +196,11 @@ def _optional_floats(model: type[BaseModel], name: str) -> st.SearchStrategy[flo
 
 
 def _portion_grams(model: type[BaseModel], name: str) -> st.SearchStrategy[float]:
-    """Carb portions inside the field, excluding the overflow shown in FINDINGS.md.
+    """Carb portions inside the field, from one microgram up to the maximum.
 
-    The field is `gt=0, le=120`. A portion near the smallest positive float
-    makes `remaining // carbs` infinite in the packer. One microgram is still
-    inside the field and stays finite, so the other properties can run.
+    The field is `gt=0, le=120`. The packer turns a non-finite quotient into
+    zero pieces, so a subnormal portion cannot raise OverflowError. Draws
+    stay at or above one microgram so a portion is still a real bite.
     """
 
     _, high, _, exclude_max = _bounds(model, name)
@@ -726,16 +726,11 @@ def _assert_doses(plan: RacePlan, athlete: AthleteInput) -> None:
     for stop in plan.fuel_stops:
         stamped = stop.reason.startswith("Packed vest")
         if stop.zone is DigestiveZone.red and not stop.at_aid_station:
-            if stamped:
-                # FINDINGS.md: a packed piece is stamped onto red as a full gel.
-                pass
-            else:
-                # Known-acceptable: the short-race bite is not this branch.
-                # A normal red window is a micro-dose, a quiet sip, or a rescue sip.
-                assert stop.form in {FuelForm.micro_dose, FuelForm.sip, FuelForm.rescue_sip}
-                if stop.form is FuelForm.micro_dose:
-                    assert stop.carbs_g <= RED_MICRO_DOSE_G + 1e-6
-                    assert stop.carbs_g <= window + 0.05
+            # A packed piece on red is still a micro-dose. It does not become a full gel.
+            assert stop.form in {FuelForm.micro_dose, FuelForm.sip, FuelForm.rescue_sip}
+            if stop.form is FuelForm.micro_dose:
+                assert stop.carbs_g <= RED_MICRO_DOSE_G + 1e-6
+                assert stop.carbs_g <= window + 0.05
         if stop.at_aid_station or stamped or athlete.custom_vest_items:
             pass
         else:
@@ -748,7 +743,13 @@ def _assert_doses(plan: RacePlan, athlete: AthleteInput) -> None:
                 assert stop.form is FuelForm.sip
             else:
                 assert stop.form in {FuelForm.gel, FuelForm.liquid}
-        if gels and not stamped and not stop.at_aid_station and stop.form is FuelForm.real_food and stop.carbs_g > 0:
+        if (
+            not stop.at_aid_station
+            and stop.form is FuelForm.real_food
+            and stop.carbs_g > 0
+            and (gels or stamped)
+        ):
+            # Packed solids follow the same 90 minute gap and savoury clock as the menu.
             solid_times.append(stop.scheduled_minute)
             if stop.zone is DigestiveZone.green and stop.scheduled_minute < switch - 1e-6:
                 assert stop.flavor != "Savoury/Salty"
@@ -768,18 +769,9 @@ def _assert_caffeine_and_sweat(plan: RacePlan, athlete: AthleteInput) -> None:
     cap = plan.athlete.weight_kg * CAFFEINE_MG_PER_KG
     assert plan.totals.caffeine_cap_mg == pytest.approx(cap)
     assert plan.totals.caffeine_mg == pytest.approx(sum(stop.caffeine_mg for stop in plan.fuel_stops))
-    locker_caffeine = sum(
-        stop.caffeine_mg for stop in plan.fuel_stops if not stop.reason.startswith("Packed vest")
-    )
-    assert locker_caffeine <= cap + 1e-4
-    stamped_caffeine = any(
-        stop.reason.startswith("Packed vest") and stop.caffeine_mg > 0 for stop in plan.fuel_stops
-    )
-    if not stamped_caffeine:
-        assert plan.totals.caffeine_mg <= cap + 1e-4
-    # FINDINGS.md: packed-vest caffeine is not held to 5 mg/kg. Excluded above.
+    assert plan.totals.caffeine_mg <= cap + 1e-4
     for stop in plan.fuel_stops:
-        if stop.caffeine_mg > 0 and not stop.reason.startswith("Packed vest"):
+        if stop.caffeine_mg > 0:
             assert stop.form is FuelForm.gel
     ml_per_hour, sodium_per_hour = sweat_rates(athlete.temperature_c, athlete.weight_kg)
     assert plan.athlete.fluid_ml_per_hour == pytest.approx(ml_per_hour)
@@ -808,9 +800,8 @@ def _assert_legs_and_stations(
             assert leg.carbs_g == pytest.approx(hours * plan.athlete.carbs_g_per_hour * PACK_BUFFER, abs=0.05)
             assert leg.fluid_ml == pytest.approx(hours * ml_per_hour * PACK_BUFFER, abs=0.05)
             assert leg.sodium_mg == pytest.approx(hours * sodium_per_hour * PACK_BUFFER, abs=0.05)
-            # FINDINGS.md: a plate plus carryover from the previous plate can
-            # add up to more than this leg's carb budget. The identity is not
-            # asserted. The leg total above is still duration x rate x 1.15.
+            accounted = leg.vest_carbs_g + leg.station_carbs_g + leg.carryover_carbs_g
+            assert accounted == pytest.approx(leg.carbs_g, abs=0.5)
         if plan.aid_legs and plan.clock_start_min == 0:
             assert plan.aid_legs[0].from_name == "Start"
             assert plan.aid_legs[0].from_km == pytest.approx(0.0, abs=1e-6)
@@ -1246,7 +1237,6 @@ def test_logged_short_race_recalibrate_changes_stops() -> None:
     assert _stop_rows(plan.fuel_stops, elapsed) == _stop_rows(updated.remaining.fuel_stops, 0.0)
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: packed vest stamps a gel onto red and ignores the caffeine cap", strict=True)
 def test_logged_packed_vest_on_red_and_caffeine() -> None:
     profile = _climb(8_000)
     athlete = AthleteInput(weight_kg=30.1)
@@ -1273,9 +1263,31 @@ def test_logged_packed_vest_on_red_and_caffeine() -> None:
     assert plan.totals.caffeine_mg <= cap + 1e-6
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: packed solids ignore the 90 minute palate gap", strict=True)
+def _trail_solids(plan: RacePlan) -> list[FuelStop]:
+    return [
+        stop
+        for stop in plan.fuel_stops
+        if stop.form is FuelForm.real_food and stop.carbs_g > 0 and not stop.at_aid_station
+    ]
+
+
+def _assert_solid_gap(solids: list[FuelStop]) -> None:
+    assert all(
+        later.scheduled_minute - earlier.scheduled_minute >= SOLID_EVERY_MIN - 0.05
+        for earlier, later in zip(solids, solids[1:])
+    )
+    assert all(stop.scheduled_minute >= SAVOURY_START_MIN or stop.flavor != "Savoury/Salty" for stop in solids)
+
+
 def test_logged_packed_solids_ignore_palate_gap() -> None:
-    profile = _flat(16_000)
+    """Packed solids keep the 90 minute gap and wait for the savoury clock.
+
+    Flat 16 km finishes near minute 128. After the quiet window, two trail
+    bites cannot sit 90 minutes apart, so the savoury chips stay in the vest
+    instead of landing at minute 60 and minute 90. Flat 30 km is long enough
+    for two solids, and those two follow the same rules.
+    """
+
     athlete = AthleteInput()
     packed = [
         PackedVestItem(
@@ -1287,23 +1299,32 @@ def test_logged_packed_solids_ignore_palate_gap() -> None:
             form="solid",
         )
     ]
+    short = generate_plan(
+        race_id="flat",
+        race_name="flat",
+        declared_distance_km=0.0,
+        aid_stations=[],
+        profile=_flat(16_000),
+        athlete=athlete,
+        packed_vest_items=packed,
+    )
+    short_solids = _trail_solids(short)
+    assert short_solids
+    assert all(not stop.reason.startswith("Packed vest") for stop in short_solids)
+    _assert_solid_gap(short_solids)
+
     plan = generate_plan(
         race_id="flat",
         race_name="flat",
         declared_distance_km=0.0,
         aid_stations=[],
-        profile=profile,
+        profile=_flat(30_000),
         athlete=athlete,
         packed_vest_items=packed,
     )
-    solids = [
-        stop
-        for stop in plan.fuel_stops
-        if stop.form is FuelForm.real_food and stop.carbs_g > 0 and not stop.at_aid_station
-    ]
+    solids = _trail_solids(plan)
     assert len(solids) >= 2
-    assert all(later.scheduled_minute - earlier.scheduled_minute >= SOLID_EVERY_MIN - 0.05 for earlier, later in zip(solids, solids[1:]))
-    assert all(stop.scheduled_minute >= SAVOURY_START_MIN or stop.flavor != "Savoury/Salty" for stop in solids)
+    _assert_solid_gap(solids)
 
 
 def test_logged_gi_rescue_menu_and_half_size() -> None:
@@ -1338,7 +1359,6 @@ def test_logged_gi_rescue_menu_and_half_size() -> None:
     assert "Half-size while GI Rescue" in after[0].reason
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: plate plus carryover can exceed the leg budget", strict=True)
 def test_logged_aid_leg_plate_and_carryover_exceed_budget() -> None:
     profile = _flat(12_000)
     course = prepare_course(profile)
@@ -1449,7 +1469,6 @@ def test_logged_aid_plate_erases_rescue_ease() -> None:
     assert ease.carbs_g == pytest.approx(RESCUE_EASE_CARBS_G, abs=0.05)
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: a tiny custom portion overflows packing", strict=True)
 def test_logged_tiny_custom_portion_overflows() -> None:
     athlete = AthleteInput(
         carbs_g_per_hour=2,

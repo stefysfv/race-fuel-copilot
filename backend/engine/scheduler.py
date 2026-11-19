@@ -202,6 +202,7 @@ def generate_plan(
             course,
             packed_vest_items,
             athlete.feed_interval_min,
+            athlete,
         )
         if extra_note:
             warnings.append(extra_note)
