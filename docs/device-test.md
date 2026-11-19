@@ -59,3 +59,20 @@ The Offline tab is a checklist. It should read `offline ready: yes` before you t
 | Recalibration 8 |  |  |  |  |  |  |  |
 | Recalibration 9 |  |  |  |  |  |  |  |
 | Recalibration 10 |  |  |  |  |  |  |  |
+
+## Recorded baseline — 2026-11-19
+
+Shell cache: `race-fuel-v23`.
+
+Device: iPhone, iOS 18.7, Safari 26.6.1.
+
+User agent: `Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1`
+
+| Run | Worker ready (ms) | Plan `lastPlanMs` | Recalibrate `lastRecalibrateMs` | Notes |
+| --- | --- | --- | --- | --- |
+| Standard | 1,791 (cached) | 30 | 30 | |
+| Heavy | 1,810 (cached) | 87 | 153 | Low Power Mode. Plan and recalibrate are the 100 km race. |
+
+Offline caches: `offlineReady: true`, 0 missing. Shell 45/45, races 5/5, Pyodide 10/10, engine 2/2.
+
+Storage: 22.98 MB (~21.9 MiB) used of 41.23 GB quota. `persisted: false` on a normal Safari tab. Add to Home Screen is recommended so WebKit does not evict the site after 7 days.
