@@ -421,6 +421,8 @@ def _assert_plan(plan: RacePlan, require_red: bool = True) -> None:
         raise AssertionError(f"{plan.race_name} should include red terrain")
     if len(plan.fuel_stops) < 3:
         raise AssertionError(f"{plan.race_name} produced too few fuel stops")
+    window_carbs = plan.athlete.carbs_g_per_hour * plan.athlete.feed_interval_min / 60.0
+    half_window = window_carbs * 0.5
     for stop in plan.fuel_stops:
         if abs(stop.shift_minutes) > WINDOW_MIN + 1e-6:
             raise AssertionError(f"Shift of {stop.shift_minutes} min is outside the +/-6 min window")
@@ -432,8 +434,23 @@ def _assert_plan(plan: RacePlan, require_red: bool = True) -> None:
             raise AssertionError("A red segment must be a micro-dose or a rescue sip")
         if stop.form == FuelForm.micro_dose and stop.carbs_g > RED_MICRO_DOSE_G:
             raise AssertionError("A red micro-dose is larger than 15 g")
-        if stop.zone == DigestiveZone.yellow and stop.form == FuelForm.gel:
-            raise AssertionError("A yellow segment was assigned a gel")
+        # A yellow trail feed is a half dose of gel or drink mix. Station plates
+        # and GI Rescue sips follow their own rules.
+        if (
+            stop.zone == DigestiveZone.yellow
+            and not stop.at_aid_station
+            and stop.form != FuelForm.rescue_sip
+            and not stop.reason.startswith("GI Rescue")
+        ):
+            if stop.form == FuelForm.real_food:
+                raise AssertionError(
+                    f"A yellow stop at {stop.scheduled_minute:.1f} min is solid food"
+                )
+            if stop.carbs_g > half_window + 0.05:
+                raise AssertionError(
+                    f"A yellow stop at {stop.scheduled_minute:.1f} min is {stop.carbs_g:.1f} g, "
+                    f"above half of the {window_carbs:.1f} g window"
+                )
         if "carried over" in stop.reason or "held back" in stop.reason:
             raise AssertionError("A fuel window still carries carbohydrate debt")
     if not plan.aid_legs:

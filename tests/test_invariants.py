@@ -700,9 +700,8 @@ def _assert_stops(plan: RacePlan, athlete: AthleteInput, total_m: float) -> None
 def _assert_doses(plan: RacePlan, athlete: AthleteInput) -> None:
     short = _is_short_race(athlete)
     window = _window_carbs(plan)
-    # Known-acceptable: a yellow feed may be a gel. README allows a half dose of
-    # gel or drink mix. self_check still forbids it; BUGS_FOUND.md records that
-    # the engine assigns one. Do not treat FuelForm.gel on yellow as a failure.
+    # A yellow trail feed may be a half dose of gel or drink mix. A solid, or
+    # more than half the window, is a failure. self_check asserts the same rule.
     #
     # Known-acceptable: delivered g/h is not capped at the hourly target. Red
     # forfeits, the quiet window, and descent lock all drop the rate. No ceiling
