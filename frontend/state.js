@@ -89,6 +89,7 @@ export const ui = {
   hours: document.querySelector("#target-hours"),
   minutes: document.querySelector("#target-minutes"),
   summary: document.querySelector("#plan-summary"),
+  fuelBudget: document.querySelector("#fuel-budget"),
   warnings: document.querySelector("#warnings"),
   protocol: document.querySelector("#protocol-note"),
   vestUsage: document.querySelector("#vest-usage"),

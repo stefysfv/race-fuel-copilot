@@ -48,8 +48,9 @@ ATHLETES: dict[str, dict[str, Any]] = {
 client = TestClient(app)
 
 
-# Reasons and forfeited rows are additive. Older snapshots do not contain them.
-_ADDITIVE_KEYS = frozenset({"reasons", "forfeited"})
+# Reasons, forfeited rows, and the fuel budget are additive. Older snapshots
+# do not contain them, and the 70–85% info note must not land in `warnings`.
+_ADDITIVE_KEYS = frozenset({"reasons", "forfeited", "fuel_budget"})
 
 
 def _strip_additive(value: Any) -> Any:

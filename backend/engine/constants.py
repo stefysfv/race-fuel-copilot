@@ -44,6 +44,11 @@ SHORT_RACE_NOTE = (
 GEL_VEST_KEYS = frozenset({"gel_25", "iso_gel_22", "high_carb_gel", "caffeine_gel"})
 # The pre-race meal covers the opening. Trail gels and solids wait.
 PRE_RACE_QUIET_MIN = 50.0
+# Delivered rate after that window, as a fraction of the stored hourly target.
+# Under 70% stays the plan warning. From 70% up to 85% is an info note on
+# FuelBudget. At 85% and above the rate line is quiet. Short races skip both.
+DELIVERY_WARN_RATIO = 0.70
+DELIVERY_INFO_RATIO = 0.85
 PRE_RACE_SHORT_LEG_MIN = 75.0
 PRE_RACE_FOOD_STATION_MIN = 100.0
 CARRYOVER_WINDOW_MIN = 55.0

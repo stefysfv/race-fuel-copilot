@@ -676,6 +676,40 @@ body:has(#diag-panel:not([hidden])) .map-view {
 .glass-chip .qty { color: #ff5500; font-weight: 800; margin-right: 4px; }
 .eat-note { margin: 0; font-size: 13px; font-weight: 700; line-height: 1.3; }
 #warnings { margin: 0; padding: 0; list-style: none; color: #b45309; font-size: 12px; font-weight: 700; }
+.fuel-budget {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 20px;
+}
+.fuel-budget h2 {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.budget-sentence { font-size: 14px; font-weight: 650; line-height: 1.35; }
+.budget-note { font-size: 12px; font-weight: 700; color: #92400e; }
+.budget-meter {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(15, 17, 21, 0.08);
+  overflow: hidden;
+}
+.budget-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+.fuel-budget.tier-info .budget-fill { background: var(--yellow); }
+.fuel-budget.tier-warn .budget-fill { background: var(--red); }
+.budget-rate { font-size: 12px; font-weight: 800; color: var(--muted); }
+.budget-missing, .budget-tips { margin: 0; font-size: 12px; font-weight: 650; }
+.budget-missing { padding: 0; list-style: none; }
+.budget-tips { padding-left: 16px; color: var(--muted); }
 .vest-usage {
   margin: 0;
   padding: 8px 12px;
@@ -1005,7 +1039,7 @@ body[data-tab="setup"] #tab-setup { overflow: hidden; }
   padding: 0 16px;
 }
 .live-view { padding: 0 16px; overflow: hidden; }
-#warnings, .vest-usage, .pack-head, .leg-stepper { flex-shrink: 0; }
+#warnings, .vest-usage, .pack-head, .leg-stepper, .fuel-budget { flex-shrink: 0; }
 
 .empty-note { margin: 24px 16px; color: var(--muted); font-size: 14px; font-weight: 700; }
 .map-stage { display: flex; flex: 1; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; }

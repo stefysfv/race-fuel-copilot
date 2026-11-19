@@ -585,6 +585,41 @@ class AidLeg(APIModel):
     note: str = ""
 
 
+class DeliveryTier(str, Enum):
+    """How the delivered rate sits against the hourly target.
+
+    `warn` is under 70%. `info` is from 70% up to 85%. `ok` is 85% and above.
+    A short race is `ok` even when the rate is low. The warning sentence stays
+    on `RacePlan.warnings`. The info sentence is `FuelBudget.note`.
+    """
+
+    ok = "ok"
+    info = "info"
+    warn = "warn"
+
+
+class FuelBudget(APIModel):
+    """Delivered carbs against the hourly target. Scheduling is unchanged.
+
+    Rates use the same window as `PlanTotals.carbs_g_per_hour_delivered`: carbs
+    on stops at or after the pre-race quiet minute, divided by the hours from
+    that minute to the finish. `forfeited_total_g` is the forfeited list, which
+    is not the gap between the target and what was delivered.
+    """
+
+    target_g_per_h: float = Field(default=0, ge=0)
+    delivered_g_per_h: float = Field(default=0, ge=0)
+    delivery_ratio: float = Field(default=0, ge=0)
+    target_total_g: float = Field(default=0, ge=0)
+    delivered_total_g: float = Field(default=0, ge=0)
+    forfeited_total_g: float = Field(default=0, ge=0)
+    forfeited_by_code: dict[str, float] = Field(default_factory=dict)
+    red_share_of_course_pct: float = Field(default=0, ge=0, le=100)
+    red_share_of_time_pct: float = Field(default=0, ge=0, le=100)
+    tier: DeliveryTier = DeliveryTier.ok
+    note: str = ""
+
+
 class PlanTotals(APIModel):
     """Sums of the scheduled stops.
 
@@ -630,6 +665,7 @@ class RacePlan(APIModel):
     aid_legs: list[AidLeg]
     aid_stations: list[AidStation] = Field(default_factory=list)
     totals: PlanTotals
+    fuel_budget: FuelBudget = Field(default_factory=FuelBudget)
     warnings: list[str]
     vest_inventory_summary: str = ""
 

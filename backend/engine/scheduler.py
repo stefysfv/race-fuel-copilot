@@ -79,6 +79,7 @@ from backend.engine.timing import (
 from backend.engine.totals_warnings import (
     _delivery_warnings,
     _distance_warnings,
+    _fuel_budget,
     _stations_on_course,
     _totals,
     _zone_counts,
@@ -171,6 +172,14 @@ def generate_plan(
     finish_minute = timed[-1].end_minute
     duration = finish_minute - clock_start
     totals = _totals(stops, athlete, start_minute=clock_start, finish_minute=finish_minute)
+    budget = _fuel_budget(
+        stops,
+        forfeited,
+        timed,
+        athlete,
+        start_minute=clock_start,
+        finish_minute=finish_minute,
+    )
     warnings.extend(
         _delivery_warnings(stops, legs, timed, athlete, totals.carbs_g_per_hour_delivered)
     )
@@ -192,6 +201,7 @@ def generate_plan(
         aid_legs=legs,
         aid_stations=stations,
         totals=totals,
+        fuel_budget=budget,
         warnings=warnings,
         vest_inventory_summary=inventory_summary,
     )

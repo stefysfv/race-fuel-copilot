@@ -27,6 +27,8 @@ from backend.engine.constants import (
     MIN_PACE_RATIO,
     MIN_PACE_SAMPLE_MIN,
     PACK_BUFFER,
+    DELIVERY_INFO_RATIO,
+    DELIVERY_WARN_RATIO,
     PRE_RACE_QUIET_MIN,
     RED_MICRO_DOSE_G,
     RESCUE_COOLDOWN_MIN,
@@ -46,6 +48,7 @@ from backend.engine.reasons import SHIFT_EPSILON_MIN
 from backend.engine.scheduler import generate_plan
 from backend.engine.short_race import _is_short_race
 from backend.engine.sweat import sweat_rates
+from backend.engine.totals_warnings import _active_fuel_minutes, _delivered_grams_per_hour
 from backend.engine.zones import _green_max_for, classify_zone
 from backend.gpx_parser import EARTH_RADIUS_M, location_at_distance, prepare_course
 from backend.models import (
@@ -53,6 +56,7 @@ from backend.models import (
     AthleteInput,
     CustomAidInput,
     CustomFoodItem,
+    DeliveryTier,
     DigestiveZone,
     FuelForm,
     FuelStop,
@@ -858,6 +862,70 @@ def assert_plan(plan: RacePlan, built: BuiltCourse) -> None:
     _assert_caffeine_and_sweat(plan, built.athlete)
     _assert_legs_and_stations(plan, built.athlete, built.stations, course_m)
     _assert_shift_has_reason(plan)
+    _assert_fuel_budget(plan)
+
+
+def _assert_fuel_budget(plan: RacePlan) -> None:
+    """The budget is the stops, the forfeited list, and the segment zones."""
+
+    budget = plan.fuel_budget
+    finish = plan.clock_start_min + plan.predicted_duration_min
+    active = _active_fuel_minutes(plan.clock_start_min, finish)
+    assert budget.target_g_per_h == pytest.approx(plan.athlete.carbs_g_per_hour)
+    delivered_rate = _delivered_grams_per_hour(plan.fuel_stops, plan.clock_start_min, finish)
+    assert budget.delivered_g_per_h == pytest.approx(delivered_rate)
+    assert budget.delivered_g_per_h == pytest.approx(plan.totals.carbs_g_per_hour_delivered)
+    if active <= 0:
+        assert budget.delivered_total_g == 0
+        assert budget.target_total_g == 0
+    else:
+        delivered = sum(
+            stop.carbs_g for stop in plan.fuel_stops if stop.scheduled_minute >= PRE_RACE_QUIET_MIN
+        )
+        assert budget.delivered_total_g == pytest.approx(delivered)
+        assert budget.target_total_g == pytest.approx(budget.target_g_per_h * active / 60.0)
+        assert budget.delivered_g_per_h == pytest.approx(delivered / (active / 60.0))
+    if budget.target_g_per_h > 0:
+        assert budget.delivery_ratio == pytest.approx(budget.delivered_g_per_h / budget.target_g_per_h)
+    else:
+        assert budget.delivery_ratio == 0
+    grouped: dict[str, float] = {}
+    for item in plan.forfeited:
+        grouped[item.code.value] = grouped.get(item.code.value, 0.0) + item.carbs_g
+    assert budget.forfeited_total_g == pytest.approx(sum(grouped.values()))
+    assert set(budget.forfeited_by_code) == {code for code, grams in grouped.items() if grams > 0}
+    for code, grams in budget.forfeited_by_code.items():
+        assert grams > 0
+        assert grams == pytest.approx(grouped[code])
+    distance = sum(segment.distance_m for segment in plan.segments)
+    minutes = sum(segment.predicted_minutes for segment in plan.segments)
+    red_distance = sum(segment.distance_m for segment in plan.segments if segment.zone is DigestiveZone.red)
+    red_minutes = sum(
+        segment.predicted_minutes for segment in plan.segments if segment.zone is DigestiveZone.red
+    )
+    if distance > 0:
+        assert budget.red_share_of_course_pct == pytest.approx(min(100.0, 100.0 * red_distance / distance))
+    if minutes > 0:
+        assert budget.red_share_of_time_pct == pytest.approx(min(100.0, 100.0 * red_minutes / minutes))
+    assert not any("under 85%" in warning for warning in plan.warnings)
+    if _is_short_race(plan.athlete):
+        assert budget.tier is DeliveryTier.ok
+        assert budget.note == ""
+        assert not any("below 70%" in warning for warning in plan.warnings)
+        return
+    if budget.tier is DeliveryTier.warn:
+        assert budget.note == ""
+        assert any("below 70%" in warning for warning in plan.warnings)
+        assert budget.delivery_ratio < DELIVERY_WARN_RATIO
+    elif budget.tier is DeliveryTier.info:
+        assert "under 85%" in budget.note
+        assert not any("below 70%" in warning for warning in plan.warnings)
+        assert DELIVERY_WARN_RATIO <= budget.delivery_ratio < DELIVERY_INFO_RATIO
+    else:
+        assert budget.tier is DeliveryTier.ok
+        assert budget.note == ""
+        assert not any("below 70%" in warning for warning in plan.warnings)
+        assert budget.delivery_ratio >= DELIVERY_INFO_RATIO
 
 
 def _assert_shift_has_reason(plan: RacePlan) -> None:

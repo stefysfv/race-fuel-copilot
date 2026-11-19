@@ -1,6 +1,7 @@
 /** Packing cards, the leg stepper, and the crew handoff card. */
 
 import { state, ui } from "./state.js";
+import { renderFuelBudget } from "./fuel_budget.js";
 import { compactHours, deliveryRateLabel, escapeHtml, formatDuration, grouped } from "./ui_helpers.js";
 
 export function setupSummaryLine() {
@@ -26,6 +27,7 @@ export function renderPacking() {
   const plan = state.packedPlan;
   ui.packing.replaceChildren();
   ui.warnings.replaceChildren();
+  renderFuelBudget(plan);
   if (!plan) {
     ui.summary.classList.add("hidden");
     ui.exportCard.disabled = true;

@@ -6,7 +6,10 @@ from backend.models import (
     AidLeg,
     AidStation,
     AthleteInput,
+    DeliveryTier,
     DigestiveZone,
+    ForfeitedDose,
+    FuelBudget,
     FuelForm,
     FuelStop,
     PlanTotals,
@@ -15,6 +18,8 @@ from backend.models import (
 
 from backend.engine.constants import (
     CAFFEINE_MG_PER_KG,
+    DELIVERY_INFO_RATIO,
+    DELIVERY_WARN_RATIO,
     PRE_RACE_QUIET_MIN,
 )
 
@@ -35,6 +40,24 @@ def _active_fuel_minutes(start_minute: float, finish_minute: float) -> float:
     return max(0.0, finish_minute - active_start)
 
 
+def _delivered_window(
+    stops: list[FuelStop],
+    start_minute: float,
+    finish_minute: float,
+) -> tuple[float, float]:
+    """Carbs after the quiet window, and the minutes those carbs are spread over.
+
+    An empty window returns `(0, 0)` so a stop sitting on the quiet minute is
+    not counted when the finish is still inside that window.
+    """
+
+    active_min = _active_fuel_minutes(start_minute, finish_minute)
+    if active_min <= 0:
+        return 0.0, 0.0
+    carbs = sum(stop.carbs_g for stop in stops if stop.scheduled_minute >= PRE_RACE_QUIET_MIN)
+    return carbs, active_min
+
+
 def _delivered_grams_per_hour(
     stops: list[FuelStop],
     start_minute: float,
@@ -42,10 +65,9 @@ def _delivered_grams_per_hour(
 ) -> float:
     """Carbs scheduled after the quiet window, per hour until the finish."""
 
-    active_min = _active_fuel_minutes(start_minute, finish_minute)
+    carbs, active_min = _delivered_window(stops, start_minute, finish_minute)
     if active_min <= 0:
         return 0.0
-    carbs = sum(stop.carbs_g for stop in stops if stop.scheduled_minute >= PRE_RACE_QUIET_MIN)
     return carbs / (active_min / 60.0)
 
 
@@ -89,10 +111,10 @@ def _delivery_warnings(
 
     notes: list[str] = []
     target = _effective_carb_target(athlete)
-    if not _is_short_race(athlete) and target > 0 and delivered_g_per_hour < 0.70 * target:
+    if not _is_short_race(athlete) and target > 0 and delivered_g_per_hour < DELIVERY_WARN_RATIO * target:
         notes.append(
             f"Delivered {delivered_g_per_hour:.0f} g/h after the pre-race window, "
-            f"below 70% of the {target:.0f} g/h target."
+            f"below {DELIVERY_WARN_RATIO:.0%} of the {target:.0f} g/h target."
         )
     for leg in legs:
         after_min = _leg_minutes_after_quiet(leg, segments)
@@ -140,6 +162,76 @@ def _totals(
         stops_deferred=deferred,
         caffeine_mg=sum(stop.caffeine_mg for stop in stops),
         caffeine_cap_mg=athlete.weight_kg * CAFFEINE_MG_PER_KG,
+    )
+
+
+def _share_pct(part: float, whole: float) -> float:
+    """Percent of `whole`, clamped so a rounding error cannot fail the schema."""
+
+    if whole <= 0:
+        return 0.0
+    return min(100.0, max(0.0, 100.0 * part / whole))
+
+
+def _delivery_tier(athlete: AthleteInput, target: float, delivered_g_per_hour: float) -> tuple[DeliveryTier, str]:
+    """Info lives on the budget. The under-70% sentence stays in `plan.warnings`."""
+
+    if _is_short_race(athlete) or target <= 0:
+        return DeliveryTier.ok, ""
+    if delivered_g_per_hour < DELIVERY_WARN_RATIO * target:
+        return DeliveryTier.warn, ""
+    if delivered_g_per_hour < DELIVERY_INFO_RATIO * target:
+        note = (
+            f"Delivered {delivered_g_per_hour:.0f} g/h after the pre-race window, "
+            f"under {DELIVERY_INFO_RATIO:.0%} of the {target:.0f} g/h target."
+        )
+        return DeliveryTier.info, note
+    return DeliveryTier.ok, ""
+
+
+def _forfeited_by_code(forfeited: list[ForfeitedDose]) -> dict[str, float]:
+    """Sum dropped grams by code. A code with nothing dropped is omitted."""
+
+    totals: dict[str, float] = {}
+    for item in forfeited:
+        totals[item.code.value] = totals.get(item.code.value, 0.0) + item.carbs_g
+    return {code: grams for code, grams in sorted(totals.items()) if grams > 0}
+
+
+def _fuel_budget(
+    stops: list[FuelStop],
+    forfeited: list[ForfeitedDose],
+    segments: list[Segment],
+    athlete: AthleteInput,
+    *,
+    start_minute: float,
+    finish_minute: float,
+) -> FuelBudget:
+    """Fill the additive budget from stops, forfeited rows, and segment zones."""
+
+    target = _effective_carb_target(athlete)
+    delivered_total, active_min = _delivered_window(stops, start_minute, finish_minute)
+    delivered_rate = 0.0 if active_min <= 0 else delivered_total / (active_min / 60.0)
+    target_total = target * (active_min / 60.0)
+    ratio = delivered_rate / target if target > 0 else 0.0
+    by_code = _forfeited_by_code(forfeited)
+    distance_m = sum(segment.distance_m for segment in segments)
+    minutes = sum(segment.predicted_minutes for segment in segments)
+    red_distance = sum(segment.distance_m for segment in segments if segment.zone is DigestiveZone.red)
+    red_minutes = sum(segment.predicted_minutes for segment in segments if segment.zone is DigestiveZone.red)
+    tier, note = _delivery_tier(athlete, target, delivered_rate)
+    return FuelBudget(
+        target_g_per_h=target,
+        delivered_g_per_h=delivered_rate,
+        delivery_ratio=ratio,
+        target_total_g=target_total,
+        delivered_total_g=delivered_total,
+        forfeited_total_g=sum(by_code.values()),
+        forfeited_by_code=by_code,
+        red_share_of_course_pct=_share_pct(red_distance, distance_m),
+        red_share_of_time_pct=_share_pct(red_minutes, minutes),
+        tier=tier,
+        note=note,
     )
 
 

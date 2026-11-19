@@ -3,7 +3,7 @@
 import { announce, primeAudio, releaseWakeLock, requestWakeLock } from "./alerts.js";
 import { recalibrate } from "./engine_client.js";
 import { paintRaceControls, renderLive, startClock } from "./live.js";
-import { positionOnCourse } from "./map_controller.js?v=20";
+import { positionOnCourse } from "./map_controller.js?v=21";
 import { drawMap, moveRunner, showRealDot } from "./map_screen.js";
 import { snapToSegments } from "./offline_engine.js";
 import { currentSegment } from "./plan_cursor.js";

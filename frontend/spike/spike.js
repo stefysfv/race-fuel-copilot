@@ -39,6 +39,21 @@ function log(line) {
   logNode.textContent = lines.join("\n");
 }
 
+const ADDITIVE_KEYS = new Set(["reasons", "forfeited", "fuel_budget"]);
+
+function stripAdditive(value) {
+  if (Array.isArray(value)) return value.map(stripAdditive);
+  if (value && typeof value === "object") {
+    const stripped = {};
+    for (const key of Object.keys(value)) {
+      if (ADDITIVE_KEYS.has(key)) continue;
+      stripped[key] = stripAdditive(value[key]);
+    }
+    return stripped;
+  }
+  return value;
+}
+
 function roundNumbers(value) {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
     return value;
@@ -207,8 +222,8 @@ async function main() {
       timings.push({ label: item.label, ms: null, paths: null, error: reply.error });
       continue;
     }
-    const actual = roundNumbers(reply.result);
-    const expected = roundNumbers(item.golden);
+    const actual = roundNumbers(stripAdditive(reply.result));
+    const expected = roundNumbers(stripAdditive(item.golden));
     const found = diffPaths(expected, actual);
     timings.push({ label: item.label, ms: reply.elapsed_ms, paths: found.length, error: null });
     if (found.length) {
