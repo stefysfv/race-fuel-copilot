@@ -1,0 +1,123 @@
+Minetti calibration — recorded moving time vs engine relative cost
+Engine constants were not changed.
+
+Method
+  Slices: engine prepare_course + slice_segments (about 500 m, net grade).
+  Excluded from moving time: speed under 1 km/h, aid dwells, non-positive timestamps,
+  and isolated jumps (a stretch of at most 80 m peaking at 30 km/h or faster).
+  Aid dwell: within 150 m of a catalogued station, inside a 20 m band, for at least 45 s, slower than 4 km/h.
+  Left out of the pool: a recording with at least 0.5 km sustained at or above 25 km/h in stretches of 200 m.
+  Flat pace: each recording's own moving pace on slices graded -5% to +5%.
+  Prediction: moving km x that flat pace x gap_cost_factor(slice grade).
+  Error: predicted minutes minus actual moving minutes. Negative means the model is too fast.
+  Unreliable: fewer than 4 slices, or under 1 km moving, or under 3 min moving.
+
+Files
+  salomon-vitosha-12: 12.74 km, 2018-05-27T07:00:03+00:00 -> 2018-05-27T08:05:51+00:00 (1.10 h)
+    source: C:/Users/stefa/OneDrive/Desktop/race-fuel-copilot/frontend/data/gpx/salomon-vitosha-12.gpx
+    moving 65.8 min, stopped 0.0 min, aid dwell 0.0 min, spike 10 m, zero-dt steps 0
+    speed p50 11.2 km/h, p90 18.5, max 34.2
+    flat pace 4.29 min/km from 4.23 km in -5..+5
+    whole recording: predicted 60.9 min, actual 65.8 min, error -4.9 min (-7.5%)
+  salomon-vitosha-27: 26.80 km, 2018-05-27T07:30:11+00:00 -> 2018-05-27T09:51:24+00:00 (2.35 h)
+    source: C:/Users/stefa/OneDrive/Desktop/race-fuel-copilot/frontend/data/gpx/salomon-vitosha-27.gpx
+    duplicate skipped: C:/Users/stefa/OneDrive/Desktop/race-fuel-copilot/frontend/spike/fixtures/salomon-vitosha-27.gpx
+    moving 140.7 min, stopped 0.5 min, aid dwell 0.0 min, spike 8 m, zero-dt steps 0
+    speed p50 12.7 km/h, p90 16.9, max 30.1
+    flat pace 4.73 min/km from 10.80 km in -5..+5
+    whole recording: predicted 140.9 min, actual 140.7 min, error +0.2 min (+0.1%)
+  salomon-vitosha-40: 40.14 km, 2018-05-27T07:30:00+00:00 -> 2018-05-27T11:39:33.464000+00:00 (4.16 h)
+    source: C:/Users/stefa/OneDrive/Desktop/race-fuel-copilot/frontend/data/gpx/salomon-vitosha-40.gpx
+    duplicate skipped: C:/Users/stefa/OneDrive/Desktop/race-fuel-copilot/frontend/spike/fixtures/salomon-vitosha-40.gpx
+    moving 229.8 min, stopped 0.0 min, aid dwell 0.0 min, spike 347 m, zero-dt steps 2296
+    speed p50 14.4 km/h, p90 39.4, max 49.6
+    NOT IN THE RUNNING POOL: 11.39 km (19.1 min) stayed at or above 25 km/h for stretches of at least 200 m.
+    Fast distance by grade: -30..-20 0.54 km at 1.6 min/km, -20..-10 4.69 km at 1.7 min/km, -10..0 5.38 km at 1.7 min/km, 0..+10 0.79 km at 1.8 min/km
+    The grade table below drops those fast steps, so it is not a fair Minetti test.
+    flat pace 4.43 min/km from 10.66 km in -5..+5
+    No whole-recording Minetti error. The fast stretches are not a running pace.
+  skipped C:/Users/stefa/OneDrive/Desktop/race-fuel-copilot/frontend/data/gpx/vitosha-100.gpx: no <time> on track points
+  skipped C:/Users/stefa/OneDrive/Desktop/race-fuel-copilot/frontend/spike/fixtures/vitosha-100.gpx: duplicate of vitosha-100.gpx, which has no track <time>
+
+Shared trail (sampled points within 25 m of the other recording)
+  salomon-vitosha-12 on salomon-vitosha-27: 67%
+  salomon-vitosha-12 on salomon-vitosha-40: 42%
+  salomon-vitosha-27 on salomon-vitosha-40: 76%
+
+Engine cost factor at 5-point grades (unchanged)
+   -40%  1.003
+   -35%  0.842
+   -30%  0.684
+   -25%  0.562
+   -20%  0.500
+   -15%  0.510
+   -10%  0.598
+    -5%  0.763
+    +0%  1.000
+    +5%  1.301
+   +10%  1.658
+   +15%  2.060
+   +20%  2.502
+   +25%  2.979
+   +30%  3.494
+   +35%  4.056
+   +40%  4.681
+
+Pooled grade buckets (salomon-vitosha-12, salomon-vitosha-27)
+bucket           km     min slices  actual minetti    pred   error  error%  flag
+-30..-20       0.50     2.0      1    0.86    0.53     1.3    -0.8  -38.1%  unreliable
+             1 slices < 4; 0.50 km < 1 km; 2.0 min < 3 min
+-20..-10       5.50    22.7     11    0.90    0.55    13.8    -8.9  -39.1%  
+-10..0        16.02    69.7     33    0.94    0.79    58.4   -11.3  -16.2%  
+0..+10         9.50    49.8     19    1.15    1.26    54.4    +4.6   +9.3%  
++10..+20       7.50    58.2     15    1.69    1.96    67.2    +9.1  +15.6%  
++20..+30       0.50     4.1      1    1.74    2.80     6.6    +2.5  +61.4%  unreliable
+             1 slices < 4; 0.50 km < 1 km
+
+salomon-vitosha-12
+bucket           km     min slices  actual minetti    pred   error  error%  flag
+-20..-10       2.00     8.5      4    0.99    0.54     4.7    -3.8  -45.1%  
+-10..0         4.23    17.2      9    0.95    0.75    13.7    -3.6  -20.7%  
+0..+10         4.00    20.5      8    1.19    1.28    22.0    +1.5   +7.3%  
++10..+20       2.50    19.6      5    1.83    1.92    20.6    +1.0   +4.9%  
+
+salomon-vitosha-27
+bucket           km     min slices  actual minetti    pred   error  error%  flag
+-30..-20       0.50     2.0      1    0.86    0.53     1.3    -0.8  -38.1%  unreliable
+             1 slices < 4; 0.50 km < 1 km; 2.0 min < 3 min
+-20..-10       3.50    14.2      7    0.86    0.55     9.2    -5.0  -35.4%  
+-10..0        11.79    52.5     24    0.94    0.80    44.7    -7.8  -14.8%  
+0..+10         5.50    29.3     11    1.13    1.25    32.5    +3.1  +10.6%  
++10..+20       5.00    38.5     10    1.63    1.97    46.6    +8.1  +21.0%  
++20..+30       0.50     4.1      1    1.74    2.80     6.6    +2.5  +61.4%  unreliable
+             1 slices < 4; 0.50 km < 1 km
+
+salomon-vitosha-40
+bucket           km     min slices  actual minetti    pred   error  error%  flag
+-30..-20       1.30     3.9      4    0.68    0.57     3.3    -0.6  -16.5%  
+-20..-10       1.26     3.9     11    0.70    0.52     2.9    -1.0  -25.7%  
+-10..0         7.13    25.2     24    0.80    0.87    27.5    +2.3   +9.0%  
+0..+10        10.21    73.5     22    1.63    1.31    59.1   -14.4  -19.6%  
++10..+20       7.50   112.0     15    3.37    2.06    68.3   -43.7  -39.0%  
++20..+30       1.00    11.3      2    2.55    2.91    12.9    +1.6  +14.4%  unreliable
+             2 slices < 4
+
+What-if adjustments on the running pool only (not applied to the engine).
+Error is predicted minus actual moving minutes. Negative means the model is too fast.
+scenario                      all min    all %  <-10 min   -10..0     flat    >=+15    >=+20
+baseline                         -4.8    -2.3%     -9.6    -11.3     -2.4      5.4      2.5
+descent floor 1.6 J/kg/m         -4.8    -2.3%     -9.6    -11.3     -2.4      5.4      2.5
+descent floor 2.0 J/kg/m         -4.3    -2.1%     -9.2    -11.3     -2.4      5.4      2.5
+descent floor 2.5 J/kg/m          0.2     0.1%     -5.6    -10.3     -2.4      5.4      2.5
+descent floor 3.2 J/kg/m         12.6     6.1%     -0.3     -3.3     -0.8      5.4      2.5
+hike x1.25 above +15%             3.3     1.6%     -9.6    -11.3     -2.4     13.5      4.2
+hike x1.40 above +15%             8.1     3.9%     -9.6    -11.3     -2.4     18.3      5.2
+hike x1.25 above +20%            -3.1    -1.5%     -9.6    -11.3     -2.4      7.1      4.2
+descent technicality 1.00        12.7     6.1%      2.7     -6.3     -2.4      5.4      2.5
+technicality 0.50                10.4     5.0%     -3.4     -8.8     -2.4     11.9      3.8
+technicality 1.00                25.5    12.4%      2.7     -6.3     -2.4     18.3      5.2
+
+Single-number fits that would zero one group's error. Side effects are in the grid above.
+Steep descents (grade < -10%, 24.7 moving min): baseline error -9.6 min. A floor of 3.24 J/kg/m (factor 0.90) leaves +0.0 min on this group.
++15% and steeper (26.8 moving min): baseline error +5.4 min. Multiplying those slices by 0.83 would zero that group.
++20% and steeper (4.1 moving min): baseline error +2.5 min. Multiplying those slices by 0.62 would zero that group.
