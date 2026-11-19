@@ -64,6 +64,7 @@ from backend.engine.short_race import (
     _limit_short_race,
     _short_race_bite,
     _short_race_stops,
+    _stops_still_ahead,
 )
 
 from backend.engine.sweat import _with_sweat_rates
@@ -106,9 +107,12 @@ def generate_plan(
     computed_km = course[-1].distance_m / 1000.0
     if declared_distance_km <= 0:
         declared_distance_km = computed_km
-    timed = build_timed_segments(slice_segments(course), athlete, pace_ratio)
+    # The full clock starts at minute 0. Truncation keeps those same minutes
+    # on the slices still ahead; it does not restart the clock.
+    full_clock = build_timed_segments(slice_segments(course), athlete, pace_ratio)
+    timed = full_clock
     if from_distance_m > 0:
-        timed = _truncate_front(timed, course, from_distance_m)
+        timed = _truncate_front(full_clock, course, from_distance_m)
     if not timed:
         raise ValueError("No course remaining from this point")
 
@@ -121,7 +125,12 @@ def generate_plan(
     if _is_short_race(athlete):
         warnings.insert(0, SHORT_RACE_NOTE)
         bite = _short_race_bite(athlete)
-        stops = _short_race_stops(timed, course, athlete, bite)
+        # The bite and the sip grid belong to the whole race. Dropping the
+        # stops already behind the snap leaves the rest on their original minutes.
+        stops = _stops_still_ahead(
+            _short_race_stops(full_clock, course, athlete, bite),
+            timed[0].start_minute,
+        )
         legs = _limit_short_race(
             build_aid_legs(
                 stations,
@@ -135,15 +144,38 @@ def generate_plan(
             bite,
         )
     else:
+        # On pace, the remainder is the original plan with the finished stops
+        # removed. Scheduling only the road ahead would forget the menu (a
+        # solid just behind the snap would not count, so the next feed would
+        # be a different food). Off pace still scales the slices that are
+        # left. GI Rescue starts at the snap, so that plan stays a new
+        # schedule rather than a suffix of the original one.
+        on_pace_remainder = (
+            from_distance_m > 0 and pace_ratio == 1.0 and rescue_start_min is None
+        )
+        clock = full_clock if on_pace_remainder else timed
         stops, forfeited = schedule_fuel(
-            timed,
+            clock,
             course,
             athlete,
-            not_before_min=not_before_min,
+            not_before_min=0.0 if on_pace_remainder else not_before_min,
             rescue_start_min=rescue_start_min,
         )
-        stops = _insert_aid_bites(stops, stations, timed, athlete)
-        forfeited.extend(_quiet_opening_stops(stops, timed[0].start_minute))
+        stops = _insert_aid_bites(stops, stations, clock, athlete)
+        forfeited.extend(_quiet_opening_stops(stops))
+        if on_pace_remainder:
+            full_legs = build_aid_legs(
+                stations,
+                full_clock,
+                athlete,
+                from_distance_m=0.0,
+                total_m=total_m,
+                stops=stops,
+            )
+            forfeited.extend(_quiet_descent_stops(stops, full_legs, full_clock, stations))
+            horizon = timed[0].start_minute
+            stops = _stops_still_ahead(stops, horizon)
+            forfeited = [row for row in forfeited if row.at_min + 1e-6 >= horizon]
         legs = build_aid_legs(
             stations,
             timed,
@@ -152,7 +184,8 @@ def generate_plan(
             total_m=total_m,
             stops=stops,
         )
-        forfeited.extend(_quiet_descent_stops(stops, legs, timed, stations))
+        if not on_pace_remainder:
+            forfeited.extend(_quiet_descent_stops(stops, legs, timed, stations))
         forfeited.sort(key=lambda item: (item.at_min, item.code.value, item.carbs_g))
     inventory_summary = ""
     # A short race stays on one flask and one bite. The vest list is ignored there.

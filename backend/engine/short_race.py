@@ -132,6 +132,11 @@ def _short_race_stops(
 ) -> list[FuelStop]:
     """One bite at 55% plus a sip reminder every 25 minutes.
 
+    Both are measured on the clock these segments carry. Pass the full race,
+    whose clock starts at minute 0, including kilometres already run. A
+    remainder then drops the stops behind the runner. Building the grid from
+    the truncated start would put the bite at 55% of the ground still ahead.
+
     Races under 65 minutes keep a single halfway bite and no sip loop.
     Nothing is plated at an aid station.
     """
@@ -191,6 +196,26 @@ def _short_race_stops(
                     stops.append(sip)
             minute += HYDRATION_SIP_MIN
     stops.sort(key=lambda stop: (stop.scheduled_minute, stop.carbs_g == 0))
+    return _number_stops(stops)
+
+
+def _stops_still_ahead(stops: list[FuelStop], horizon_min: float) -> list[FuelStop]:
+    """Keep stops at or after `horizon_min` and number that suffix from 1.
+
+    A horizon of 0 is the start of a full race, so every stop stays. The
+    comparison matches the suffix check used after an on-pace snap: a stop
+    a millionth of a minute before the horizon is still on this side of it.
+    """
+
+    if horizon_min <= 0:
+        return stops
+    ahead = [stop for stop in stops if stop.scheduled_minute + 1e-6 >= horizon_min]
+    return _number_stops(ahead)
+
+
+def _number_stops(stops: list[FuelStop]) -> list[FuelStop]:
+    """Sequence numbers are 1..n in scheduled order."""
+
     numbered: list[FuelStop] = []
     for sequence, stop in enumerate(stops, start=1):
         numbered.append(stop.model_copy(update={"sequence": sequence}))

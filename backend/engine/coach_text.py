@@ -78,10 +78,15 @@ def _quiet_trail_stop(
     return dropped(stop.scheduled_minute, removed, code, **params)
 
 
-def _quiet_opening_stops(stops: list[FuelStop], race_start_min: float) -> list[ForfeitedDose]:
-    """The pre-race meal covers the first 50 minutes. No gel or solid on the trail."""
+def _quiet_opening_stops(stops: list[FuelStop]) -> list[ForfeitedDose]:
+    """The pre-race meal covers the first 50 minutes. No gel or solid on the trail.
 
-    limit = race_start_min + PRE_RACE_QUIET_MIN
+    The window is minute 0 to 50 on the race clock. A plan for the course
+    still ahead starts at the runner's elapsed time, and that later start
+    does not open a second 50 minute gap.
+    """
+
+    limit = PRE_RACE_QUIET_MIN
     forfeited: list[ForfeitedDose] = []
     for stop in stops:
         if stop.scheduled_minute < limit:

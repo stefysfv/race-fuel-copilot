@@ -1090,15 +1090,12 @@ def test_on_pace_recalibrate_keeps_later_stops(case: PlanCase, data: st.DataObje
     for stop in updated.remaining.fuel_stops:
         assert stop.scheduled_minute + 0.05 >= elapsed
 
-    # FINDINGS.md: a short race rebuilds the bite and the sip grid from the
-    # ground still ahead, so the remaining stops are not the original suffix.
-    # A packed vest is spent after that rewrite, so later pieces move too.
-    if _is_short_race(built.athlete) or built.packed:
+    # FINDINGS.md: a packed vest is stamped onto the stops after the schedule,
+    # so later pieces are not the original suffix. A short race never reads
+    # the packed vest, so its stops are still the original suffix.
+    if built.packed and not _is_short_race(built.athlete):
         return
-    # FINDINGS.md: the 50 minute quiet window is applied again from the snap
-    # clock. Stops inside that new window lose their carbs. Compare the rest.
-    cutoff = elapsed + PRE_RACE_QUIET_MIN
-    assert _stop_rows(plan.fuel_stops, cutoff) == _stop_rows(updated.remaining.fuel_stops, cutoff)
+    assert _stop_rows(plan.fuel_stops, elapsed) == _stop_rows(updated.remaining.fuel_stops, 0.0)
 
 
 @SLOW
@@ -1214,7 +1211,6 @@ def _climb(distance_m: float) -> list[TrackPoint]:
     return build_profile("all-climb", distance_m / 1000.0, 42.6, 23.3, 1200.0)
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: on-pace recalibration re-applies the quiet window", strict=True)
 def test_logged_on_pace_recalibrate_quiet_window() -> None:
     profile = _flat(30_000)
     athlete = AthleteInput()
@@ -1246,7 +1242,6 @@ def test_logged_on_pace_recalibrate_quiet_window() -> None:
     assert original == rebuilt
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: short-race recalibration rebuilds the remaining stops", strict=True)
 def test_logged_short_race_recalibrate_changes_stops() -> None:
     profile = _flat(20_000)
     athlete = AthleteInput(target_time_minutes=90)

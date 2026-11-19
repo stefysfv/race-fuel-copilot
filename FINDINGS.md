@@ -1,18 +1,24 @@
 # Invariant findings
 
-Hypothesis checks in `tests/test_invariants.py` cover the approved plan rules. The engine was not changed. Each item below is a small input that breaks one of those rules. The property tests skip that case with a comment so the rest of the rule still runs. The `test_logged_*` tests are expected failures that keep the example executable.
+Hypothesis checks in `tests/test_invariants.py` cover the approved plan rules. Each open item below is a small input that breaks one of those rules. The property tests skip that case with a comment so the rest of the rule still runs. The open `test_logged_*` tests are expected failures that keep the example executable.
+
+Two recalibration items are fixed. Nine items remain open.
 
 ## On-pace recalibration clears the next 50 minutes
 
-Recalibrating where the runner is exactly on plan should leave the remaining stops unchanged. `generate_plan` applies the pre-race quiet window from `segments[0].start_minute`. After a snap, that start minute is the runner's clock, so the next 50 minutes are wiped even though the original plan still feeds them.
+**Fixed.** The quiet window is minute 0 to 50 on the race clock. A snap does not open a new 50 minute gap at the runner's elapsed time.
 
-Flat 30 km, default athlete, snap at the track point nearest 60 minutes (`pace_ratio` 1). Original stops at 60 and 90 minutes are 30 g. The rebuilt plan turns both into 0 g water sips. Stops from 120 minutes onward match.
+Recalibrating where the runner is exactly on plan leaves the remaining stops unchanged. `generate_plan` used to apply the pre-race quiet window from `segments[0].start_minute`. After a snap, that start minute was the runner's clock, so the next 50 minutes were wiped even though the original plan still feeds them.
+
+Flat 30 km, default athlete, snap at the track point nearest 60 minutes (`pace_ratio` 1). Original stops at 60 and 90 minutes are 30 g, and the rebuilt plan keeps those 30 g stops. Stops from 120 minutes onward match as well.
 
 ## Short-race recalibration rebuilds the suffix
 
+**Fixed.** An on-pace remainder keeps the original short-race stops that are still ahead. The bite and the sip grid are placed on the full race clock, then stops behind the snap are dropped.
+
 Same rule, short-race protocol (`target_time_minutes=90`). Flat 20 km, snap nearest 20 minutes, on pace.
 
-The original plan has sips at 25, 50, 75, 100, 125, and 150 minutes, and one 25 g gel at 88 minutes. The rebuilt plan has sips at 45, 70, 120, and 145 minutes, and the gel at 97 minutes. The bite is 55% of the distance still ahead, not the original bite.
+The original plan has sips at 25, 50, 75, 100, 125, and 150 minutes, and one 25 g gel at 88 minutes. Those stops stay when they are still ahead, with the same minute, distance, carbs, form, and zone. The rebuilt plan used to move the sips to 45, 70, 120, and 145 minutes and the gel to 97 minutes, because the bite was 55% of the distance still ahead.
 
 ## Short races ignore GI Rescue
 
