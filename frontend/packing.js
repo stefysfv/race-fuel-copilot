@@ -1,25 +1,35 @@
 /** Packing cards, the leg stepper, and the crew handoff card. */
 
 import { state, ui } from "./state.js";
+import { renderCrewSheet } from "./crew_sheet.js";
 import { renderFuelBudget } from "./fuel_budget.js";
 import { compactHours, deliveryRateLabel, escapeHtml, formatDuration, grouped } from "./ui_helpers.js";
+import {
+  formatDistance,
+  formatDistanceRounded,
+  formatElevation,
+  formatPace,
+  formatTemp,
+  formatWeight,
+} from "./units.js";
 
 export function setupSummaryLine() {
   const plan = state.packedPlan;
-  const km = Math.round(plan.distance_km);
-  let label = `${km}km`;
-  if (/salomon/i.test(plan.race_name)) label = `Salomon ${km}km`;
-  else if (/vitosha/i.test(plan.race_name)) label = `Vitosha ${km}km`;
-  const weight = Math.round(Number(plan.athlete.weight_kg));
+  if (!plan) return;
+  const dist = formatDistanceRounded(plan.distance_km, { compact: true });
+  let label = dist;
+  if (/salomon/i.test(plan.race_name)) label = `Salomon ${dist}`;
+  else if (/vitosha/i.test(plan.race_name)) label = `Vitosha ${dist}`;
+  const weight = formatWeight(plan.athlete.weight_kg);
   const carbs = Math.round(plan.athlete.carbs_g_per_hour);
-  const temp = Math.round(Number(plan.athlete.temperature_c));
+  const temp = formatTemp(plan.athlete.temperature_c);
   const hours = Number(ui.hours.value) || 0;
   const minutes = Number(ui.minutes.value) || 0;
   const target = `${hours}h${String(minutes).padStart(2, "0")}m`;
   const name = document.createElement("b");
   name.textContent = label;
   const meta = document.createElement("span");
-  meta.textContent = `${weight}kg · ${target} · ${carbs}g/h · ${temp}°C`;
+  meta.textContent = `${weight} · ${target} · ${carbs}g/h · ${temp}`;
   ui.setupSummaryText.replaceChildren(name, meta);
 }
 
@@ -42,7 +52,7 @@ export function renderPacking() {
   }
   const athlete = plan.athlete;
   ui.summary.classList.remove("hidden");
-  ui.summary.textContent = `${plan.race_name} · ${formatDuration(plan.predicted_duration_min)} · ${athlete.flat_pace_min_per_km.toFixed(2)} min/km · ${deliveryRateLabel(plan)} · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
+  ui.summary.textContent = `${plan.race_name} · ${formatDistance(plan.distance_km, { digits: 1 })} · ${formatDuration(plan.predicted_duration_min)} · ${formatPace(athlete.flat_pace_min_per_km)} · ${deliveryRateLabel(plan)} · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
   const vestLine = plan.vest_inventory_summary || "";
   if (ui.vestUsage) {
     ui.vestUsage.textContent = vestLine;
@@ -82,8 +92,7 @@ export function renderLegStepper(legs) {
   legs.forEach((leg, index) => {
     const option = document.createElement("option");
     option.value = String(index);
-    const km = Number(leg.to_km).toFixed(1);
-    option.textContent = `Leg ${index + 1} of ${legs.length} · ${leg.from_name} → ${leg.to_name} (${km} km)`;
+    option.textContent = `Leg ${index + 1} of ${legs.length} · ${leg.from_name} → ${leg.to_name} (${formatDistance(leg.to_km, { digits: 1 })})`;
     select.append(option);
   });
   const all = document.createElement("option");
@@ -130,16 +139,16 @@ export function packCard(leg) {
     ? `<ul class="carry-list">${lines}</ul>`
     : `<p class="trail-clear">✓ No trail eating needed — focus on pace &amp; hydration sips</p>${lines ? `<ul class="carry-list">${lines}</ul>` : ""}`;
   const station = escapeHtml(leg.to_name);
-  const km = Number(leg.to_km).toFixed(1);
+  const marker = formatDistance(leg.to_km, { digits: 1 }).toUpperCase();
   const meal = leg.station_meal
-    ? `<p class="table-where">AT ${escapeHtml(leg.to_name.toUpperCase())} CHECKPOINT TABLE (KM ${km})</p><p class="eat-note">${escapeHtml(eatLabel(leg))}</p>`
+    ? `<p class="table-where">AT ${escapeHtml(leg.to_name.toUpperCase())} CHECKPOINT TABLE (${escapeHtml(marker)})</p><p class="eat-note">${escapeHtml(eatLabel(leg))}</p>`
     : `<p class="pass-badge">Pass through station — water refill only if needed</p>`;
   const coach = leg.note ? `<p class="coach-note">${escapeHtml(leg.note)}</p>` : "";
   card.innerHTML = `
     <div class="leg-card-header">
       <div class="pack-top">
-        <h2>${escapeHtml(leg.from_name)} → ${station} <span class="km">(${Number(leg.distance_km).toFixed(1)} km)</span></h2>
-        <span class="time-badge">${compactHours(leg.predicted_minutes)} · +${legGain(leg)}m</span>
+        <h2>${escapeHtml(leg.from_name)} → ${station} <span class="km">(${escapeHtml(formatDistance(leg.distance_km, { digits: 1 }))})</span></h2>
+        <span class="time-badge">${compactHours(leg.predicted_minutes)} · ${escapeHtml(formatElevation(legGain(leg), { signed: true, compact: true }))}</span>
       </div>
       ${coach}
       <div class="macros">
@@ -193,36 +202,7 @@ export function eatLabel(leg) {
 }
 
 export function exportRaceCard() {
-  const plan = state.packedPlan;
-  if (!plan) {
-    return;
-  }
-  let cursor = plan.clock_start_min;
-  const rows = plan.aid_legs.map((leg) => {
-    cursor += leg.predicted_minutes;
-    const station = state.aidStations.find((item) => item.name === leg.to_name);
-    const cutoff = station?.cutoff_hours ? `${station.cutoff_hours} h` : "—";
-    const vest = leg.pack.map((item) => `${item.quantity}× ${item.item}`).join(", ");
-    const eat = leg.station_meal ? eatLabel(leg) : "—";
-    return `<tr>
-      <td>${leg.to_name}<br>${leg.to_km.toFixed(1)} km</td>
-      <td>${formatDuration(cursor)}</td>
-      <td>${cutoff}</td>
-      <td>${vest}</td>
-      <td>${eat}</td>
-    </tr>`;
-  }).join("");
-  const preference = state.fuelPreference.replaceAll("_", " ");
-  ui.crewModal.classList.remove("hidden");
-  ui.raceCard.innerHTML = `
-    <h2>${plan.race_name}</h2>
-    <p class="mt-1">Predicted ${formatDuration(plan.predicted_duration_min)} · ${preference} · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)} / ${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg</p>
-    <table class="mt-3">
-      <thead><tr><th>Station</th><th>ETA</th><th>Cutoff</th><th>Vest carry</th><th>Eat at station</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <button id="print-card" class="thumb-btn mt-3" type="button">Print</button>`;
-  ui.raceCard.querySelector("#print-card")?.addEventListener("click", () => window.print());
+  renderCrewSheet();
 }
 
 export function closeCrewModal() {

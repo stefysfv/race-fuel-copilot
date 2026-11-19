@@ -11,18 +11,19 @@ import { setStatus, listen, paintMinutes } from "./ui_helpers.js";
 import { setupDiagnostics, watchReadiness } from "./offline_status.js";
 import { resetOutdatedStorage, restore } from "./session.js";
 import { renderLocker, addCustomItem, renderCustomAids, onAddAidClick, setFuelPreference, renderVestRows, paintDrinkControls, onVestInventoryInput, renderFoods, saveMenu, setFoodCarbs, toggleFood, onFoodEditorClick, onFoodEditorInput, addCustomFood, toggleFoodFlavor, loadStoredPreferences, renderGutPill, openGutModal, markGut, closeGutModal, saveGut, resetGut } from "./food_menu.js";
-import { renderPacking, stepLeg, exportRaceCard, closeCrewModal } from "./packing.js";
+import { renderPacking, setupSummaryLine, stepLeg, exportRaceCard, closeCrewModal } from "./packing.js";
 import { renderLive, startClock, ensureTicker, logIntake, undoAutoLog, paintRaceControls, onClockTick, onPaintDesk } from "./live.js";
-import { mapApi } from "./map_screen.js";
-import { applyTargetDefault, paintAidDrawer, setSource, setCarbs, loadRaces } from "./plan_request.js";
+import { drawMap, mapApi } from "./map_screen.js";
+import { applyTargetDefault, paintAidDrawer, paintRaceOptions, paintUnitInputs, setSource, setCarbs, syncTempFromInput, syncWeightFromInput, loadRaces } from "./plan_request.js";
 import { applyZonePreset, loadZoneProfile, onZoneSlider, scheduleZonePreview } from "./zone_profile.js";
 import { raceCoachTick, preloadEnglishVoices, onAlertsClick, onTestAlert, requestWakeLock, bindLiveAlerts } from "./alerts.js";
 import { onRaceModeClick, armGpsWatch, paintAutoGps, onUpdateGpsClick, triggerRescue, paintDesk } from "./gps.js";
 import { showSetupPane, toggleSetup, showTab } from "./navigation.js";
 import { buildPlan } from "./build_plan.js";
 import { setupFeedback, paintFeedback } from "./feedback.js";
-import { setupGpxUpload } from "./gpx_upload.js";
+import { repaintGpxUnits, setupGpxUpload } from "./gpx_upload.js";
 import { setupInstallBanner } from "./install_prompt.js";
+import { getUnitSystem, onUnitChange, setUnitSystem } from "./units.js";
 
 bindLiveAlerts(logIntake, paintRaceControls);
 onClockTick(() => {
@@ -196,7 +197,27 @@ function bind() {
   for (const button of document.querySelectorAll(".fuel-pref")) {
     button.addEventListener("click", () => setFuelPreference(button.dataset.preference, true));
   }
-  ui.weight?.addEventListener("input", renderLocker);
+  ui.weight?.addEventListener("input", () => {
+    syncWeightFromInput();
+    renderLocker();
+  });
+  ui.temperature?.addEventListener("input", syncTempFromInput);
+  for (const button of document.querySelectorAll(".unit-btn")) {
+    button.addEventListener("click", () => setUnitSystem(button.dataset.unit));
+  }
+  onUnitChange(() => {
+    paintUnitInputs();
+    paintRaceOptions();
+    repaintGpxUnits();
+    renderCustomAids();
+    if (state.packedPlan) {
+      setupSummaryLine();
+      renderPacking();
+      renderLive();
+      drawMap();
+      if (!ui.crewModal?.classList.contains("hidden")) exportRaceCard();
+    }
+  });
 }
 
 async function init() {
@@ -207,6 +228,7 @@ async function init() {
     setupDiagnostics();
     watchReadiness();
     preloadEnglishVoices();
+    getUnitSystem();
     loadStoredPreferences();
     loadZoneProfile();
     renderFoods();
@@ -243,6 +265,7 @@ async function init() {
       console.error(error);
       setStatus(error.message);
     }
+    paintUnitInputs();
     setupGpxUpload();
     renderLocker();
     renderPacking();

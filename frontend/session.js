@@ -27,8 +27,8 @@ export async function persist() {
       waypointAids: state.waypointAids,
       gpxReport: state.gpxReport,
       carbs: state.carbs,
-      weight: ui.weight.value,
-      temperature: ui.temperature.value,
+      weight: String(state.weightKg),
+      temperature: String(state.temperatureC),
       hours: ui.hours.value,
       minutes: ui.minutes.value,
       targetEdited: state.targetEdited,
@@ -76,8 +76,12 @@ export function restore(session) {
   state.giRescue = Boolean(session.giRescue);
   state.snap = session.snap;
   state.alerts = Boolean(session.alerts);
-  ui.weight.value = session.weight ?? "70";
-  ui.temperature.value = session.temperature ?? "18";
+  const savedWeight = Number(session.weight);
+  const savedTemp = Number(session.temperature);
+  state.weightKg = Number.isFinite(savedWeight) && savedWeight > 30 && savedWeight < 250 ? savedWeight : 70;
+  state.temperatureC = Number.isFinite(savedTemp) && savedTemp >= -20 && savedTemp <= 45 ? savedTemp : 18;
+  ui.weight.value = String(state.weightKg);
+  ui.temperature.value = String(state.temperatureC);
   ui.hours.value = session.hours ?? "5";
   ui.minutes.value = session.minutes ?? "30";
   return true;

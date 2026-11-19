@@ -11,6 +11,7 @@ import { courseBody } from "./plan_request.js";
 import { persist } from "./session.js";
 import { state, ui } from "./state.js";
 import { elapsedMin, formatDuration, setStatus, wallElapsedMin } from "./ui_helpers.js";
+import { formatDistance, formatShortLength } from "./units.js";
 
 export const RECAL_EVERY_MS = 30000;
 
@@ -158,7 +159,7 @@ export function paintAutoGps() {
     ui.autoGps.classList.add("warn");
     const km = state.offTrailM / 1000;
     const digits = km >= 10 ? 0 : 1;
-    ui.autoGpsText.textContent = `${km.toFixed(digits)} km off trail${acc}`;
+    ui.autoGpsText.textContent = `${formatDistance(km, { digits })} off trail${acc}`;
     return;
   }
   if (!state.lastGpsAt) {
@@ -197,8 +198,8 @@ export function noteAidDistance(latitude, longitude) {
   state.aidPinged.add(nearest.aid.name);
   announce({
     title: `Aid · ${nearest.aid.name}`,
-    body: `${Math.round(nearest.away)} m ahead`,
-    speech: `${nearest.aid.name} in ${Math.round(nearest.away)} meters.`,
+    body: `${formatShortLength(nearest.away)} ahead`,
+    speech: `${nearest.aid.name} in ${formatShortLength(nearest.away)}.`,
     tag: `aid-${nearest.aid.name}`,
   });
 }
@@ -223,7 +224,7 @@ export function paintOffCourse(metres) {
   const digits = km >= 10 ? 0 : 1;
   const trail = /vitosha/i.test(state.packedPlan?.race_name || "") ? "the Vitosha trail" : "the race trail";
   ui.offCourse.classList.remove("hidden");
-  ui.offCourse.textContent = `OFF-COURSE WARNING · ${km.toFixed(digits)} km from ${trail}`;
+  ui.offCourse.textContent = `OFF-COURSE WARNING · ${formatDistance(km, { digits })} from ${trail}`;
   paintAutoGps();
 }
 
@@ -455,7 +456,7 @@ export function paintDesk() {
     }
     const km = root.querySelector("[data-desk-km]");
     if (km) {
-      km.textContent = `${state.sim.km.toFixed(1)} km`;
+      km.textContent = formatDistance(state.sim.km, { digits: 1 });
     }
     const elapsed = root.querySelector("[data-desk-elapsed]");
     if (elapsed) {

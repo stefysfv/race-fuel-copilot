@@ -7,6 +7,13 @@ import { inspectGpx } from "./engine_client.js";
 import { loadRecentCourses, rememberCourse } from "./offline_db.js";
 import { setSource } from "./plan_request.js";
 import { state, ui } from "./state.js";
+import {
+  distanceFromDisplay,
+  distanceToDisplay,
+  distanceUnit,
+  formatDistance,
+  formatElevation,
+} from "./units.js";
 
 const MAX_BYTES = 8_000_000;
 
@@ -39,7 +46,7 @@ function hideError() {
 
 function overrideKm() {
   const value = Number(document.querySelector("#distance-override")?.value);
-  return value > 0 ? value : null;
+  return value > 0 ? distanceFromDisplay(value) : null;
 }
 
 function distanceScale(report) {
@@ -81,7 +88,7 @@ function syncWaypointsFromDom() {
     rows.push({
       checked: Boolean(item.querySelector("[data-role='check']")?.checked),
       name: item.querySelector("[data-role='name']")?.value.trim() || "",
-      distance_km: Number(item.querySelector("[data-role='km']")?.value),
+      distance_km: distanceFromDisplay(Number(item.querySelector("[data-role='km']")?.value)),
       base_km: Number(item.dataset.baseKm),
       has_food: type === "food",
       has_water: true,
@@ -98,14 +105,14 @@ function paintScaleNote(report) {
   state.distanceOverrideKm = override;
   if (!note) return;
   note.textContent = override
-    ? `The plan will use ${override.toFixed(1)} km.`
+    ? `The plan will use ${formatDistance(override, { digits: 1 })}.`
     : "";
   const scale = distanceScale(report);
   for (const item of document.querySelectorAll("#waypoint-list [data-role='waypoint']")) {
     if (item.dataset.dirty === "1") continue;
     const km = item.querySelector("[data-role='km']");
     const base = Number(item.dataset.baseKm);
-    if (km && Number.isFinite(base)) km.value = (base * scale).toFixed(2);
+    if (km && Number.isFinite(base)) km.value = distanceToDisplay(base * scale).toFixed(2);
   }
   syncWaypointsFromDom();
 }
@@ -139,9 +146,9 @@ function paintWaypoints(report) {
     km.min = "0";
     km.max = "500";
     km.step = "0.01";
-    km.value = (Number(station.distance_km) * scale).toFixed(2);
+    km.value = distanceToDisplay(Number(station.distance_km) * scale).toFixed(2);
     km.dataset.role = "km";
-    km.setAttribute("aria-label", "Aid station kilometers");
+    km.setAttribute("aria-label", `Aid station distance (${distanceUnit()})`);
     const type = document.createElement("select");
     type.dataset.role = "type";
     type.setAttribute("aria-label", "Aid station type");
@@ -204,10 +211,10 @@ export function paintGpxReport(report) {
   const gain = document.querySelector("#sanity-gain");
   const loss = document.querySelector("#sanity-loss");
   const high = document.querySelector("#sanity-high");
-  if (distance) distance.textContent = `${Number(report.distance_km).toFixed(2)} km`;
-  if (gain) gain.textContent = `${Math.round(report.elevation_gain_m)} m`;
-  if (loss) loss.textContent = `${Math.round(report.elevation_loss_m)} m`;
-  if (high) high.textContent = `${Math.round(report.highest_m)} m`;
+  if (distance) distance.textContent = formatDistance(report.distance_km, { digits: 2 });
+  if (gain) gain.textContent = formatElevation(report.elevation_gain_m);
+  if (loss) loss.textContent = formatElevation(report.elevation_loss_m);
+  if (high) high.textContent = formatElevation(report.highest_m);
   drawProfile(report.profile || []);
   const warnings = document.querySelector("#sanity-warnings");
   if (warnings) {
@@ -320,6 +327,36 @@ export function checkedWaypointAids() {
       has_food: Boolean(station.has_food),
       drop_bag: Boolean(station.drop_bag),
     }));
+}
+
+export function repaintGpxUnits() {
+  const overrideInput = document.querySelector("#distance-override");
+  if (overrideInput && state.distanceOverrideKm > 0) {
+    overrideInput.value = String(Math.round(distanceToDisplay(state.distanceOverrideKm) * 100) / 100);
+  }
+  if (state.gpxReport) {
+    const prevAids = state.waypointAids.slice();
+    paintGpxReport(state.gpxReport);
+    if (prevAids.length) {
+      const items = [...document.querySelectorAll("#waypoint-list [data-role='waypoint']")];
+      prevAids.forEach((saved, idx) => {
+        const item = items[idx];
+        if (!item) return;
+        const check = item.querySelector("[data-role='check']");
+        const name = item.querySelector("[data-role='name']");
+        const km = item.querySelector("[data-role='km']");
+        const type = item.querySelector("[data-role='type']");
+        const drop = item.querySelector("[data-role='drop']");
+        if (check) check.checked = Boolean(saved.checked);
+        if (name && saved.name) name.value = saved.name;
+        if (km && Number.isFinite(saved.distance_km)) km.value = distanceToDisplay(saved.distance_km).toFixed(2);
+        if (type) type.value = saved.has_food ? "food" : "water";
+        if (drop) drop.checked = Boolean(saved.drop_bag);
+        if (saved.dirty) item.dataset.dirty = "1";
+      });
+      syncWaypointsFromDom();
+    }
+  }
 }
 
 export function setupGpxUpload() {

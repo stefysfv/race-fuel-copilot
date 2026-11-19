@@ -4,6 +4,7 @@ export const INSTALL_DISMISS_KEY = "fuel-install-dismissed-at";
 export const OFFLINE_VERIFIED_KEY = "fuel-offline-verified-at";
 export const FIRST_OFFLINE_KEY = "fuel-first-offline";
 export const FEEDBACK_KEY = "fuel-feedback";
+export const UNITS_KEY = "fuel-units";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 

@@ -4,6 +4,7 @@ Zone colors are the same hex values as `style.css`.
 */
 
 import { forfeitText } from "./reason_strings.js";
+import { distanceToDisplay, distanceUnit, elevationToDisplay, elevationUnit } from "./units.js";
 
 export const ZONE = {
   green: "#10B981",
@@ -31,22 +32,25 @@ function elevationAt(segments, distanceKm) {
 /** Destroys the previous chart and returns the new one so the map can resize it. */
 export function drawElevationChart(canvas, previous, segments, fuelStops, forfeited = []) {
   const elevation = [{
-    x: segments[0].start_distance_m / 1000,
-    y: segments[0].elevation_start_m,
+    x: distanceToDisplay(segments[0].start_distance_m / 1000),
+    y: elevationToDisplay(segments[0].elevation_start_m),
   }];
   for (const segment of segments) {
-    elevation.push({ x: segment.end_distance_m / 1000, y: segment.elevation_end_m });
+    elevation.push({
+      x: distanceToDisplay(segment.end_distance_m / 1000),
+      y: elevationToDisplay(segment.elevation_end_m),
+    });
   }
   const fuel = fuelStops.map((stop) => ({
-    x: stop.distance_km,
-    y: elevationAt(segments, stop.distance_km),
+    x: distanceToDisplay(stop.distance_km),
+    y: elevationToDisplay(elevationAt(segments, stop.distance_km)),
     zone: stop.zone,
   }));
   const missed = (forfeited || []).map((item) => {
-    const x = distanceKmAtMinute(segments, item.at_min);
+    const xKm = distanceKmAtMinute(segments, item.at_min);
     return {
-      x,
-      y: elevationAt(segments, x),
+      x: distanceToDisplay(xKm),
+      y: elevationToDisplay(elevationAt(segments, xKm)),
       text: forfeitText(item),
     };
   });
@@ -99,7 +103,7 @@ export function drawElevationChart(canvas, previous, segments, fuelStops, forfei
           callbacks: {
             label(item) {
               if (item.dataset.label === "Forfeited") return item.raw.text;
-              return `${item.dataset.label}: ${item.parsed.y.toFixed(0)} m at ${item.parsed.x.toFixed(1)} km`;
+              return `Elevation: ${item.parsed.y.toFixed(0)} ${elevationUnit()} at ${item.parsed.x.toFixed(1)} ${distanceUnit()}`;
             },
           },
         },

@@ -9,6 +9,7 @@ const METERS_PER_DEG = (6371000 * Math.PI) / 180;
 
 test.use({
   viewport: { width: 390, height: 844 },
+  locale: "en-GB",
   serviceWorkers: "allow",
 });
 

@@ -4,6 +4,7 @@ import { state, ui } from "./state.js";
 import { compactHours, elapsedMin, formatClock, setStatus } from "./ui_helpers.js";
 import { currentSegment, nextAid, nextStop, shortIntake } from "./plan_cursor.js";
 import { persist } from "./session.js";
+import { formatDistance } from "./units.js";
 
 let clockTimer = null;
 let clockTick = () => {};
@@ -69,7 +70,7 @@ export function renderLive() {
   paintBadge(currentSegment());
   const aid = nextAid(clockOn ? elapsed : 0);
   ui.nextAid.textContent = aid ? compactHours(aid.etaMin) : "—";
-  ui.nextAid.title = aid ? `${aid.name} · ${aid.km.toFixed(1)} km` : "";
+  ui.nextAid.title = aid ? `${aid.name} · ${formatDistance(aid.km, { digits: 1 })}` : "";
 }
 
 export function paintBadge(segment) {
@@ -126,10 +127,10 @@ export async function logIntake(options = {}) {
   state.dueFired.add(stop.sequence);
   if (options.auto) {
     state.lastAutoLog = stop.sequence;
-    setStatus(`Auto-logged ${stop.carbs_g.toFixed(0)} g at ${stop.distance_km.toFixed(1)} km.`);
+    setStatus(`Auto-logged ${stop.carbs_g.toFixed(0)} g at ${formatDistance(stop.distance_km, { digits: 1 })}.`);
   } else {
     state.lastAutoLog = null;
-    setStatus(`Logged ${stop.carbs_g.toFixed(0)} g at ${stop.distance_km.toFixed(1)} km.`);
+    setStatus(`Logged ${stop.carbs_g.toFixed(0)} g at ${formatDistance(stop.distance_km, { digits: 1 })}.`);
   }
   paintRaceControls();
   renderLive();

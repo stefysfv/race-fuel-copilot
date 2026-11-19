@@ -5,6 +5,18 @@ import { customFoodPayload, packedVestPayload, renderGutPill } from "./food_menu
 import { DEFAULT_TARGETS, state, ui } from "./state.js";
 import { clampCarbs, paintMinutes } from "./ui_helpers.js";
 import { zoneFields } from "./zone_profile.js";
+import {
+  distanceUnit,
+  formatDistance,
+  formatTempInputValue,
+  formatWeightInputValue,
+  getUnitSystem,
+  isImperial,
+  tempFromDisplay,
+  tempUnit,
+  weightFromDisplay,
+  weightUnit,
+} from "./units.js";
 
 export function readTargetMin() {
   const hours = Number(ui.hours.value);
@@ -19,14 +31,80 @@ export function readTargetMin() {
   return total;
 }
 
+export function syncWeightFromInput() {
+  const raw = Number(ui.weight.value);
+  if (!Number.isFinite(raw)) {
+    state.weightKg = NaN;
+    return;
+  }
+  state.weightKg = weightFromDisplay(raw);
+}
+
+export function syncTempFromInput() {
+  const raw = Number(ui.temperature.value);
+  if (!Number.isFinite(raw)) {
+    state.temperatureC = NaN;
+    return;
+  }
+  state.temperatureC = tempFromDisplay(raw);
+}
+
+export function paintUnitInputs() {
+  const imperial = isImperial();
+  const wLabel = document.querySelector("#weight-label");
+  const tLabel = document.querySelector("#temp-label");
+  const oLabel = document.querySelector("#distance-override-label");
+  if (wLabel) wLabel.textContent = `Weight (${weightUnit()})`;
+  if (tLabel) tLabel.textContent = `Temp (${tempUnit()})`;
+  if (oLabel) oLabel.textContent = `Override declared distance (${distanceUnit()})`;
+  if (ui.weight) {
+    ui.weight.min = imperial ? "68" : "31";
+    ui.weight.max = imperial ? "549" : "249";
+    if (Number.isFinite(state.weightKg)) {
+      ui.weight.value = formatWeightInputValue(state.weightKg);
+    }
+  }
+  if (ui.temperature) {
+    ui.temperature.min = imperial ? "-4" : "-20";
+    ui.temperature.max = imperial ? "113" : "45";
+    if (Number.isFinite(state.temperatureC)) {
+      ui.temperature.value = formatTempInputValue(state.temperatureC);
+    }
+  }
+  if (ui.aidKm) {
+    ui.aidKm.placeholder = imperial ? "Mi" : "Km";
+    ui.aidKm.setAttribute("aria-label", imperial ? "Aid station miles" : "Aid station kilometers");
+  }
+  for (const button of document.querySelectorAll(".unit-btn")) {
+    button.setAttribute("aria-checked", button.dataset.unit === getUnitSystem() ? "true" : "false");
+  }
+}
+
+export function paintRaceOptions() {
+  if (!ui.raceSelect || !state.races.length) return;
+  const current = state.raceId;
+  ui.raceSelect.replaceChildren();
+  for (const race of state.races) {
+    const option = document.createElement("option");
+    option.value = race.id;
+    option.textContent = `${race.name} · ${formatDistance(race.distance_km, { digits: isImperial() ? 1 : 0 })}`;
+    ui.raceSelect.append(option);
+  }
+  if (current) ui.raceSelect.value = current;
+}
+
 export function readAthlete(pace) {
-  const weight = Number(ui.weight.value);
-  const temperature = Number(ui.temperature.value);
+  const weight = Number(state.weightKg);
+  const temperature = Number(state.temperatureC);
   if (!(weight > 30 && weight < 250)) {
-    throw new Error("Weight must be between 30 and 250 kg.");
+    throw new Error(isImperial()
+      ? "Weight must be between 67 and 550 lb."
+      : "Weight must be between 30 and 250 kg.");
   }
   if (!(temperature >= -20 && temperature <= 45)) {
-    throw new Error("Temperature must be between −20 and 45 °C.");
+    throw new Error(isImperial()
+      ? "Temperature must be between −4 and 113 °F."
+      : "Temperature must be between −20 and 45 °C.");
   }
   const athlete = {
     weight_kg: weight,
@@ -160,16 +238,9 @@ export function setCarbs(grams) {
 
 export async function loadRaces() {
   state.races = await listRaces();
-  ui.raceSelect.replaceChildren();
-  for (const race of state.races) {
-    const option = document.createElement("option");
-    option.value = race.id;
-    option.textContent = `${race.name} · ${race.distance_km} km`;
-    ui.raceSelect.append(option);
-  }
   if (!state.races.some((race) => race.id === state.raceId)) {
     const primary = state.races.find((race) => race.id === "salomon-vitosha-27");
     state.raceId = (primary || state.races[0])?.id || "";
   }
-  ui.raceSelect.value = state.raceId;
+  paintRaceOptions();
 }

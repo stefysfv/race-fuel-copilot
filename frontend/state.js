@@ -33,6 +33,8 @@ export const state = {
   gpxReady: false,
   gpxReport: null,
   gpxError: "",
+  weightKg: 70,
+  temperatureC: 18,
   carbs: 60,
   aidStations: [],
   customAids: [],

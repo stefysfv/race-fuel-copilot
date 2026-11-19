@@ -117,7 +117,7 @@
             <canvas id="sanity-profile" class="sanity-profile" data-testid="sanity-profile" width="640" height="120"></canvas>
             <ul id="sanity-warnings" class="sanity-warnings" data-testid="sanity-warnings"></ul>
             <label class="field">
-              <span class="kicker">Override declared distance (km)</span>
+              <span id="distance-override-label" class="kicker">Override declared distance (km)</span>
               <input id="distance-override" data-testid="distance-override" type="number" inputmode="decimal" min="0.1" max="500" step="0.1" placeholder="Optional">
             </label>
             <p id="sanity-scale" class="micro" data-testid="sanity-scale"></p>
@@ -127,7 +127,7 @@
             </label>
             <div id="waypoint-block" class="hidden">
               <p class="kicker">Aid stations from the file</p>
-              <p class="micro">Checked stations are the only ones used. Edit a name or kilometer before you build the plan.</p>
+              <p id="waypoint-help" class="micro">Checked stations are the only ones used. Edit a name or distance before you build the plan.</p>
               <ul id="waypoint-list" class="waypoint-list" data-testid="waypoint-list"></ul>
             </div>
           </section>
@@ -142,10 +142,18 @@
           <button id="use-example" class="text-btn" type="button" data-testid="use-example">Use an example race</button>
         </section>
 
+        <div class="units-row">
+          <span class="kicker">Units</span>
+          <div class="seg units-seg" role="radiogroup" aria-label="Display units" data-testid="unit-toggle">
+            <button class="unit-btn liquid-pill" type="button" role="radio" data-unit="metric" data-testid="unit-metric" aria-checked="true">Metric (km, °C)</button>
+            <button class="unit-btn liquid-pill" type="button" role="radio" data-unit="imperial" data-testid="unit-imperial" aria-checked="false">Imperial (mi, °F)</button>
+          </div>
+        </div>
+
         <div class="setup-grid">
           <label class="field">
-            <span class="kicker">Weight (kg)</span>
-            <input id="weight" type="number" inputmode="decimal" min="31" max="249" step="0.5" value="70" aria-label="Weight in kilograms" required>
+            <span id="weight-label" class="kicker">Weight (kg)</span>
+            <input id="weight" type="number" inputmode="decimal" min="31" max="249" step="0.5" value="70" aria-label="Weight" required>
           </label>
           <label class="field">
             <span class="kicker">Target (h:m)</span>
@@ -156,8 +164,8 @@
             </span>
           </label>
           <label class="field">
-            <span class="kicker">Temp (°C)</span>
-            <input id="temperature" type="number" inputmode="decimal" min="-20" max="45" step="1" value="18" aria-label="Temperature in Celsius" required>
+            <span id="temp-label" class="kicker">Temp (°C)</span>
+            <input id="temperature" type="number" inputmode="decimal" min="-20" max="45" step="1" value="18" aria-label="Temperature" required>
           </label>
         </div>
 
@@ -289,7 +297,7 @@
       <div id="packing-pane" class="packing-plan-view hidden">
         <div class="pack-head race-header-row">
           <section id="plan-summary" class="micro hidden" aria-live="polite" data-testid="summary"></section>
-          <button id="export-card" class="text-btn liquid-pill" type="button" disabled>Export Card</button>
+          <button id="export-card" class="text-btn liquid-pill" type="button" data-testid="crew-sheet-btn" disabled>Crew Sheet</button>
           <button id="open-feedback" class="text-btn liquid-pill" type="button" data-testid="open-feedback">How did it go?</button>
         </div>
         <section id="fuel-budget" class="fuel-budget liquid-glass hidden" aria-label="Fuel budget"></section>

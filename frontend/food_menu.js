@@ -3,6 +3,7 @@
 import { PRESETS, state, ui } from "./state.js";
 import { clampCarbs, escapeAttr, setStatus } from "./ui_helpers.js";
 import { persist } from "./session.js";
+import { distanceFromDisplay, formatDistance } from "./units.js";
 
 export function renderLocker() {
   const presets = document.querySelector("#locker-presets");
@@ -46,7 +47,7 @@ export function renderLocker() {
     row.append(label, remove);
     list.append(row);
   }
-  const weight = Number(ui.weight.value);
+  const weight = Number(state.weightKg);
   const cap = Number.isFinite(weight) ? Math.round(weight * 5) : 0;
   const capLine = document.querySelector("#caffeine-cap");
   if (capLine) capLine.textContent = `Cap ${cap} mg`;
@@ -78,7 +79,7 @@ export function renderCustomAids() {
     chip.className = "pill liquid-pill aid-chip";
     const food = station.has_food ? " · Food" : "";
     const label = document.createElement("span");
-    label.textContent = `${station.name} · ${Number(station.distance_km).toFixed(1)}km${food}`;
+    label.textContent = `${station.name} · ${formatDistance(station.distance_km, { digits: 1, compact: true })}${food}`;
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "✕";
@@ -118,7 +119,7 @@ export function addCustomAid({ name, distanceKm, hasFood, cutoffHours }) {
   }
   renderCustomAids();
   ui.aidDrawer.open = true;
-  setStatus(`${clean} added at ${station.distance_km.toFixed(1)} km. Build the plan to pack it.`);
+  setStatus(`${clean} added at ${formatDistance(station.distance_km, { digits: 1 })}. Build the plan to pack it.`);
   persist();
 }
 
@@ -126,7 +127,7 @@ export function onAddAidClick() {
   const cutoff = Number(ui.aidCutoff.value);
   addCustomAid({
     name: ui.aidName.value,
-    distanceKm: Number(ui.aidKm.value),
+    distanceKm: distanceFromDisplay(Number(ui.aidKm.value)),
     hasFood: ui.aidFood.checked,
     cutoffHours: Number.isFinite(cutoff) ? cutoff : null,
   });
