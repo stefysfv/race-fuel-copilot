@@ -49,7 +49,7 @@ from backend.engine.scheduler import generate_plan
 from backend.engine.short_race import _is_short_race
 from backend.engine.sweat import sweat_rates
 from backend.engine.totals_warnings import _active_fuel_minutes, _delivered_grams_per_hour
-from backend.engine.zones import _green_max_for, classify_zone
+from backend.engine.zones import classify_zone, zone_edges_for
 from backend.gpx_parser import EARTH_RADIUS_M, location_at_distance, prepare_course
 from backend.models import (
     AidStation,
@@ -624,7 +624,7 @@ def _assert_segments(plan: RacePlan, athlete: AthleteInput) -> None:
     )
     assert plan.elevation_gain_m == pytest.approx(sum(segment.elevation_gain_m for segment in segments))
     assert sum(plan.zone_counts.values()) == len(segments)
-    green_max = _green_max_for(athlete)
+    edges = zone_edges_for(athlete)
     for previous, segment in zip(segments, segments[1:]):
         assert previous.end_distance_m == pytest.approx(segment.start_distance_m, abs=1e-3)
         assert previous.end_minute == pytest.approx(segment.start_minute, abs=1e-4)
@@ -632,7 +632,7 @@ def _assert_segments(plan: RacePlan, athlete: AthleteInput) -> None:
     for segment in segments:
         assert segment.distance_m == pytest.approx(segment.end_distance_m - segment.start_distance_m, abs=1e-3)
         assert segment.predicted_minutes == pytest.approx(segment.end_minute - segment.start_minute, abs=1e-4)
-        assert segment.zone is classify_zone(segment.grade_percent, green_max)
+        assert segment.zone is classify_zone(segment.grade_percent, *edges)
         assert segment.cost_factor == pytest.approx(gap_cost_factor(segment.grade_percent), rel=1e-9, abs=1e-9)
         assert segment.predicted_pace_min_per_km == pytest.approx(
             segment.predicted_minutes / (segment.distance_m / 1000.0),

@@ -23,15 +23,26 @@ async function boot() {
     throw new Error(`engine.zip HTTP ${zipResponse.status}`);
   }
   pyodide.unpackArchive(new Uint8Array(await zipResponse.arrayBuffer()), "zip");
-  pyodide.runPython("from backend.engine.entry import generate_plan_json, recalibrate_json");
+  pyodide.runPython(
+    "from backend.engine.entry import generate_plan_json, preview_zones_json, recalibrate_json",
+  );
 }
+
+const ENGINE_CALLS = {
+  generate_plan: "generate_plan_json",
+  recalibrate: "recalibrate_json",
+  preview_zones: "preview_zones_json",
+};
 
 const booted = boot().catch((error) => {
   bootError = error;
 });
 
 function runCall(kind) {
-  const functionName = kind === "recalibrate" ? "recalibrate_json" : "generate_plan_json";
+  const functionName = ENGINE_CALLS[kind];
+  if (!functionName) {
+    throw new Error(`Unknown message type ${kind}`);
+  }
   const text = pyodide.runPython(`
 import json
 from backend.engine.entry import ${functionName}
@@ -53,7 +64,7 @@ async function handle(message) {
     pyodide.globals.set("request_json", payload.request_json);
     pyodide.globals.set("catalog_json", payload.catalog_json);
     pyodide.globals.set("gpx_text", payload.gpx_text);
-    if (message.type !== "generate_plan" && message.type !== "recalibrate") {
+    if (!ENGINE_CALLS[message.type]) {
       throw new Error(`Unknown message type ${message.type}`);
     }
     return { id: message.id, ok: true, result: runCall(message.type) };

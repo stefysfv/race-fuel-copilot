@@ -3,6 +3,7 @@
 Routes:
 - GET  /api/races           stored races and aid stations (GPX is loaded on selection)
 - POST /api/generate-plan   build a plan from a race id or a GPX upload
+- POST /api/preview-zones   classify the course only, for the red-share readout
 - POST /api/recalibrate     snap a live GPS fix and rebuild the remaining plan
 - GET  /                   the mobile PWA in `frontend/`
 
@@ -29,8 +30,15 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.adapters.catalog import get_race, load_race_catalog, load_race_catalog_dict
 from backend.adapters.gpx_files import read_gpx_text
-from backend.engine.entry import generate_plan_json, recalibrate_json
-from backend.models import GeneratePlanRequest, RaceCatalog, RacePlan, RecalibrateRequest, RecalibrateResponse
+from backend.engine.entry import generate_plan_json, preview_zones_json, recalibrate_json
+from backend.models import (
+    GeneratePlanRequest,
+    RaceCatalog,
+    RacePlan,
+    RecalibrateRequest,
+    RecalibrateResponse,
+    ZonePreview,
+)
 
 
 def allowed_origins() -> list[str]:
@@ -85,6 +93,22 @@ def _unknown_race(exc: ValueError, race_id: str | None) -> HTTPException | None:
     if race_id and str(exc).startswith(f"Unknown race_id '{race_id}'"):
         return HTTPException(status_code=404, detail=str(exc))
     return None
+
+
+@app.post("/api/preview-zones", response_model=ZonePreview)
+def preview_zones(body: GeneratePlanRequest) -> ZonePreview:
+    """Classify the course. Sliders use this instead of building a full plan."""
+
+    try:
+        payload = preview_zones_json(body.model_dump(mode="json"), load_race_catalog_dict(), _gpx_text(body))
+        return ZonePreview.model_validate(payload)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown race_id '{body.race_id}'") from None
+    except ValueError as exc:
+        missing = _unknown_race(exc, body.race_id)
+        if missing is not None:
+            raise missing from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/generate-plan", response_model=RacePlan)

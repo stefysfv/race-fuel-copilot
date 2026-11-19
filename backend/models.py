@@ -329,7 +329,31 @@ class AthleteInput(APIModel):
     climb_sensitivity: str = Field(
         default="normal",
         pattern=r"^(normal|sensitive)$",
-        description="sensitive moves the green/yellow climb line from +5% to +3.5%.",
+        description="sensitive moves the green/yellow climb line from +5% to +3.5% when green_max_grade is omitted.",
+    )
+    green_min_grade: float | None = Field(
+        default=None,
+        ge=-12,
+        le=-3,
+        description="Steepest descent that still allows a full gel. Empty uses −8%.",
+    )
+    green_max_grade: float | None = Field(
+        default=None,
+        ge=2,
+        le=12,
+        description="Steepest climb that still allows a full gel. Empty uses +5%, or +3.5% when climb_sensitivity is sensitive.",
+    )
+    red_descent_grade: float | None = Field(
+        default=None,
+        ge=-20,
+        le=-8,
+        description="Descents steeper than this are red. Empty uses −12%.",
+    )
+    red_climb_grade: float | None = Field(
+        default=None,
+        ge=6,
+        le=20,
+        description="Climbs steeper than this are red. Empty uses +10%.",
     )
     early_savoury: bool = Field(
         default=False,
@@ -358,6 +382,24 @@ class AthleteInput(APIModel):
         le=6,
         description="500 ml flasks the runner actually carries.",
     )
+
+    @model_validator(mode="after")
+    def zone_lines_keep_a_yellow_band(self) -> AthleteInput:
+        """Keep a yellow step on both sides of green, and keep flat ground green.
+
+        Omitted lines are filled from the constants first, including the
+        sensitive +3.5% climb line, so an old request still validates.
+        """
+
+        from backend.engine.zones import zone_edges_for
+
+        edges = zone_edges_for(self)
+        ordered = edges.red_descent + 1 <= edges.green_min < 0 < edges.green_max <= edges.red_climb - 1
+        if not ordered:
+            raise ValueError(
+                "Zone lines need a yellow band: red descent + 1 ≤ full-gel floor < 0 < full-gel ceiling ≤ red climb − 1"
+            )
+        return self
 
 
 class CustomAidInput(APIModel):
@@ -618,6 +660,16 @@ class FuelBudget(APIModel):
     red_share_of_time_pct: float = Field(default=0, ge=0, le=100)
     tier: DeliveryTier = DeliveryTier.ok
     note: str = ""
+
+
+class ZonePreview(APIModel):
+    """Distance in each digestive zone. This is not a fueling plan."""
+
+    distance_m: float = Field(ge=0)
+    red_distance_m: float = Field(ge=0)
+    red_share_of_course_pct: float = Field(ge=0, le=100)
+    zone_counts: dict[str, int]
+    zone_distance_m: dict[str, float]
 
 
 class PlanTotals(APIModel):

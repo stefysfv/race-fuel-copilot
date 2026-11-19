@@ -43,6 +43,13 @@ export const state = {
   saltQty: 0,
   customFoods: { vest: [], station: [] },
   gut: { carb_multiplier: 1, climb_sensitivity: "normal", early_savoury: false, saved: false },
+  zoneProfile: {
+    preset: "default",
+    green_min_grade: -8,
+    green_max_grade: 5,
+    red_descent_grade: -12,
+    red_climb_grade: 10,
+  },
   packedPlan: null,
   livePlan: null,
   logged: [],

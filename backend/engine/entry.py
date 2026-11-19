@@ -8,7 +8,8 @@ from pydantic import ValidationError
 
 from backend.engine.recalibrate import recalibrate, snap_custom_aids
 from backend.engine.scheduler import generate_plan
-from backend.gpx_parser import parse_gpx_xml, prepare_course
+from backend.engine.zones import preview_course_zones
+from backend.gpx_parser import parse_gpx_xml, prepare_course, slice_segments
 from backend.models import AidStation, GeneratePlanRequest, Race, RecalibrateRequest
 
 
@@ -138,3 +139,28 @@ def recalibrate_json(request: dict, race_catalog: dict, gpx_text: str | None) ->
         packed_vest_items=parsed.packed_vest_items,
     )
     return updated.model_dump(mode="json")
+
+
+def preview_zones_json(request: dict, race_catalog: dict, gpx_text: str | None) -> dict:
+    """Classify the course into digestive zones. No stops, packs, or totals.
+
+    The body is the same plan request the full builder accepts. Sliders call
+    this so the red-share readout does not wait on a fueling plan.
+    """
+
+    body = _require_dict(request, "request")
+    catalog = _require_dict(race_catalog, "race_catalog")
+    if gpx_text is not None and not isinstance(gpx_text, str):
+        raise ValueError("gpx_text must be a string or null")
+    try:
+        parsed = GeneratePlanRequest.model_validate(body)
+    except ValidationError as exc:
+        raise _bad_request(exc) from exc
+    _race_id, _race_name, _distance_km, _stations, profile = _profile_and_stations(
+        parsed.race_id,
+        parsed.gpx_xml,
+        gpx_text,
+        parsed.aid_stations,
+        catalog,
+    )
+    return preview_course_zones(slice_segments(prepare_course(profile)), parsed.athlete)

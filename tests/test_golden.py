@@ -51,10 +51,31 @@ client = TestClient(app)
 # Reasons, forfeited rows, and the fuel budget are additive. Older snapshots
 # do not contain them, and the 70–85% info note must not land in `warnings`.
 _ADDITIVE_KEYS = frozenset({"reasons", "forfeited", "fuel_budget"})
+# Optional zone lines. Snapshots were recorded before these fields existed.
+# Dropping them keeps a null and an explicit Default preset comparable.
+_ZONE_EDGE_KEYS = frozenset({
+    "green_min_grade",
+    "green_max_grade",
+    "red_descent_grade",
+    "red_climb_grade",
+})
+_SNAPSHOT_SKIP = _ADDITIVE_KEYS | _ZONE_EDGE_KEYS
+
+# Default preset, in the same order as the setup screen: full gel down to,
+# full gel up to, red below, red above.
+_DEFAULT_EDGES = {
+    "green_min_grade": -8,
+    "green_max_grade": 5,
+    "red_descent_grade": -12,
+    "red_climb_grade": 10,
+}
+# The sensitive snapshot depends on climb_sensitivity moving green max to
+# +3.5%. Sending green_max 5 replaces that, so it is not a Default check.
+_CONSTANT_ATHLETES = [name for name in ATHLETES if name != "sensitive-early-savoury"]
 
 
 def _strip_additive(value: Any) -> Any:
-    """Drop the reason fields so an existing snapshot still matches."""
+    """Drop fields that existing snapshots do not contain."""
 
     if isinstance(value, list):
         return [_strip_additive(item) for item in value]
@@ -62,7 +83,7 @@ def _strip_additive(value: Any) -> Any:
         return {
             key: _strip_additive(item)
             for key, item in value.items()
-            if key not in _ADDITIVE_KEYS
+            if key not in _SNAPSHOT_SKIP
         }
     return value
 
@@ -246,3 +267,56 @@ def test_recalibrate_off_course_golden(update_golden: bool) -> None:
     payload = _recalibrate({"latitude": OFF_COURSE_LAT})
     assert payload["snap"]["on_course"] is False
     assert_golden("recalibrate__off-course.json", payload, update_golden)
+
+
+def _skip_snapshot_rewrite(update_golden: bool) -> None:
+    """Explicit Default numbers are checked against the snapshots, not written over them."""
+
+    if update_golden:
+        pytest.skip("explicit defaults are checked against the existing snapshots")
+
+
+@pytest.mark.parametrize("race_id", RACE_IDS)
+@pytest.mark.parametrize("athlete_name", _CONSTANT_ATHLETES)
+def test_explicit_default_edges_match_catalog_golden(
+    race_id: str,
+    athlete_name: str,
+    update_golden: bool,
+) -> None:
+    """(-8, +5, -12, +10) matches the snapshot built with those lines omitted."""
+
+    _skip_snapshot_rewrite(update_golden)
+    athlete = {**ATHLETES[athlete_name], **_DEFAULT_EDGES}
+    payload = _post("/api/generate-plan", {"race_id": race_id, "athlete": athlete})
+    assert_golden(f"generate-plan__{race_id}__{athlete_name}.json", payload, False)
+
+
+def test_explicit_default_edges_match_custom_gpx_golden(update_golden: bool) -> None:
+    _skip_snapshot_rewrite(update_golden)
+    payload = _post(
+        "/api/generate-plan",
+        {
+            "gpx_xml": _course_gpx(),
+            "athlete": dict(_DEFAULT_EDGES),
+            "aid_stations": [
+                {
+                    "name": "Bezbog",
+                    "distance_km": 2.03,
+                    "has_water": True,
+                    "has_food": True,
+                    "cutoff_hours": 6.5,
+                }
+            ],
+        },
+    )
+    assert_golden("generate-plan__custom-gpx.json", payload, False)
+
+
+def test_explicit_default_edges_match_recalibrate_goldens(update_golden: bool) -> None:
+    _skip_snapshot_rewrite(update_golden)
+    mid = _recalibrate({"athlete": dict(_DEFAULT_EDGES)})
+    assert_golden("recalibrate__mid-race.json", mid, False)
+    rescue = _recalibrate({"athlete": dict(_DEFAULT_EDGES), "gi_rescue": True})
+    assert_golden("recalibrate__gi-rescue.json", rescue, False)
+    off = _recalibrate({"athlete": dict(_DEFAULT_EDGES), "latitude": OFF_COURSE_LAT})
+    assert_golden("recalibrate__off-course.json", off, False)

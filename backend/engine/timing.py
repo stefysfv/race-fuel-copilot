@@ -24,9 +24,9 @@ from backend.engine.constants import WINDOW_MIN
 from backend.engine.gap import gap_cost_factor
 
 from backend.engine.zones import (
-    _green_max_for,
     _zone_rank,
     classify_zone,
+    zone_edges_for,
 )
 
 
@@ -46,7 +46,7 @@ def build_timed_segments(
         raise ValueError("pace_ratio must be positive")
 
     clock_min = 0.0
-    green_max = _green_max_for(athlete)
+    edges = zone_edges_for(athlete)
     timed: list[Segment] = []
     for segment in course_segments:
         factor = gap_cost_factor(segment.grade_percent)
@@ -71,7 +71,7 @@ def build_timed_segments(
                 elevation_gain_m=segment.elevation_gain_m,
                 elevation_loss_m=segment.elevation_loss_m,
                 grade_percent=segment.grade_percent,
-                zone=classify_zone(segment.grade_percent, green_max),
+                zone=classify_zone(segment.grade_percent, *edges),
                 cost_factor=factor,
                 predicted_minutes=minutes,
                 start_minute=start_minute,

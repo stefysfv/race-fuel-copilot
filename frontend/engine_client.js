@@ -20,7 +20,7 @@ import {
 
 export const ENGINE_MODE = "worker";
 
-const SHELL_WORKER = "/sw.js?v=21";
+const SHELL_WORKER = "/sw.js?v=22";
 let catalogText = "";
 let catalog = null;
 const gpxByRace = new Map();
@@ -389,7 +389,7 @@ async function timedWorkerCall(kind, type, request) {
   const result = await callWorker(type, request, gpxText);
   const elapsed = Math.round(performance.now() - started);
   if (kind === "plan") timings.lastPlanMs = elapsed;
-  else timings.lastRecalibrateMs = elapsed;
+  if (kind === "recalibrate") timings.lastRecalibrateMs = elapsed;
   emitStatus();
   return result;
 }
@@ -399,6 +399,13 @@ export async function generatePlan(request) {
     return postJson("/api/generate-plan", request);
   }
   return timedWorkerCall("plan", "generate_plan", request);
+}
+
+export async function previewZones(request) {
+  if (engineMode() === "http") {
+    return postJson("/api/preview-zones", request);
+  }
+  return timedWorkerCall("preview", "preview_zones", request);
 }
 
 export async function recalibrate(request) {

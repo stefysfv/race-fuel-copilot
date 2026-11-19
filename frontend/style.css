@@ -348,7 +348,8 @@ body:has(#diag-panel:not([hidden])) .map-view {
 .choice[aria-checked="true"],
 .pill[aria-checked="true"],
 .chip-toggle[aria-pressed="true"],
-.icon-btn[aria-checked="true"] {
+.icon-btn[aria-checked="true"],
+.zone-preset[aria-checked="true"] {
   background-color: #162032;
   background-image: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
   color: #fff;
@@ -483,6 +484,18 @@ body:has(#diag-panel:not([hidden])) .map-view {
 .drawer { padding: 10px 12px 12px; border-radius: var(--glass-radius); }
 .drawer summary { cursor: pointer; font-size: 13px; font-weight: 700; }
 .drawer[open] summary { margin-bottom: 8px; }
+.zone-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.zone-preset { flex: 1 1 30%; height: auto; min-height: 34px; padding: 6px 8px; white-space: normal; }
+.zone-slider { display: grid; gap: 4px; margin-top: 10px; font-size: 12px; font-weight: 700; }
+.zone-slider input[type="range"] {
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.zone-red-share { margin-top: 10px; font-weight: 700; }
 
 .pill-row, .leg-pills { display: flex; gap: 6px; }
 .pill-row { flex-wrap: wrap; width: 100%; }

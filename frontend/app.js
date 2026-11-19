@@ -15,6 +15,7 @@ import { renderPacking, stepLeg, exportRaceCard, closeCrewModal } from "./packin
 import { renderLive, startClock, ensureTicker, logIntake, undoAutoLog, paintRaceControls, onClockTick, onPaintDesk } from "./live.js";
 import { mapApi } from "./map_screen.js";
 import { applyTargetDefault, paintAidDrawer, setSource, setCarbs, loadRaces } from "./plan_request.js";
+import { applyZonePreset, loadZoneProfile, onZoneSlider, scheduleZonePreview } from "./zone_profile.js";
 import { raceCoachTick, preloadEnglishVoices, onAlertsClick, onTestAlert, requestWakeLock, bindLiveAlerts } from "./alerts.js";
 import { onRaceModeClick, armGpsWatch, paintAutoGps, onUpdateGpsClick, triggerRescue, paintDesk } from "./gps.js";
 import { showSetupPane, toggleSetup, showTab } from "./navigation.js";
@@ -55,6 +56,7 @@ function bind() {
     setSource("race");
     state.raceId = ui.raceSelect.value;
     applyTargetDefault();
+    scheduleZonePreview();
   });
   listen("#add-aid", "click", onAddAidClick);
   listen("#edit-stations", "click", () => {
@@ -71,6 +73,7 @@ function bind() {
     state.gpxName = file.name;
     ui.gpxName.textContent = `Loaded ${file.name}`;
     setSource("gpx");
+    scheduleZonePreview();
   });
   for (const input of [ui.hours, ui.minutes]) {
     input?.addEventListener("input", () => {
@@ -187,6 +190,14 @@ function bind() {
     if (!button) return;
     markGut(button.dataset.gut, button.dataset.value);
   });
+  document.querySelector("#zone-drawer")?.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-zone-preset]");
+    if (!button) return;
+    applyZonePreset(button.dataset.zonePreset);
+  });
+  for (const input of document.querySelectorAll("[data-zone-edge]")) {
+    input.addEventListener("input", () => onZoneSlider(input.dataset.zoneEdge, input.value));
+  }
   ui.crewModal?.addEventListener("click", (event) => {
     if (event.target === ui.crewModal) {
       closeCrewModal();
@@ -205,6 +216,7 @@ async function init() {
     resetOutdatedStorage();
     preloadEnglishVoices();
     loadStoredPreferences();
+    loadZoneProfile();
     renderFoods();
     renderGutPill();
     bind();
@@ -233,6 +245,7 @@ async function init() {
         ui.raceSelect.value = state.raceId;
       }
       applyTargetDefault();
+      scheduleZonePreview();
     } catch (error) {
       console.error(error);
       setStatus(error.message);
@@ -256,7 +269,7 @@ async function init() {
         reloaded = true;
         window.location.reload();
       });
-      navigator.serviceWorker.register("/sw.js?v=21", { type: "module" }).then((registration) => {
+      navigator.serviceWorker.register("/sw.js?v=22", { type: "module" }).then((registration) => {
         registration.update().catch(() => {});
       }).catch(() => {});
     }

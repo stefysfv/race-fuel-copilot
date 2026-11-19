@@ -2,8 +2,9 @@
 
 - GAP uses the Minetti 2002 running-cost polynomial. The athlete's flat
   effort pace is multiplied by C(grade) / C(0) to get time on that slope.
-- Digestive zones: green from -8% to +5%, yellow up to +10% or down to -12%,
-  and red outside that. A feed may move up to 6 minutes to reach green, then
+- Digestive zones default to green from -8% to +5%, yellow up to +10% or
+  down to -12%, and red outside that. An athlete can move those four lines.
+  A feed may move up to 6 minutes to reach green, then
   yellow. If the whole window is red, that window takes a 15 g liquid
   micro-dose and the rest of its carbs are forfeited. Windows do not share
   a carb debt.

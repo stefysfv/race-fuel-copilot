@@ -4,6 +4,7 @@ import { listRaces } from "./engine_client.js";
 import { customFoodPayload, packedVestPayload, renderGutPill } from "./food_menu.js";
 import { DEFAULT_TARGETS, state, ui } from "./state.js";
 import { clampCarbs, paintMinutes } from "./ui_helpers.js";
+import { zoneFields } from "./zone_profile.js";
 
 export function readTargetMin() {
   const hours = Number(ui.hours.value);
@@ -47,6 +48,7 @@ export function readAthlete(pace) {
     salt_caps_qty: state.saltOn ? Math.min(40, parseInt(state.saltQty, 10) || 0) : 0,
     salt_cap_mg: Math.min(2000, parseInt(state.saltMg, 10) || 200),
     flask_count: Math.min(6, Math.max(0, parseInt(state.flaskQty, 10) || 0)),
+    ...zoneFields(state.zoneProfile),
   };
   const locker = [];
   for (const item of Array.isArray(state.locker) ? state.locker : []) {

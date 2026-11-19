@@ -97,7 +97,7 @@ async function boot() {
   pyodide.runPython(`
 import pydantic
 import pydantic_core
-from backend.engine.entry import generate_plan_json, recalibrate_json
+from backend.engine.entry import generate_plan_json, preview_zones_json, recalibrate_json
 `);
   await measureModule(new URL("pyodide.mjs", INDEX_URL));
   await measureModule(new URL("pyodide.asm.mjs", INDEX_URL));
@@ -114,8 +114,17 @@ function pythonJson(source) {
   return JSON.parse(text);
 }
 
+const ENGINE_CALLS = {
+  generate_plan: "generate_plan_json",
+  recalibrate: "recalibrate_json",
+  preview_zones: "preview_zones_json",
+};
+
 function runCall(kind) {
-  const functionName = kind === "recalibrate" ? "recalibrate_json" : "generate_plan_json";
+  const functionName = ENGINE_CALLS[kind];
+  if (!functionName) {
+    throw new Error(`Unknown message type ${kind}`);
+  }
   return pythonJson(`
 import json
 from backend.engine.entry import ${functionName}
@@ -181,7 +190,7 @@ json.dumps({
     }
     assignInputs(message.payload || {});
     let result;
-    if (message.type === "generate_plan" || message.type === "recalibrate") {
+    if (ENGINE_CALLS[message.type]) {
       result = runCall(message.type);
     } else if (message.type === "profile") {
       result = runProfile();

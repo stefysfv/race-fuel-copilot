@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/vendor/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=21">
+  <link rel="stylesheet" href="/style.css?v=22">
   <style>
     html, body { height: 100dvh; width: 100vw; margin: 0; overflow: hidden; }
   </style>
@@ -24,7 +24,7 @@
 <body data-tab="setup">
   <script>
     (function () {
-      var SHELL = "v21";
+      var SHELL = "v22";
       var guard = "fuel_sw_boot";
       try {
         if (sessionStorage.getItem(guard) === SHELL) return;
@@ -36,7 +36,7 @@
         var stale = regs.filter(function (reg) {
           var worker = reg.active || reg.waiting || reg.installing;
           var script = worker && worker.scriptURL ? worker.scriptURL : "";
-          return script.indexOf("v=21") === -1;
+          return script.indexOf("v=22") === -1;
         });
         if (!stale.length) {
           try { sessionStorage.setItem(guard, SHELL); } catch (error) {}
@@ -212,6 +212,32 @@
           <button id="gut-reset" class="text-btn" type="button">Reset</button>
         </p>
 
+        <details id="zone-drawer" class="drawer liquid-glass">
+          <summary>Advanced: stomach &amp; terrain</summary>
+          <div class="zone-presets" role="radiogroup" aria-label="Stomach preset">
+            <button class="zone-preset liquid-pill" type="button" data-zone-preset="sensitive" aria-checked="false">Sensitive</button>
+            <button class="zone-preset liquid-pill" type="button" data-zone-preset="default" aria-checked="true">Default</button>
+            <button class="zone-preset liquid-pill" type="button" data-zone-preset="iron" aria-checked="false">Iron stomach</button>
+          </div>
+          <label class="zone-slider">
+            <span>Full gel down to <strong data-zone-readout="green_min_grade">−8%</strong></span>
+            <input data-zone-edge="green_min_grade" type="range" min="-12" max="-3" step="0.5" value="-8" aria-label="Full gel down to this descent">
+          </label>
+          <label class="zone-slider">
+            <span>Full gel up to <strong data-zone-readout="green_max_grade">+5%</strong></span>
+            <input data-zone-edge="green_max_grade" type="range" min="2" max="12" step="0.5" value="5" aria-label="Full gel up to this climb">
+          </label>
+          <label class="zone-slider">
+            <span>Red below <strong data-zone-readout="red_descent_grade">−12%</strong></span>
+            <input data-zone-edge="red_descent_grade" type="range" min="-20" max="-8" step="0.5" value="-12" aria-label="Red below this descent">
+          </label>
+          <label class="zone-slider">
+            <span>Red above <strong data-zone-readout="red_climb_grade">+10%</strong></span>
+            <input data-zone-edge="red_climb_grade" type="range" min="6" max="20" step="0.5" value="10" aria-label="Red above this climb">
+          </label>
+          <p id="zone-red-share" class="micro zone-red-share" role="status" data-testid="zone-red-share">Red share of this course: —</p>
+        </details>
+
         <button id="build-plan" class="thumb-btn primary liquid-pill" type="submit" data-testid="build-plan" onclick="window.handleBuildPlan && window.handleBuildPlan(event)">Build Plan</button>
       </form>
       </div>
@@ -379,6 +405,6 @@
 
   <script src="/vendor/leaflet.js"></script>
   <script src="/vendor/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=21"></script>
+  <script type="module" src="/app.js?v=22"></script>
 </body>
 </html>
