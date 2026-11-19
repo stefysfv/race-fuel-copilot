@@ -5,6 +5,7 @@ export const OFFLINE_VERIFIED_KEY = "fuel-offline-verified-at";
 export const FIRST_OFFLINE_KEY = "fuel-first-offline";
 export const FEEDBACK_KEY = "fuel-feedback";
 export const UNITS_KEY = "fuel-units";
+export const BATTERY_SAVER_KEY = "fuel-battery-saver";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 

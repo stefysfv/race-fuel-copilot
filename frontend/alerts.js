@@ -3,6 +3,7 @@
 import { nextStop, shortIntake } from "./plan_cursor.js";
 import { state } from "./state.js";
 import { elapsedMin, setStatus } from "./ui_helpers.js";
+import { recordNotification, recordSpeech, setWakeLockState } from "./battery_diag.js";
 
 let logIntake = async () => {};
 let paintRaceControls = () => {};
@@ -14,7 +15,7 @@ export function bindLiveAlerts(log, paint) {
 }
 
 export function raceCoachTick() {
-  if (!state.startedAt || state.sim.active || !state.livePlan) {
+  if (!state.startedAt || state.sim.active || !state.livePlan || state.catchingUp) {
     return;
   }
   const stop = nextStop();
@@ -196,6 +197,7 @@ export function speak(text) {
   const utter = new SpeechSynthesisUtterance(spoken);
   utter.rate = 1;
   if (!applyEnglishVoice(utter)) return;
+  recordSpeech();
   window.speechSynthesis.speak(utter);
 }
 
@@ -219,9 +221,11 @@ export async function pushNote(title, body, tag) {
   try {
     const registration = await navigator.serviceWorker.ready;
     await registration.showNotification(title, options);
+    recordNotification();
   } catch (error) {
     try {
       new Notification(title, options);
+      recordNotification();
     } catch (fallbackError) {
       setStatus("The alert could not be posted to the lock screen.");
     }
@@ -283,15 +287,32 @@ export async function onTestAlert() {
 }
 
 export async function requestWakeLock() {
-  if (!navigator.wakeLock || !state.raceMode) {
+  if (!navigator.wakeLock) {
+    setWakeLockState("unsupported");
+    return;
+  }
+  if (!state.raceMode) {
+    return;
+  }
+  if (state.wakeLock) {
+    setWakeLockState("active");
     return;
   }
   try {
-    state.wakeLock = await navigator.wakeLock.request("screen");
+    const sentinel = await navigator.wakeLock.request("screen");
+    state.wakeLock = sentinel;
+    setWakeLockState("active");
+    sentinel.addEventListener?.("release", () => {
+      if (state.wakeLock === sentinel) {
+        state.wakeLock = null;
+      }
+      setWakeLockState("released");
+    });
   } catch (error) {
+    setWakeLockState("denied");
     if (!state.wakeWarned) {
       state.wakeWarned = true;
-      setStatus("The screen may still sleep. iOS did not grant a wake lock.");
+      setStatus("The screen may still sleep. The browser did not grant a wake lock.");
     }
   }
 }
@@ -301,5 +322,10 @@ export function releaseWakeLock() {
   state.wakeLock = null;
   if (lock) {
     lock.release().catch(() => {});
+    setWakeLockState("released");
+  } else if (navigator.wakeLock) {
+    setWakeLockState("inactive");
+  } else {
+    setWakeLockState("unsupported");
   }
 }

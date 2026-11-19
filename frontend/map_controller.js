@@ -43,7 +43,16 @@ export function createMapView(mapElement, chartCanvas) {
   });
   map.getContainer().style.touchAction = "none";
   map.attributionControl.setPrefix(false);
-  L.tileLayer(TILES, { maxZoom: 17, attribution: ATTRIBUTION }).addTo(map);
+  const tileLayer = L.tileLayer(TILES, { maxZoom: 17, attribution: ATTRIBUTION });
+  let tilesEnabled = false;
+  function setTilesEnabled(enabled) {
+    const want = Boolean(enabled);
+    if (want === tilesEnabled) return;
+    tilesEnabled = want;
+    if (want) tileLayer.addTo(map);
+    else tileLayer.removeFrom(map);
+  }
+  setTilesEnabled(typeof navigator === "undefined" || navigator.onLine !== false);
   map.setView([42.56, 23.29], 12);
 
   let realMarker = null;
@@ -160,5 +169,5 @@ export function createMapView(mapElement, chartCanvas) {
     }
   }
 
-  return { setCourse, setRunner, setRealLocation, centerOnMe, resize };
+  return { setCourse, setRunner, setRealLocation, centerOnMe, resize, setTilesEnabled };
 }

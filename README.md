@@ -162,3 +162,18 @@ npx playwright test tests/e2e
 - **GPS and the desk simulator** — `frontend/gps.js`.
 - **Tabs and setup panes** — `frontend/navigation.js`.
 - **Engine transport** — `frontend/engine_client.js`. Offline snap math is `frontend/offline_engine.js`. Saved sessions sit in `frontend/offline_db.js`.
+
+
+## Battery field test (60-minute outdoor walk)
+
+Verify real battery drain before race day so you know your phone will clear 12+ hours.
+
+1. Charge to at least 80% and open the installed app with `?diag=1` (e.g. `https://your-site/?diag=1`), or check diagnostics before and after.
+2. Build a plan for any 12-40 km course, open the **Live** tab, enable **Race Mode** (and **Battery Saver** for a 12+ hour race), and tap **I ate** once to start the clock.
+3. Record start time and exact battery `%` (plus `Work per hour` from `?diag=1`).
+4. Walk outdoors for **60 minutes** with GPS active:
+   - **iPhone (Safari / Home Screen PWA):** Keep the app in foreground with Low Power Mode off first (or on if you race with it on), screen at ~40-50% brightness, and lock the phone for two 5-minute stretches to confirm background catch-up on unlock. Note iOS battery `%` at 0 min and 60 min (Settings > Battery also shows Safari/Web App share).
+   - **Android (Chrome / Installed PWA):** Set Location to High Accuracy, disable battery optimization for Chrome/PWA if needed, keep screen at ~40-50% brightness, and lock/unlock twice during the hour. Note Android battery `%` at 0 min and 60 min (Settings > Battery > Battery usage).
+5. At 60 minutes, open `?diag=1`, tap **Copy as JSON**, and record:
+   - Battery drain `% / hour` (target **<= 6-7% / hour** with Battery Saver so a full charge clears 12+ hours with margin).
+   - `GPS fix interval`, `Recalibrations`, `Wake lock`, and `Work per hour`.

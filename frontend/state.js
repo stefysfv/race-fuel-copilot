@@ -92,6 +92,15 @@ export const state = {
   autoGpsError: "",
   gpsAccuracy: null,
   offTrailM: 0,
+  batterySaver: false,
+  catchingUp: false,
+  hiddenAt: null,
+  gpsPollTimer: null,
+  gpsPollIntervalMs: 0,
+  lastFixProcessedAt: 0,
+  lastRecalPos: null,
+  weakGpsAccuracy: null,
+  pollingState: "steady",
 };
 
 export const ui = {
@@ -151,4 +160,6 @@ export const ui = {
   autoGps: document.querySelector("#auto-gps"),
   autoGpsText: document.querySelector("#auto-gps-text"),
   crewModal: document.querySelector("#crew-modal"),
+  batterySaver: document.querySelector("#battery-saver"),
+  catchingUp: document.querySelector("#catching-up"),
 };

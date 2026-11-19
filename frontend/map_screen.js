@@ -32,6 +32,8 @@ export function drawMap() {
     const plan = state.livePlan || state.packedPlan;
     renderStopList(plan);
     const view = mapApi();
+    const allowTiles = navigator.onLine !== false && !state.batterySaver;
+    view.setTilesEnabled?.(allowTiles);
     view.setCourse({
       segments: state.packedPlan.segments,
       aidStations: state.aidStations,

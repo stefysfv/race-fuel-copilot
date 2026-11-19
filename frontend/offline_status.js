@@ -11,6 +11,7 @@ import {
   writeJson,
   writeText,
 } from "./local_store.js";
+import { batteryDiagSnapshot } from "./battery_diag.js";
 import { state } from "./state.js";
 
 const STALE_MS = 14 * DAY_MS;
@@ -27,12 +28,14 @@ export function paintDiag(report) {
   if (!panel || panel.hidden) return;
   const box = document.querySelector("#diag-json");
   const first = readJson(FIRST_OFFLINE_KEY);
+  const battery = batteryDiagSnapshot();
   if (box) {
     box.value = JSON.stringify({
       ...report,
       installed: isInstalled(),
       lastVerifiedOffline: verifiedAt(),
       firstOffline: first,
+      battery,
     }, null, 2);
   }
   const list = document.querySelector("#diag-list");
@@ -56,6 +59,12 @@ export function paintDiag(report) {
     ["Bytes cached", first?.bytes == null ? "not yet" : String(first.bytes)],
     ["Cache retry", first ? (first.retry ? "yes" : "no") : "not yet"],
     ["Offline ready", report.offlineReady ? "yes" : `no — ${report.missing.join(", ")}`],
+    ["GPS fix interval", battery.medianFixIntervalMs == null ? "none yet" : `${(battery.medianFixIntervalMs / 1000).toFixed(1)} s median (${battery.gpsFixes} ok, ${battery.gpsRejectedAccuracy} weak, ${battery.gpsRejectedJump} jumps)`],
+    ["Recalibrations", String(battery.recalibrations)],
+    ["Speech / notifications", `${battery.speechCount} speech / ${battery.notificationCount} notifications`],
+    ["Wake lock", battery.wakeLockState],
+    ["Polling / Battery saver", `${battery.pollingState} (${battery.pollingMode}) · saver ${battery.batterySaver ? "on" : "off"}`],
+    ["Work per hour", battery.workSummary],
     ["User agent", report.userAgent],
   ];
   list.replaceChildren();

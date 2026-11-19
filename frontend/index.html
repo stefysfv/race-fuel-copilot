@@ -353,11 +353,13 @@
           <span id="auto-gps-text">GPS starts with a plan</span>
         </p>
         <div class="live-chips">
-          <button id="race-mode" class="liquid-pill chip-toggle" type="button" aria-pressed="false">Race Mode</button>
-          <button id="enable-alerts" class="liquid-pill chip-toggle" type="button" aria-pressed="false">Audio</button>
+          <button id="race-mode" class="liquid-pill chip-toggle" type="button" aria-pressed="false" data-testid="race-mode">Race Mode</button>
+          <button id="battery-saver" class="liquid-pill chip-toggle" type="button" aria-pressed="false" data-testid="battery-saver">Battery Saver</button>
+          <button id="enable-alerts" class="liquid-pill chip-toggle" type="button" aria-pressed="false" data-testid="enable-alerts">Audio</button>
         </div>
       </div>
       <div class="live-body">
+        <p id="catching-up" class="catching-up hidden" role="status" data-testid="catching-up"></p>
         <p id="gps-banner" class="gps-banner hidden" role="status"></p>
         <p id="off-course" class="off-course hidden" role="alert"></p>
         <div class="hero liquid-glass">
@@ -384,10 +386,10 @@
         <p id="live-message" class="micro" data-testid="live-message"></p>
       </div>
       <div class="action-bar">
-        <button id="log-intake" class="thumb-btn primary liquid-pill" type="button" disabled>Log Intake</button>
+        <button id="log-intake" class="thumb-btn primary liquid-pill" type="button" data-testid="log-intake" disabled>I ate</button>
         <div class="action-row">
           <button id="update-gps" class="liquid-pill action-pill" type="button" data-testid="sync-gps" disabled>Sync GPS</button>
-          <button id="gi-rescue" class="liquid-pill action-pill" type="button" disabled>GI Rescue</button>
+          <button id="gi-rescue" class="liquid-pill action-pill" type="button" data-testid="gi-rescue" disabled>GI trouble</button>
         </div>
         <div class="finish-row">
           <button id="test-alert" class="finish-link" type="button">Test Voice</button>

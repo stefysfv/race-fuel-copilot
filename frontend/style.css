@@ -1635,3 +1635,117 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
   .crew-table th, .crew-table td { border-bottom: 1px solid #cbd5e1 !important; color: #000000 !important; }
   .crew-rescue { break-inside: avoid; background: #ffffff !important; border: 1px solid #000000 !important; }
 }
+
+.catching-up {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Gloves, sweat, and direct sun: minimum 48 px tap targets on Live & Race Mode */
+#tab-live .chip-toggle,
+#tab-live .action-pill,
+#tab-live #log-intake,
+#tab-live .finish-link {
+  min-height: 48px;
+  min-width: 48px;
+}
+#tab-live #log-intake {
+  min-height: 56px;
+  font-size: 18px;
+  font-weight: 800;
+}
+#tab-live #gi-rescue {
+  min-height: 52px;
+  font-size: 15px;
+  font-weight: 700;
+}
+body.race-active #tab-live .hero {
+  border: 2px solid #0f172a;
+  background: #ffffff;
+}
+body.race-active #tab-live .countdown {
+  color: #000000;
+  font-weight: 900;
+}
+body.race-active #tab-live .intake,
+body.race-active #tab-live .num {
+  color: #000000;
+}
+
+/* Battery Saver: OLED black high-contrast theme & zero animation */
+body.battery-saver,
+body.battery-saver * {
+  transition: none !important;
+  animation: none !important;
+}
+body.battery-saver {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+body.battery-saver .app-shell,
+body.battery-saver .liquid-glass,
+body.battery-saver .hero,
+body.battery-saver .setup-panel,
+body.battery-saver .pack-card,
+body.battery-saver .tab-bar,
+body.battery-saver .modal-sheet {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid #475569 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+body.battery-saver .kicker,
+body.battery-saver .micro,
+body.battery-saver .brand-sub,
+body.battery-saver .flavor,
+body.battery-saver .hero-caffeine {
+  color: #e2e8f0 !important;
+}
+body.battery-saver .countdown,
+body.battery-saver .intake,
+body.battery-saver .num,
+body.battery-saver .brand-title,
+body.battery-saver button,
+body.battery-saver select,
+body.battery-saver input {
+  color: #ffffff !important;
+}
+body.battery-saver .liquid-pill,
+body.battery-saver .chip-toggle,
+body.battery-saver .action-pill {
+  background: #111827 !important;
+  border: 1px solid #94a3b8 !important;
+  color: #ffffff !important;
+}
+body.battery-saver .primary,
+body.battery-saver [aria-pressed="true"],
+body.battery-saver [aria-checked="true"] {
+  background: #ff5500 !important;
+  color: #000000 !important;
+  border-color: #ff5500 !important;
+  font-weight: 800;
+}
+body.battery-saver .catching-up {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  border: 1px solid #94a3b8;
+}
+body.battery-saver .leaflet-container {
+  background: #05070b !important;
+}
+
+#tab-live .live-top {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#tab-live .live-chips {
+  flex-wrap: wrap;
+  gap: 6px;
+}
