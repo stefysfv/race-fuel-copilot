@@ -1101,8 +1101,6 @@ def test_on_pace_recalibrate_keeps_later_stops(case: PlanCase, data: st.DataObje
 @SLOW
 @given(case=plan_cases(), data=st.data())
 def test_gi_rescue_phases(case: PlanCase, data: st.DataObject) -> None:
-    # FINDINGS.md: target_time_minutes <= 120 never reads rescue_start_min.
-    assume(not _is_short_race(case.athlete))
     built = build_course(case)
     duration = _generate(built).predicted_duration_min
     assume(duration > RESCUE_COOLDOWN_MIN + built.athlete.feed_interval_min + 5)
@@ -1120,48 +1118,25 @@ def test_gi_rescue_phases(case: PlanCase, data: st.DataObject) -> None:
     cool_end = start + RESCUE_COOLDOWN_MIN
     half = [stop for stop in plan.fuel_stops if "Half-size while GI Rescue" in stop.reason]
     assert len(half) <= RESCUE_GENTLE_FEEDS
-    # FINDINGS.md: those half-size marks are the first carb doses in the plan,
-    # which can sit before rescue starts. Not asserted as "the next two after 45 min".
-    if not built.athlete.custom_vest_items:
-        for stop in half:
+    for stop in half:
+        assert stop.ideal_minute + 1e-6 >= cool_end
+        # A custom portion can replace the halved window. The code still marks it.
+        if not built.athlete.custom_vest_items:
             assert stop.carbs_g <= window * 0.5 + 0.05
-    quiet_limit = plan.clock_start_min + PRE_RACE_QUIET_MIN
     for stop in plan.fuel_stops:
         if stop.at_aid_station or stop.reason.startswith("Packed vest"):
             # FINDINGS.md: a packed stamp replaces the rescue dose.
-            continue
-        # FINDINGS.md: the opening quiet window rewrites rescue ease liquids
-        # (it only leaves rescue_sip alone) into a 0 g water sip.
-        if stop.scheduled_minute < quiet_limit and "Pre-race meal covers this window" in stop.reason:
             continue
         if start - 1e-6 <= stop.ideal_minute < nil_end:
             assert stop.carbs_g == 0.0
             assert stop.form is FuelForm.rescue_sip
         elif nil_end - 1e-6 <= stop.ideal_minute < cool_end:
-            # An empty vest cannot invent a gel. On green the menu says no vest
-            # food is selected. On a climb it says there is no gel or drink mix.
-            # Either way the grams go to 0. FINDINGS.md, under the rescue menu note.
-            if (
-                "no other vest food is selected" in stop.reason
-                or "No gel or drink mix in the vest" in stop.reason
-            ):
-                assert stop.carbs_g == 0.0
-                continue
-            # FINDINGS.md: a leg averaging below -3.5% quiets this ease feed
-            # even when the stop itself is yellow, not red.
-            if stop.reason.startswith("Leg averages"):
-                assert stop.carbs_g == 0.0
-                continue
-            # FINDINGS.md: a food station within 15 minutes cuts this ease dose
-            # by the plate, and drops it when fewer than 5 g remain.
-            if "Skip the vest snack" in stop.reason or "aid-station plate covers" in stop.reason:
-                continue
             assert "GI Rescue" in stop.reason
             if stop.zone is DigestiveZone.red:
                 assert stop.carbs_g == 0.0
-            elif not built.athlete.custom_vest_items:
-                # FINDINGS.md: the vest menu can turn this liquid into a gel or a solid.
-                # The carb count of an unedited portion stays the 12 g ease dose.
+                assert stop.form is FuelForm.rescue_sip
+            else:
+                assert stop.form is FuelForm.liquid
                 assert stop.carbs_g == pytest.approx(RESCUE_EASE_CARBS_G, abs=0.05)
 
 
@@ -1331,7 +1306,6 @@ def test_logged_packed_solids_ignore_palate_gap() -> None:
     assert all(stop.scheduled_minute >= SAVOURY_START_MIN or stop.flavor != "Savoury/Salty" for stop in solids)
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: GI Rescue ease can be a solid, and half-size is spent early", strict=True)
 def test_logged_gi_rescue_menu_and_half_size() -> None:
     profile = _flat(30_000)
     athlete = AthleteInput()
@@ -1356,7 +1330,9 @@ def test_logged_gi_rescue_menu_and_half_size() -> None:
     after = [
         stop
         for stop in plan.fuel_stops
-        if stop.ideal_minute >= 185 and stop.carbs_g > 0 and "GI Rescue" not in stop.reason
+        # Ease lines start with "GI Rescue:". The half-size sentence also
+        # names GI Rescue, so a substring check would drop the feed this asserts.
+        if stop.ideal_minute >= 185 and stop.carbs_g > 0 and not stop.reason.startswith("GI Rescue")
     ]
     assert after
     assert "Half-size while GI Rescue" in after[0].reason
@@ -1392,7 +1368,6 @@ def test_logged_aid_leg_plate_and_carryover_exceed_budget() -> None:
     assert accounted == pytest.approx(leg.carbs_g, abs=0.5)
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: the quiet window erases rescue ease feeds", strict=True)
 def test_logged_quiet_window_erases_rescue_ease() -> None:
     plan = generate_plan(
         race_id="flat",
@@ -1411,7 +1386,6 @@ def test_logged_quiet_window_erases_rescue_ease() -> None:
     )
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: descent lock erases a yellow rescue ease feed", strict=True)
 def test_logged_descent_lock_erases_rescue_ease() -> None:
     """20 km at a constant -10% (yellow). Rescue starts at 35 min, so 55–75 min is the ease phase."""
 
@@ -1445,7 +1419,6 @@ def test_logged_descent_lock_erases_rescue_ease() -> None:
     )
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: a nearby plate erases a rescue ease feed", strict=True)
 def test_logged_aid_plate_erases_rescue_ease() -> None:
     """Flat 16 km, food at 8 km (minute 64). Rescue starts at 40, so minute 60 is an ease feed."""
 
@@ -1497,7 +1470,6 @@ def test_logged_tiny_custom_portion_overflows() -> None:
     assert plan.segments
 
 
-@pytest.mark.xfail(reason="FINDINGS.md: a short race ignores GI Rescue", strict=True)
 def test_logged_short_race_ignores_gi_rescue() -> None:
     profile = _flat(12_000)
     plan = generate_plan(

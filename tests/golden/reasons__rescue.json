@@ -7,12 +7,6 @@
       "carbs_g": 0.0,
       "reasons": [
         {
-          "code": "GI_RESCUE_HALF",
-          "params": {
-            "carbs_g": 15.0
-          }
-        },
-        {
           "code": "QUIET_WINDOW",
           "params": {
             "quiet_until_min": 50.0
@@ -24,18 +18,12 @@
       "sequence": 2,
       "ideal_minute": 60.0,
       "scheduled_minute": 60.0,
-      "carbs_g": 15.0,
+      "carbs_g": 30.0,
       "reasons": [
-        {
-          "code": "GI_RESCUE_HALF",
-          "params": {
-            "carbs_g": 15.0
-          }
-        },
         {
           "code": "OPENING_SOLID",
           "params": {
-            "carbs_g": 15.0
+            "carbs_g": 30.0
           }
         }
       ]
@@ -114,13 +102,19 @@
       "sequence": 8,
       "ideal_minute": 150.0,
       "scheduled_minute": 150.0,
-      "carbs_g": 30.0,
+      "carbs_g": 15.0,
       "reasons": [
+        {
+          "code": "GI_RESCUE_HALF",
+          "params": {
+            "carbs_g": 15.0
+          }
+        },
         {
           "code": "SAVOURY_SLOT",
           "params": {
             "switch_min": 150.0,
-            "carbs_g": 30.0
+            "carbs_g": 15.0
           }
         }
       ]
@@ -129,8 +123,15 @@
       "sequence": 9,
       "ideal_minute": 180.0,
       "scheduled_minute": 180.0,
-      "carbs_g": 30.0,
-      "reasons": []
+      "carbs_g": 15.0,
+      "reasons": [
+        {
+          "code": "GI_RESCUE_HALF",
+          "params": {
+            "carbs_g": 15.0
+          }
+        }
+      ]
     },
     {
       "sequence": 10,
@@ -143,20 +144,20 @@
   "forfeited": [
     {
       "at_min": 30.0,
-      "carbs_g": 15.0,
-      "code": "GI_RESCUE_HALF",
-      "params": {}
-    },
-    {
-      "at_min": 30.0,
-      "carbs_g": 15.0,
+      "carbs_g": 30.0,
       "code": "QUIET_WINDOW",
       "params": {
         "quiet_until_min": 50.0
       }
     },
     {
-      "at_min": 60.0,
+      "at_min": 150.0,
+      "carbs_g": 15.0,
+      "code": "GI_RESCUE_HALF",
+      "params": {}
+    },
+    {
+      "at_min": 180.0,
       "carbs_g": 15.0,
       "code": "GI_RESCUE_HALF",
       "params": {}

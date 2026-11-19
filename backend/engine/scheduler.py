@@ -24,6 +24,7 @@ from backend.models import (
 )
 
 from backend.engine.coach_text import (
+    _is_rescue_ease,
     _quiet_descent_stops,
     _quiet_opening_stops,
 )
@@ -122,7 +123,9 @@ def generate_plan(
     total_m = course[-1].distance_m
     stations = _stations_on_course(aid_stations, total_m, warnings)
     forfeited: list[ForfeitedDose] = []
-    if _is_short_race(athlete):
+    # A short race with no stomach trouble stays on one bite. GI Rescue
+    # replaces that grid with the nil, ease, and half-size protocol.
+    if _is_short_race(athlete) and rescue_start_min is None:
         warnings.insert(0, SHORT_RACE_NOTE)
         bite = _short_race_bite(athlete)
         # The bite and the sip grid belong to the whole race. Dropping the
@@ -144,6 +147,8 @@ def generate_plan(
             bite,
         )
     else:
+        if _is_short_race(athlete):
+            warnings.insert(0, SHORT_RACE_NOTE)
         # On pace, the remainder is the original plan with the finished stops
         # removed. Scheduling only the road ahead would forget the menu (a
         # solid just behind the snap would not count, so the next feed would
@@ -276,6 +281,10 @@ def schedule_fuel(
         not_before_min=not_before_min,
         rescue_start_min=rescue_start_min,
     )
+    # The two half-size feeds are the first normal doses after the 45 minute
+    # window. Feeds before rescue, and the nil and ease sips inside it, do
+    # not spend those two.
+    cooldown_end = None if rescue_start_min is None else rescue_start_min + RESCUE_COOLDOWN_MIN
     gentle_left = RESCUE_GENTLE_FEEDS if rescue_start_min is not None else 0
     stops: list[FuelStop] = []
     forfeited: list[ForfeitedDose] = []
@@ -292,16 +301,24 @@ def schedule_fuel(
                 forfeited.append(row)
             continue
         segment, when = placed
+        recovering = cooldown_end is not None and target.minute + 1e-9 >= cooldown_end
         dose = _dose_for_target(
             target=target,
             zone=segment.zone,
             grade_percent=segment.grade_percent,
             shift_min=when - target.minute,
             athlete=athlete,
-            gentle_left=gentle_left,
+            gentle_left=gentle_left if recovering else 0,
         )
-        gentle_left = dose.gentle_left
-        if _gels_selected(athlete):
+        if recovering:
+            gentle_left = dose.gentle_left
+        # Ease stays 12 g of liquid. The vest menu, including an empty vest,
+        # must not rename it or zero it. Nil sips are already 0 g.
+        if target.kind in {"rescue_nil", "rescue_ease"}:
+            product, caffeine_mg, reason = "", 0.0, dose.reason
+            food_name = ""
+            flavor = ""
+        elif _gels_selected(athlete):
             product, caffeine_mg, reason = _apply_locker(
                 dose,
                 segments,
@@ -313,25 +330,26 @@ def schedule_fuel(
             )
         else:
             product, caffeine_mg, reason = "", 0.0, dose.reason
-        caffeine_used += caffeine_mg
-        # A caffeinated gel stays a gel. Every other green feed can rotate onto real food.
-        food_name = ""
-        flavor = "Sweet"
-        if caffeine_mg > 0:
+        if target.kind not in {"rescue_nil", "rescue_ease"}:
+            caffeine_used += caffeine_mg
+            # A caffeinated gel stays a gel. Every other green feed can rotate onto real food.
+            food_name = ""
             flavor = "Sweet"
-        else:
-            food_name, flavor = _apply_food_preference(
-                dose,
-                grade_percent=segment.grade_percent,
-                zone=segment.zone,
-                when=when,
-                finish_min=finish_min,
-                athlete=athlete,
-                clock=menu_clock,
-            )
-            reason = dose.reason
-            if food_name:
-                product = food_name
+            if caffeine_mg > 0:
+                flavor = "Sweet"
+            else:
+                food_name, flavor = _apply_food_preference(
+                    dose,
+                    grade_percent=segment.grade_percent,
+                    zone=segment.zone,
+                    when=when,
+                    finish_min=finish_min,
+                    athlete=athlete,
+                    clock=menu_clock,
+                )
+                reason = dose.reason
+                if food_name:
+                    product = food_name
         named = product or food_name
         reason = _align_reason_with_intake(reason, dose.form, named, dose.carbs_g)
         for carbs_g, code, params in dose.drops:
@@ -468,7 +486,7 @@ def _insert_aid_bites(
             )
         )
         for stop in stops:
-            if stop.at_aid_station or stop.carbs_g <= 0:
+            if stop.at_aid_station or stop.carbs_g <= 0 or _is_rescue_ease(stop):
                 continue
             if abs(stop.scheduled_minute - minute) > 15:
                 continue

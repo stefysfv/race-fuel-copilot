@@ -934,13 +934,13 @@
         "segment_index": 23,
         "grade_percent": -8.732806,
         "zone": "yellow",
-        "carbs_g": 0.0,
+        "carbs_g": 12.0,
         "fluid_ml": 120.0,
         "sodium_mg": 200.0,
-        "form": "sip",
-        "reason": "Leg averages -7.8%. No trail chewing on this descent.",
+        "form": "liquid",
+        "reason": "GI Rescue: 12 g of liquid carb while the stomach settles.",
         "caffeine_mg": 0.0,
-        "product": "Water",
+        "product": "",
         "flavor": "",
         "at_aid_station": false
       },
@@ -955,13 +955,13 @@
         "segment_index": 26,
         "grade_percent": -4.196478,
         "zone": "green",
-        "carbs_g": 0.0,
+        "carbs_g": 12.0,
         "fluid_ml": 120.0,
         "sodium_mg": 200.0,
-        "form": "sip",
-        "reason": "Leg averages -7.8%. No trail chewing on this descent.",
+        "form": "liquid",
+        "reason": "GI Rescue: 12 g of liquid carb while the stomach settles.",
         "caffeine_mg": 0.0,
-        "product": "Water",
+        "product": "",
         "flavor": "",
         "at_aid_station": false
       },
@@ -976,13 +976,13 @@
         "segment_index": 29,
         "grade_percent": -5.467504,
         "zone": "green",
-        "carbs_g": 0.0,
+        "carbs_g": 12.0,
         "fluid_ml": 120.0,
         "sodium_mg": 200.0,
-        "form": "sip",
-        "reason": "Leg averages -7.8%. No trail chewing on this descent.",
+        "form": "liquid",
+        "reason": "GI Rescue: 12 g of liquid carb while the stomach settles.",
         "caffeine_mg": 0.0,
-        "product": "Water",
+        "product": "",
         "flavor": "",
         "at_aid_station": false
       },
@@ -1025,7 +1025,7 @@
         "reason": "Skip the vest snack. Aid Station Plate: 2 pieces banana / salted potatoes / orange wedges + broth/cola",
         "caffeine_mg": 0.0,
         "product": "",
-        "flavor": "Sweet",
+        "flavor": "Savoury/Salty",
         "at_aid_station": false
       },
       {
@@ -1233,20 +1233,19 @@
       }
     ],
     "totals": {
-      "carbs_g": 86.0,
+      "carbs_g": 122.0,
       "fluid_ml": 2160.0,
       "sodium_mg": 2238.0,
       "carbs_g_per_kg_per_hour": 0.857143,
-      "carbs_g_per_hour_delivered": 29.423698,
-      "stops_on_time": 6,
+      "carbs_g_per_hour_delivered": 41.740595,
+      "stops_on_time": 9,
       "stops_shifted": 0,
-      "stops_deferred": 5,
+      "stops_deferred": 2,
       "caffeine_mg": 0.0,
       "caffeine_cap_mg": 350.0
     },
     "warnings": [
-      "Delivered 29 g/h after the pre-race window, below 70% of the 60 g/h target.",
-      "Current position → Zlatni Mostove: 61 min after the pre-race window with 0 g carbs delivered."
+      "Delivered 42 g/h after the pre-race window, below 70% of the 60 g/h target."
     ],
     "vest_inventory_summary": ""
   }

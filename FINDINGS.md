@@ -2,7 +2,7 @@
 
 Hypothesis checks in `tests/test_invariants.py` cover the approved plan rules. Each open item below is a small input that breaks one of those rules. The property tests skip that case with a comment so the rest of the rule still runs. The open `test_logged_*` tests are expected failures that keep the example executable.
 
-Two recalibration items are fixed. Nine items remain open.
+Seven items are fixed. Four remain open: the two packed-vest findings, the tiny-portion overflow, and the plate-plus-carryover leg.
 
 ## On-pace recalibration clears the next 50 minutes
 
@@ -22,17 +22,19 @@ The original plan has sips at 25, 50, 75, 100, 125, and 150 minutes, and one 25 
 
 ## Short races ignore GI Rescue
 
-`target_time_minutes <= 120` never reads `rescue_start_min`. Flat 12 km, `target_time_minutes=90`, `rescue_start_min=20`. The plan is the short-race sips and one gel. No stop is a rescue sip, and no reason mentions GI Rescue.
+**Fixed.** A short race with GI Rescue on uses the rescue protocol. Nil sips are 0 g for 20 minutes, ease sips are 12 g of liquid for the next 25 minutes on ground that is not red, and the next two normal feeds are half-size.
+
+`target_time_minutes <= 120` used to ignore `rescue_start_min`. Flat 12 km, `target_time_minutes=90`, `rescue_start_min=20` was only the short-race sips and one gel. That plan now includes rescue sips.
 
 ## GI Rescue ease is not kept as liquid, and the half-size feeds are spent early
 
+**Fixed.** An ease sip stays 12 g of liquid. The vest menu, including an empty vest, does not rename it or zero it. The two half-size feeds are the first normal doses after the 45 minute window.
+
 Flat 30 km, default athlete, `rescue_start_min=140`. The cooldown runs until minute 185.
 
-The 160 minute ease feed is a 12 g savoury sandwich (`real_food`), not liquid. The 180 minute ease feed is a 12 g gel. The vest menu rewrites the rescue dose. Carbs stay 12 g, which is the small ease amount, but the form does not.
+The 160 and 180 minute ease feeds used to be a 12 g sandwich and a 12 g gel. They stay 12 g liquids. An empty vest used to append "No gel is in the vest" and set the grams to 0. Those sips stay 12 g.
 
-An empty vest does the same pass in reverse. On the 12 km course with `vest_foods=[]` and `rescue_start_min=30`, the 50 and 60 minute ease lines still mention 12 g, then add "No gel is in the vest, and no other vest food is selected." The grams are 0. On a yellow climb the sentence is "No gel or drink mix in the vest. Sip water and salt on this climb." Same course, pace 11 min/km, `rescue_start_min=10`, the 50 minute ease feed.
-
-The two half-size feeds are the first carb doses in the whole plan, not the two feeds after the cooldown. The 60 minute oat bar is already "Half-size while GI Rescue eases off." (15 g), eighty minutes before rescue starts. The first normal feed after minute 185, at 210 minutes, is a full 30 g.
+The 60 minute oat bar used to be "Half-size while GI Rescue eases off." (15 g), eighty minutes before rescue starts. That feed is full size. The first normal feed after minute 185 is the half-size feed.
 
 ## Packed vest overwrites a red micro-dose and the caffeine cap
 
@@ -48,19 +50,21 @@ The vest stamps solids at 60 minutes and 90 minutes. That is a 30 minute gap, an
 
 ## The opening quiet window erases rescue ease feeds
 
-Flat 20 km, default athlete, `rescue_start_min=0`. The first 20 minutes are rescue sips at 0 g, which is the nil phase. The ease feeds at 20, 30, and 40 minutes should be 12 g of liquid. They are 0 g water sips whose reason is "Pre-race meal covers this window." The quiet window leaves `rescue_sip` alone and rewrites every other form. Ease feeds are liquids, so they get wiped.
+**Fixed.** The quiet window still clears ordinary trail food in the first 50 minutes. A `GI_RESCUE_EASE` sip is exempt, the same way a nil sip and a station plate are.
+
+Flat 20 km, default athlete, `rescue_start_min=0`. The first 20 minutes are rescue sips at 0 g. The ease feeds at 20, 30, and 40 minutes stay 12 g of liquid. They used to become 0 g water sips, "Pre-race meal covers this window."
 
 ## Descent lock erases a yellow rescue ease feed
 
-Constant −10% for 20 km (start elevation 3500 m), default athlete, `rescue_start_min=35`. Every slice is yellow, grade −10%. The leg from start to finish averages −9.8%, which is below the −3.5% descent lock. The ease window is minutes 55 to 80.
+**Fixed.** Descent lock still clears ordinary trail food when the leg averages below −3.5%. It does not clear a non-red ease sip. Red ground is still the only case that zeros an ease sip.
 
-The stops at 55, 65, and 75 minutes are yellow and should be 12 g of liquid. They are 0 g water sips: "Leg averages -9.8%. No trail chewing on this descent." The lock spares `rescue_sip`, and the nil sips at 35 and 45 minutes stay. Ease feeds are ordinary liquids by then, so the lock treats them as trail food. Red is the only ease exception in the rescue rule, and these stops are not red.
+Constant −10% for 20 km (start elevation 3500 m), default athlete, `rescue_start_min=35`. The ease window is minutes 55 to 80. The stops at 55, 65, and 75 minutes are yellow and stay 12 g of liquid. They used to be 0 g water sips: "Leg averages -9.8%. No trail chewing on this descent."
 
 ## A nearby plate erases a rescue ease feed
 
-Flat 16 km, default athlete, one food station at 8 km. That pin is minute 64, and the leg from the start lasted 64 minutes, so the station serves a 28 g plate. `rescue_start_min=40`, so the ease window is minutes 60 to 85.
+**Fixed.** A plate still reduces the nearest ordinary vest snack inside 15 minutes. It does not subtract from a `GI_RESCUE_EASE` sip.
 
-The 60 minute feed is 4 minutes from the plate. It should be 12 g of liquid on green. It is a 0 g sip: "Skip the vest snack. Aid Station Plate: …". The plate rule subtracts the plate from the nearest vest snack inside 15 minutes, and a remainder under 5 g becomes a sip. Twelve grams minus 28 g is that remainder. The ease feeds at 70 and 80 minutes, outside that 15 minute window, stay at 12 g. The plate itself is still eaten at the table.
+Flat 16 km, default athlete, one food station at 8 km (minute 64). `rescue_start_min=40`, so minute 60 is an ease feed, 4 minutes from the plate. That sip stays 12 g of liquid on green. It used to become a 0 g sip: "Skip the vest snack. Aid Station Plate: …". The plate itself is still eaten at the table.
 
 ## A tiny custom portion overflows packing
 

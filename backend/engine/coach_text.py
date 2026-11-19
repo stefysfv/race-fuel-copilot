@@ -51,6 +51,17 @@ def _coach_note(
     return "Short leg. Sip fluids and save the bigger meal for the station table."
 
 
+def _is_rescue_ease(stop: FuelStop) -> bool:
+    """True for a 12 g liquid ease sip during the rescue cooldown.
+
+    Red ground is a nil sip instead, so it never carries this code. The
+    quiet window, the descent lock, and an aid-station plate leave this
+    sip alone. Only red ground drops the 12 g.
+    """
+
+    return any(item.code is ReasonCode.GI_RESCUE_EASE for item in stop.reasons)
+
+
 def _quiet_trail_stop(
     stop: FuelStop,
     reason: str,
@@ -63,7 +74,9 @@ def _quiet_trail_stop(
     a forfeited row.
     """
 
-    if stop.at_aid_station or stop.form is FuelForm.rescue_sip:
+    # Nil sips are rescue_sip. Ease feeds are ordinary liquids, and the
+    # quiet window and the descent lock both used to treat them as trail food.
+    if stop.at_aid_station or stop.form is FuelForm.rescue_sip or _is_rescue_ease(stop):
         return None
     removed = stop.carbs_g
     stop.carbs_g = 0
