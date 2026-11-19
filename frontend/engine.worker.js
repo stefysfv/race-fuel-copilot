@@ -6,7 +6,7 @@
  */
 
 const INDEX_URL = new URL("vendor/pyodide/", self.location.href).href;
-const ENGINE_ZIP = new URL("engine.zip", self.location.href);
+const ENGINE_ZIP = new URL("engine.zip?v=30", self.location.href);
 
 let pyodide = null;
 let bootError = null;
@@ -24,7 +24,7 @@ async function boot() {
   }
   pyodide.unpackArchive(new Uint8Array(await zipResponse.arrayBuffer()), "zip");
   pyodide.runPython(
-    "from backend.engine.entry import generate_plan_json, preview_zones_json, recalibrate_json",
+    "from backend.engine.entry import generate_plan_json, preview_zones_json, recalibrate_json, inspect_gpx_json",
   );
 }
 
@@ -32,6 +32,7 @@ const ENGINE_CALLS = {
   generate_plan: "generate_plan_json",
   recalibrate: "recalibrate_json",
   preview_zones: "preview_zones_json",
+  inspect_gpx: "inspect_gpx_json",
 };
 
 const booted = boot().catch((error) => {

@@ -60,6 +60,7 @@ def snap_custom_aids(course: list[CoursePoint], stations: list[CustomAidInput]) 
                 elevation_m=point.elevation_m,
                 has_water=station.has_water,
                 has_food=station.has_food,
+                drop_bag=station.drop_bag,
                 cutoff_hours=station.cutoff_hours,
             )
         )
@@ -124,6 +125,8 @@ def recalibrate(
     elapsed_min: float,
     gi_rescue: bool,
     packed_vest_items: list[PackedVestItem] | None = None,
+    distance_scale: float = 1.0,
+    extra_warnings: list[str] | None = None,
 ) -> RecalibrateResponse:
     """Snap a live fix to the track and rebuild the plan for the remaining course.
 
@@ -132,7 +135,7 @@ def recalibrate(
     GI Rescue, when requested, starts at `elapsed_min`.
     """
 
-    course = prepare_course(profile)
+    course = prepare_course(profile, distance_scale=distance_scale)
     baseline = build_timed_segments(slice_segments(course), athlete, pace_ratio=1.0)
     snapped, off_course_m, step_index = snap_to_track(course, latitude, longitude)
     predicted_min = _minute_at_distance(baseline, snapped.distance_m)
@@ -151,6 +154,8 @@ def recalibrate(
         from_distance_m=snapped.distance_m,
         rescue_start_min=elapsed_min if gi_rescue else None,
         packed_vest_items=packed_vest_items,
+        distance_scale=distance_scale,
+        extra_warnings=extra_warnings,
     )
     # The truncated clock is on the scaled timeline, so "now" matches elapsed.
     minutes_behind = elapsed_min - predicted_min

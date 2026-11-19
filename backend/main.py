@@ -27,12 +27,14 @@ if __name__ == "__main__" and __package__ in {None, ""}:
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.adapters.catalog import get_race, load_race_catalog, load_race_catalog_dict
 from backend.adapters.gpx_files import read_gpx_text
-from backend.engine.entry import generate_plan_json, preview_zones_json, recalibrate_json
+from backend.engine.entry import generate_plan_json, inspect_gpx_json, preview_zones_json, recalibrate_json
 from backend.models import (
     GeneratePlanRequest,
+    GPX_XML_MAX_CHARS,
     RaceCatalog,
     RacePlan,
     RecalibrateRequest,
@@ -74,6 +76,24 @@ def list_races() -> RaceCatalog:
     """
 
     return RaceCatalog(races=load_race_catalog())
+
+
+class GpxInspectBody(BaseModel):
+    """A GPX upload to sanity-check. The plan is a separate request."""
+
+    model_config = ConfigDict(extra="forbid")
+    gpx_xml: str = Field(min_length=1, max_length=GPX_XML_MAX_CHARS)
+    gpx_track: str = Field(default="longest", max_length=20)
+
+
+@app.post("/api/inspect-gpx")
+def inspect_gpx(body: GpxInspectBody) -> dict:
+    """Distance, elevation, and aid waypoints for an upload. No fuel plan."""
+
+    try:
+        return inspect_gpx_json({"gpx_track": body.gpx_track}, {"races": []}, body.gpx_xml)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _gpx_text(body: GeneratePlanRequest | RecalibrateRequest) -> str | None:

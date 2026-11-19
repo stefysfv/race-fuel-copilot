@@ -70,25 +70,18 @@ export function readAthlete(pace) {
 
 export function courseBody(athlete) {
   const body = { athlete, packed_vest_items: packedVestPayload() };
-  if (state.customAids.length) {
-    body.aid_stations = state.customAids.map((station) => {
-      const row = {
-        name: station.name,
-        distance_km: station.distance_km,
-        has_water: station.has_water !== false,
-        has_food: Boolean(station.has_food),
-      };
-      if (station.cutoff_hours) {
-        row.cutoff_hours = station.cutoff_hours;
-      }
-      return row;
-    });
-  }
+  const aids = uploadAids();
+  if (aids.length) body.aid_stations = aids;
   if (state.source === "gpx") {
     if (!state.gpxXml.trim()) {
       throw new Error("Choose a GPX file first.");
     }
+    if (!state.gpxReady) {
+      throw new Error(state.gpxError || "This GPX is still being checked.");
+    }
     body.gpx_xml = state.gpxXml;
+    body.gpx_track = state.gpxTrack || "longest";
+    if (state.distanceOverrideKm > 0) body.distance_override_km = state.distanceOverrideKm;
     return body;
   }
   if (!state.raceId) {
@@ -96,6 +89,35 @@ export function courseBody(athlete) {
   }
   body.race_id = state.raceId;
   return body;
+}
+
+function uploadAids() {
+  const fromFile = (Array.isArray(state.waypointAids) ? state.waypointAids : [])
+    .filter((station) => station.checked && station.name && Number.isFinite(Number(station.distance_km)))
+    .map((station) => ({
+      name: String(station.name).slice(0, 80),
+      distance_km: Number(station.distance_km),
+      has_water: station.has_water !== false,
+      has_food: Boolean(station.has_food),
+      drop_bag: Boolean(station.drop_bag),
+    }));
+  const taken = new Set(fromFile.map((station) => station.name.toLowerCase()));
+  const typed = [];
+  for (const station of state.customAids) {
+    const name = String(station?.name || "").trim();
+    if (!name || taken.has(name.toLowerCase())) continue;
+    const row = {
+      name,
+      distance_km: Number(station.distance_km),
+      has_water: station.has_water !== false,
+      has_food: Boolean(station.has_food),
+      drop_bag: Boolean(station.drop_bag),
+    };
+    if (station.cutoff_hours) row.cutoff_hours = station.cutoff_hours;
+    typed.push(row);
+    taken.add(name.toLowerCase());
+  }
+  return [...fromFile, ...typed];
 }
 
 export function selectedRace() {

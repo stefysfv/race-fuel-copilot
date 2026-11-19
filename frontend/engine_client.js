@@ -231,7 +231,7 @@ function callWorker(type, request, gpxText) {
 
 function bootWorker() {
   if (!workerReady) {
-    worker = new Worker("/engine.worker.js", { type: "module" });
+    worker = new Worker("/engine.worker.js?v=30", { type: "module" });
     workerReady = callWorker("ready", {}, null).catch((error) => {
       workerReady = null;
       throw error;
@@ -404,6 +404,16 @@ async function timedWorkerCall(kind, type, request) {
   if (kind === "recalibrate") timings.lastRecalibrateMs = elapsed;
   emitStatus();
   return result;
+}
+
+export async function inspectGpx(xml, track) {
+  const request = { gpx_track: track || "longest" };
+  if (engineMode() === "http") {
+    return postJson("/api/inspect-gpx", { ...request, gpx_xml: xml });
+  }
+  await prepareOffline();
+  await loadCatalog();
+  return callWorker("inspect_gpx", request, xml);
 }
 
 export async function generatePlan(request) {

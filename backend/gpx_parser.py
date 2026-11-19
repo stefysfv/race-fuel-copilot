@@ -99,49 +99,97 @@ def _local_name(tag: str) -> str:
     return tag
 
 
-def _elevation_m(element: ET.Element) -> float:
-    """Read `<ele>`. A missing or blank elevation is 0 m, matching the old parser."""
+@dataclass(frozen=True)
+class RawSample:
+    """One GPX point. `elevation_m` is None when `<ele>` is missing or blank."""
+
+    lat: float
+    lon: float
+    elevation_m: float | None
+
+
+@dataclass(frozen=True)
+class RawPath:
+    """One `<trk>` or `<rte>`, with its segments in file order."""
+
+    name: str
+    kind: str
+    segments: tuple[tuple[RawSample, ...], ...]
+
+
+@dataclass(frozen=True)
+class RawWaypoint:
+    """One `<wpt>`. Comment, type, and symbol are the GPX child text."""
+
+    lat: float
+    lon: float
+    name: str
+    comment: str
+    point_type: str
+    symbol: str
+
+
+@dataclass(frozen=True)
+class GpxDocument:
+    """Tracks, routes, and waypoints in document order."""
+
+    tracks: tuple[RawPath, ...]
+    routes: tuple[RawPath, ...]
+    waypoints: tuple[RawWaypoint, ...]
+
+
+def _child_text(element: ET.Element, name: str) -> str:
+    for child in list(element):
+        if _local_name(child.tag) == name and child.text:
+            return child.text.strip()
+    return ""
+
+
+def _elevation_or_none(element: ET.Element) -> float | None:
+    """Read `<ele>`. Missing and blank are unknown. A bad number is an error."""
 
     for child in list(element):
         if _local_name(child.tag) != "ele":
             continue
         text = (child.text or "").strip()
         if not text:
-            return 0.0
+            return None
         try:
             return float(text)
         except ValueError as exc:
             raise ValueError(f"Could not parse GPX: {exc}") from exc
-    return 0.0
+    return None
 
 
-def _points_named(root: ET.Element, name: str) -> list[TrackPoint]:
-    """Collect `trkpt` or `rtept` elements in document order."""
+def _sample(element: ET.Element) -> RawSample | None:
+    lat_text = element.get("lat")
+    lon_text = element.get("lon")
+    if lat_text is None or lon_text is None:
+        return None
+    try:
+        lat = float(lat_text)
+        lon = float(lon_text)
+    except ValueError as exc:
+        raise ValueError(f"Could not parse GPX: {exc}") from exc
+    return RawSample(lat=lat, lon=lon, elevation_m=_elevation_or_none(element))
 
-    points: list[TrackPoint] = []
-    for element in root.iter():
-        if _local_name(element.tag) != name:
+
+def _samples_named(element: ET.Element, name: str) -> tuple[RawSample, ...]:
+    found: list[RawSample] = []
+    for child in list(element):
+        if _local_name(child.tag) != name:
             continue
-        lat_text = element.get("lat")
-        lon_text = element.get("lon")
-        if lat_text is None or lon_text is None:
-            continue
-        try:
-            lat = float(lat_text)
-            lon = float(lon_text)
-        except ValueError as exc:
-            raise ValueError(f"Could not parse GPX: {exc}") from exc
-        points.append(TrackPoint(lat=lat, lon=lon, elevation_m=_elevation_m(element)))
-    return points
+        sample = _sample(child)
+        if sample is not None:
+            found.append(sample)
+    return tuple(found)
 
 
-def parse_gpx_xml(xml_text: str) -> list[TrackPoint]:
-    """Read track points from a GPX document. Routes are used if there is no track.
+def read_gpx(xml_text: str) -> GpxDocument:
+    """Read GPX 1.0 and 1.1 into tracks, routes, and waypoints.
 
-    GPX 1.0 (`http://www.topografix.com/GPX/1/0`) and GPX 1.1
-    (`http://www.topografix.com/GPX/1/1`) are both accepted, with or without
-    a default namespace. `<trkpt>` wins. `<rtept>` is used only when the
-    document has no track points.
+    A missing `<ele>` stays unknown here. `parse_gpx_xml` still turns that
+    unknown into 0 m so catalog races keep the previous point list.
     """
 
     if not xml_text or not str(xml_text).strip():
@@ -151,19 +199,87 @@ def parse_gpx_xml(xml_text: str) -> list[TrackPoint]:
     except ET.ParseError as exc:
         raise ValueError(f"Could not parse GPX: {exc}") from exc
 
-    raw_points = _points_named(root, "trkpt")
-    if not raw_points:
-        raw_points = _points_named(root, "rtept")
+    tracks: list[RawPath] = []
+    routes: list[RawPath] = []
+    waypoints: list[RawWaypoint] = []
+
+    def walk(element: ET.Element) -> None:
+        name = _local_name(element.tag)
+        if name == "trk":
+            segments = [
+                _samples_named(child, "trkpt")
+                for child in list(element)
+                if _local_name(child.tag) == "trkseg"
+            ]
+            if not any(segments):
+                direct = _samples_named(element, "trkpt")
+                segments = [direct] if direct else []
+            label = _child_text(element, "name") or f"Track {len(tracks) + 1}"
+            tracks.append(RawPath(name=label, kind="track", segments=tuple(segments)))
+            return
+        if name == "rte":
+            label = _child_text(element, "name") or f"Route {len(routes) + 1}"
+            routes.append(RawPath(
+                name=label,
+                kind="route",
+                segments=(_samples_named(element, "rtept"),),
+            ))
+            return
+        if name == "wpt":
+            sample = _sample(element)
+            if sample is None:
+                return
+            waypoints.append(RawWaypoint(
+                lat=sample.lat,
+                lon=sample.lon,
+                name=_child_text(element, "name"),
+                comment=_child_text(element, "cmt"),
+                point_type=_child_text(element, "type"),
+                symbol=_child_text(element, "sym"),
+            ))
+            return
+        for child in list(element):
+            walk(child)
+
+    walk(root)
+    return GpxDocument(tracks=tuple(tracks), routes=tuple(routes), waypoints=tuple(waypoints))
+
+
+def parse_gpx_xml(xml_text: str) -> list[TrackPoint]:
+    """Read track points from a GPX document. Routes are used if there is no track.
+
+    GPX 1.0 (`http://www.topografix.com/GPX/1/0`) and GPX 1.1
+    (`http://www.topografix.com/GPX/1/1`) are both accepted, with or without
+    a default namespace. `<trkpt>` wins. `<rtept>` is used only when the
+    document has no track points. A missing or blank `<ele>` is 0 m.
+    """
+
+    document = read_gpx(xml_text)
+    paths = document.tracks or document.routes
+    raw_points = [sample for path in paths for segment in path.segments for sample in segment]
     if len(raw_points) < 2:
         raise ValueError("GPX must contain at least two track points")
-    return raw_points
+    return [
+        TrackPoint(
+            lat=sample.lat,
+            lon=sample.lon,
+            elevation_m=0.0 if sample.elevation_m is None else sample.elevation_m,
+        )
+        for sample in raw_points
+    ]
 
 
-def prepare_course(raw_points: list[TrackPoint]) -> list[CoursePoint]:
-    """Smooth elevation and attach a cumulative Haversine distance to each point."""
+def prepare_course(raw_points: list[TrackPoint], distance_scale: float = 1.0) -> list[CoursePoint]:
+    """Smooth elevation and attach a cumulative Haversine distance to each point.
+
+    `distance_scale` stretches that distance for an uploaded course whose
+    declared length differs from the GPX. Catalog races leave it at 1.
+    """
 
     if len(raw_points) < 2:
         raise ValueError("A course needs at least two track points")
+    if distance_scale <= 0:
+        raise ValueError("Distance scale must be positive")
 
     elevations = smooth_elevation([point.elevation_m for point in raw_points])
     prepared: list[CoursePoint] = []
@@ -182,6 +298,16 @@ def prepare_course(raw_points: list[TrackPoint]) -> list[CoursePoint]:
         )
     if prepared[-1].distance_m <= 0:
         raise ValueError("Course length is zero: every track point has the same coordinates")
+    if distance_scale != 1.0:
+        prepared = [
+            CoursePoint(
+                lat=point.lat,
+                lon=point.lon,
+                elevation_m=point.elevation_m,
+                distance_m=point.distance_m * distance_scale,
+            )
+            for point in prepared
+        ]
     return prepared
 
 

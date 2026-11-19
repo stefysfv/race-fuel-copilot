@@ -413,6 +413,7 @@ class CustomAidInput(APIModel):
     distance_km: float = Field(ge=0, le=500)
     has_water: bool = True
     has_food: bool = False
+    drop_bag: bool = False
     cutoff_hours: float | None = Field(default=None, gt=0, le=72)
 
 
@@ -447,6 +448,17 @@ class GeneratePlanRequest(APIModel):
             "When true, set flat pace from target_time_minutes using the segment "
             "clock, then build the fuel plan once. Off, the sent pace is kept."
         ),
+    )
+    gpx_track: str = Field(
+        default="longest",
+        max_length=20,
+        description="Uploaded GPX track index, 'longest', or 'merge'. Catalog races ignore this.",
+    )
+    distance_override_km: float | None = Field(
+        default=None,
+        gt=0,
+        le=500,
+        description="When set on an upload, stretch the GPX distance to this many kilometres.",
     )
 
     @model_validator(mode="before")
@@ -488,6 +500,8 @@ class RecalibrateRequest(APIModel):
         max_length=24,
         description="Exact vest inventory. Empty keeps the usual food rotation.",
     )
+    gpx_track: str = Field(default="longest", max_length=20)
+    distance_override_km: float | None = Field(default=None, gt=0, le=500)
 
     @model_validator(mode="before")
     @classmethod

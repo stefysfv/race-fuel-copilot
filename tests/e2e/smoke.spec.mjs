@@ -145,7 +145,7 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await page.locator("#nav-setup").click();
     await page.locator("#pane-configure").click();
     await page.getByTestId("gpx-file").setInputFiles(GPX);
-    await expect(page.getByTestId("gpx-name")).toContainText("Loaded salomon-vitosha-12.gpx");
+    await expect(page.getByTestId("gpx-name")).toContainText("Loaded salomon-vitosha-12.gpx", { timeout: 60000 });
     await expect(page.getByTestId("race-select")).toBeDisabled();
     await page.getByTestId("build-plan").click();
     await expect(page.getByTestId("summary")).toContainText("Uploaded GPX", { timeout: PLAN_MS });

@@ -96,13 +96,51 @@
       </button>
       <form id="setup-form" class="setup-form" novalidate>
         <div class="setup-panel liquid-glass">
-        <div class="course-row">
-          <button id="source-race" class="sr-only" type="button" role="radio" aria-checked="true">Saved race</button>
-          <select id="race-select" aria-label="Race" data-testid="race-select"></select>
-          <button id="source-gpx" class="icon-btn liquid-pill" type="button" aria-label="Upload GPX">GPX</button>
-        </div>
-        <input id="gpx-file" class="file-input" type="file" accept=".gpx,application/gpx+xml,.xml" aria-label="GPX file" data-testid="gpx-file">
-        <p id="gpx-name" class="micro" data-testid="gpx-name"></p>
+        <section class="gpx-landing" data-testid="gpx-landing">
+          <h2 class="ready-title">Load your race GPX</h2>
+          <div id="gpx-drop" class="gpx-drop" data-testid="gpx-drop">
+            <p>Drop a .gpx file here, or choose one from your phone.</p>
+            <button id="source-gpx" class="thumb-btn liquid-pill" type="button" aria-label="Upload GPX">Choose GPX</button>
+          </div>
+          <input id="gpx-file" class="file-input" type="file" accept=".gpx,application/gpx+xml,.xml" aria-label="GPX file" data-testid="gpx-file">
+          <p id="gpx-name" class="micro" data-testid="gpx-name"></p>
+          <p id="gpx-error" class="gpx-error hidden" data-testid="gpx-error" role="alert"></p>
+          <div id="recent-courses" class="recent-courses" data-testid="recent-courses"></div>
+          <section id="sanity-card" class="sanity-card hidden" data-testid="sanity-card">
+            <h3 class="kicker">Does this look right?</h3>
+            <dl class="sanity-stats">
+              <div><dt>Distance</dt><dd id="sanity-distance" data-testid="sanity-distance"></dd></div>
+              <div><dt>Elevation gain</dt><dd id="sanity-gain" data-testid="sanity-gain"></dd></div>
+              <div><dt>Elevation loss</dt><dd id="sanity-loss" data-testid="sanity-loss"></dd></div>
+              <div><dt>Highest point</dt><dd id="sanity-high" data-testid="sanity-high"></dd></div>
+            </dl>
+            <canvas id="sanity-profile" class="sanity-profile" data-testid="sanity-profile" width="640" height="120"></canvas>
+            <ul id="sanity-warnings" class="sanity-warnings" data-testid="sanity-warnings"></ul>
+            <label class="field">
+              <span class="kicker">Override declared distance (km)</span>
+              <input id="distance-override" data-testid="distance-override" type="number" inputmode="decimal" min="0.1" max="500" step="0.1" placeholder="Optional">
+            </label>
+            <p id="sanity-scale" class="micro" data-testid="sanity-scale"></p>
+            <label id="track-field" class="field hidden">
+              <span class="kicker">Which track?</span>
+              <select id="gpx-track" data-testid="gpx-track"></select>
+            </label>
+            <div id="waypoint-block" class="hidden">
+              <p class="kicker">Aid stations from the file</p>
+              <p class="micro">Checked stations are the only ones used. Edit a name or kilometer before you build the plan.</p>
+              <ul id="waypoint-list" class="waypoint-list" data-testid="waypoint-list"></ul>
+            </div>
+          </section>
+        </section>
+
+        <section class="example-races">
+          <h2 class="kicker">Try an example</h2>
+          <div class="course-row">
+            <button id="source-race" class="sr-only" type="button" role="radio" aria-checked="true">Saved race</button>
+            <select id="race-select" aria-label="Race" data-testid="race-select"></select>
+          </div>
+          <button id="use-example" class="text-btn" type="button" data-testid="use-example">Use an example race</button>
+        </section>
 
         <div class="setup-grid">
           <label class="field">

@@ -101,10 +101,12 @@ def generate_plan(
     from_distance_m: float = 0.0,
     rescue_start_min: float | None = None,
     packed_vest_items: list[PackedVestItem] | None = None,
+    distance_scale: float = 1.0,
+    extra_warnings: list[str] | None = None,
 ) -> RacePlan:
     """Build a fueling plan for a full course, or for the part still ahead."""
 
-    course = prepare_course(profile)
+    course = prepare_course(profile, distance_scale=distance_scale)
     computed_km = course[-1].distance_m / 1000.0
     if declared_distance_km <= 0:
         declared_distance_km = computed_km
@@ -222,6 +224,9 @@ def generate_plan(
     warnings.extend(
         _delivery_warnings(stops, legs, timed, athlete, totals.carbs_g_per_hour_delivered)
     )
+    for note in extra_warnings or []:
+        if note not in warnings:
+            warnings.append(note)
     return RacePlan(
         race_id=race_id,
         race_name=race_name,

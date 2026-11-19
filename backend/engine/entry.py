@@ -10,6 +10,7 @@ from backend.engine.recalibrate import recalibrate, snap_custom_aids
 from backend.engine.scheduler import generate_plan
 from backend.engine.timing import flat_pace_for_target
 from backend.engine.zones import preview_course_zones
+from backend.engine.gpx_course import build_upload, inspect_upload
 from backend.gpx_parser import parse_gpx_xml, prepare_course, slice_segments
 from backend.models import AidStation, GeneratePlanRequest, Race, RecalibrateRequest
 
@@ -57,8 +58,14 @@ def _profile_and_stations(
     gpx_text: str | None,
     aid_stations: list,
     race_catalog: dict[str, Any],
-) -> tuple[str, str, float, list[AidStation], list]:
-    """Resolve a catalog race or an uploaded track. GPX text is already in memory."""
+    gpx_track: str = "longest",
+    distance_override_km: float | None = None,
+) -> tuple[str, str, float, list[AidStation], list, list[str], float]:
+    """Resolve a catalog race or an uploaded track. GPX text is already in memory.
+
+    The last two values are upload warnings and a distance scale. Catalog
+    races return an empty warning list and a scale of 1.
+    """
 
     if race_id and race_id.strip():
         race = _find_race(race_catalog, race_id.strip())
@@ -70,12 +77,14 @@ def _profile_and_stations(
             raise ValueError(f"Race '{race.id}' needs GPX text")
         course = prepare_course(profile)
         custom = snap_custom_aids(course, aid_stations)
-        return race.id, race.name, race.distance_km, _merge_aids(race.aid_stations, custom), profile
+        return race.id, race.name, race.distance_km, _merge_aids(race.aid_stations, custom), profile, [], 1.0
 
     document = gpx_text if gpx_text is not None else (gpx_xml or "")
-    profile = parse_gpx_xml(document)
-    course = prepare_course(profile)
-    return "uploaded", "Uploaded GPX", 0.0, snap_custom_aids(course, aid_stations), profile
+    ready = build_upload(document, track=gpx_track, distance_override_km=distance_override_km)
+    course = prepare_course(ready.profile, distance_scale=ready.distance_scale)
+    stations = snap_custom_aids(course, aid_stations)
+    declared = ready.declared_km if ready.declared_km > 0 else 0.0
+    return "uploaded", "Uploaded GPX", declared, stations, ready.profile, ready.warnings, ready.distance_scale
 
 
 def generate_plan_json(request: dict, race_catalog: dict, gpx_text: str | None) -> dict:
@@ -89,16 +98,18 @@ def generate_plan_json(request: dict, race_catalog: dict, gpx_text: str | None) 
         parsed = GeneratePlanRequest.model_validate(body)
     except ValidationError as exc:
         raise _bad_request(exc) from exc
-    race_id, race_name, distance_km, stations, profile = _profile_and_stations(
+    race_id, race_name, distance_km, stations, profile, notes, scale = _profile_and_stations(
         parsed.race_id,
         parsed.gpx_xml,
         gpx_text,
         parsed.aid_stations,
         catalog,
+        parsed.gpx_track,
+        parsed.distance_override_km,
     )
     athlete = parsed.athlete
     if parsed.match_target_time and athlete.target_time_minutes is not None:
-        pace = flat_pace_for_target(profile, athlete.target_time_minutes)
+        pace = flat_pace_for_target(profile, athlete.target_time_minutes, distance_scale=scale)
         athlete = athlete.model_copy(update={"flat_pace_min_per_km": pace})
     plan = generate_plan(
         race_id=race_id,
@@ -108,6 +119,8 @@ def generate_plan_json(request: dict, race_catalog: dict, gpx_text: str | None) 
         profile=profile,
         athlete=athlete,
         packed_vest_items=parsed.packed_vest_items,
+        distance_scale=scale,
+        extra_warnings=notes,
     )
     return plan.model_dump(mode="json")
 
@@ -123,12 +136,14 @@ def recalibrate_json(request: dict, race_catalog: dict, gpx_text: str | None) ->
         parsed = RecalibrateRequest.model_validate(body)
     except ValidationError as exc:
         raise _bad_request(exc) from exc
-    race_id, race_name, distance_km, stations, profile = _profile_and_stations(
+    race_id, race_name, distance_km, stations, profile, notes, scale = _profile_and_stations(
         parsed.race_id,
         parsed.gpx_xml,
         gpx_text,
         parsed.aid_stations,
         catalog,
+        parsed.gpx_track,
+        parsed.distance_override_km,
     )
     updated = recalibrate(
         race_id=race_id,
@@ -142,6 +157,8 @@ def recalibrate_json(request: dict, race_catalog: dict, gpx_text: str | None) ->
         elapsed_min=parsed.elapsed_min,
         gi_rescue=parsed.gi_rescue,
         packed_vest_items=parsed.packed_vest_items,
+        distance_scale=scale,
+        extra_warnings=notes,
     )
     return updated.model_dump(mode="json")
 
@@ -161,11 +178,28 @@ def preview_zones_json(request: dict, race_catalog: dict, gpx_text: str | None) 
         parsed = GeneratePlanRequest.model_validate(body)
     except ValidationError as exc:
         raise _bad_request(exc) from exc
-    _race_id, _race_name, _distance_km, _stations, profile = _profile_and_stations(
+    _race_id, _race_name, _distance_km, _stations, profile, _notes, scale = _profile_and_stations(
         parsed.race_id,
         parsed.gpx_xml,
         gpx_text,
         parsed.aid_stations,
         catalog,
+        parsed.gpx_track,
+        parsed.distance_override_km,
     )
-    return preview_course_zones(slice_segments(prepare_course(profile)), parsed.athlete)
+    return preview_course_zones(
+        slice_segments(prepare_course(profile, distance_scale=scale)),
+        parsed.athlete,
+    )
+
+
+def inspect_gpx_json(request: dict, race_catalog: dict, gpx_text: str | None) -> dict:
+    """Sanity-check an uploaded GPX. The catalog argument is unused."""
+
+    body = _require_dict(request, "request")
+    _require_dict(race_catalog, "race_catalog")
+    if gpx_text is not None and not isinstance(gpx_text, str):
+        raise ValueError("gpx_text must be a string or null")
+    document = gpx_text if gpx_text else str(body.get("gpx_xml") or "")
+    track = body.get("gpx_track") if body.get("gpx_track") not in {None, ""} else "longest"
+    return inspect_upload(document, track=str(track))

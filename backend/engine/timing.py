@@ -41,7 +41,7 @@ _PACE_MIN = 3.51
 _PACE_MAX = 19.9
 
 
-def flat_pace_for_target(profile: list[TrackPoint], target_min: float) -> float:
+def flat_pace_for_target(profile: list[TrackPoint], target_min: float, distance_scale: float = 1.0) -> float:
     """Flat pace that makes the segment clock land on `target_min`.
 
     Duration is linear in flat pace, apart from the 0.01 minute slice floor.
@@ -51,7 +51,7 @@ def flat_pace_for_target(profile: list[TrackPoint], target_min: float) -> float:
     """
 
     probe = AthleteInput(flat_pace_min_per_km=_PROBE_PACE)
-    segments = build_timed_segments(slice_segments(prepare_course(profile)), probe)
+    segments = build_timed_segments(slice_segments(prepare_course(profile, distance_scale=distance_scale)), probe)
     duration = segments[-1].end_minute if segments else 0.0
     if duration <= 0:
         return _PROBE_PACE

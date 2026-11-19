@@ -178,8 +178,10 @@ function previewRequest() {
     ...zoneFields(state.zoneProfile),
   };
   if (state.source === "gpx") {
-    if (!String(state.gpxXml || "").trim()) return null;
-    return { athlete, gpx_xml: state.gpxXml };
+    if (!state.gpxReady || !String(state.gpxXml || "").trim()) return null;
+    const body = { athlete, gpx_xml: state.gpxXml, gpx_track: state.gpxTrack || "longest" };
+    if (state.distanceOverrideKm > 0) body.distance_override_km = state.distanceOverrideKm;
+    return body;
   }
   if (!state.raceId) return null;
   return { athlete, race_id: state.raceId };

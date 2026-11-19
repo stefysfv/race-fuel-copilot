@@ -49,7 +49,7 @@ async function precacheShell() {
 }
 
 function isRuntime(url) {
-  return RUNTIME_FILES.includes(url.pathname);
+  return RUNTIME_FILES.some((entry) => entry.split("?")[0] === url.pathname);
 }
 
 self.addEventListener("install", (event) => {

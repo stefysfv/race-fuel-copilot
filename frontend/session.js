@@ -22,6 +22,10 @@ export async function persist() {
       raceId: state.raceId,
       gpxXml: state.gpxXml,
       gpxName: state.gpxName,
+      gpxTrack: state.gpxTrack,
+      distanceOverrideKm: state.distanceOverrideKm,
+      waypointAids: state.waypointAids,
+      gpxReport: state.gpxReport,
       carbs: state.carbs,
       weight: ui.weight.value,
       temperature: ui.temperature.value,
@@ -54,6 +58,11 @@ export function restore(session) {
   state.raceId = session.raceId || state.raceId;
   state.gpxXml = session.gpxXml || "";
   state.gpxName = session.gpxName || "";
+  state.gpxTrack = session.gpxTrack || "longest";
+  state.distanceOverrideKm = session.distanceOverrideKm ?? null;
+  state.waypointAids = Array.isArray(session.waypointAids) ? session.waypointAids : [];
+  state.gpxReport = session.gpxReport || null;
+  state.gpxReady = Boolean(session.gpxXml && session.gpxReport);
   state.carbs = session.carbs || 60;
   state.targetEdited = Boolean(session.targetEdited);
   state.aidStations = session.aidStations || [];

@@ -21,6 +21,7 @@ import { onRaceModeClick, armGpsWatch, paintAutoGps, onUpdateGpsClick, triggerRe
 import { showSetupPane, toggleSetup, showTab } from "./navigation.js";
 import { buildPlan } from "./build_plan.js";
 import { setupFeedback, paintFeedback } from "./feedback.js";
+import { setupGpxUpload } from "./gpx_upload.js";
 import { setupInstallBanner } from "./install_prompt.js";
 
 bindLiveAlerts(logIntake, paintRaceControls);
@@ -52,10 +53,6 @@ function wireCriticalControls() {
 function bind() {
   listen("#setup-form", "submit", (event) => buildPlan(event));
   listen("#source-race", "click", () => setSource("race"));
-  listen("#source-gpx", "click", () => {
-    setSource("gpx");
-    ui.gpxFile.click();
-  });
   ui.raceSelect?.addEventListener("change", () => {
     setSource("race");
     state.raceId = ui.raceSelect.value;
@@ -67,17 +64,6 @@ function bind() {
     state.editStations = !(state.source === "gpx" || state.editStations);
     if (state.source === "gpx") state.editStations = false;
     paintAidDrawer();
-  });
-  ui.gpxFile?.addEventListener("change", async () => {
-    const file = ui.gpxFile.files?.[0];
-    if (!file) {
-      return;
-    }
-    state.gpxXml = await file.text();
-    state.gpxName = file.name;
-    ui.gpxName.textContent = `Loaded ${file.name}`;
-    setSource("gpx");
-    scheduleZonePreview();
   });
   for (const input of [ui.hours, ui.minutes]) {
     input?.addEventListener("input", () => {
@@ -257,6 +243,7 @@ async function init() {
       console.error(error);
       setStatus(error.message);
     }
+    setupGpxUpload();
     renderLocker();
     renderPacking();
     if (state.packedPlan) {
