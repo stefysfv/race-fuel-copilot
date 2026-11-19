@@ -2,7 +2,8 @@
   "name": "race-fuel-copilot",
   "private": true,
   "scripts": {
-    "test:offline": "playwright test tests/offline_race.spec.mjs"
+    "test:offline": "playwright test tests/offline_race.spec.mjs",
+    "test:e2e": "playwright test tests/e2e"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1"

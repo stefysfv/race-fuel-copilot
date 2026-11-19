@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/vendor/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=18">
+  <link rel="stylesheet" href="/style.css?v=19">
   <style>
     html, body { height: 100dvh; width: 100vw; margin: 0; overflow: hidden; }
   </style>
@@ -24,7 +24,7 @@
 <body data-tab="setup">
   <script>
     (function () {
-      var SHELL = "v18";
+      var SHELL = "v19";
       var guard = "fuel_sw_boot";
       try {
         if (sessionStorage.getItem(guard) === SHELL) return;
@@ -36,7 +36,7 @@
         var stale = regs.filter(function (reg) {
           var worker = reg.active || reg.waiting || reg.installing;
           var script = worker && worker.scriptURL ? worker.scriptURL : "";
-          return script.indexOf("v=18") === -1;
+          return script.indexOf("v=19") === -1;
         });
         if (!stale.length) {
           try { sessionStorage.setItem(guard, SHELL); } catch (error) {}
@@ -72,7 +72,7 @@
         </div>
       </div>
       <p id="app-status" class="status" role="status"></p>
-      <p id="offline-prep" class="offline-prep" role="status"></p>
+      <p id="offline-prep" class="offline-prep" role="status" data-testid="offline-status"></p>
     </header>
     <p id="toast" class="toast hidden" role="status"></p>
 
@@ -92,11 +92,11 @@
         <div class="setup-panel liquid-glass">
         <div class="course-row">
           <button id="source-race" class="sr-only" type="button" role="radio" aria-checked="true">Saved race</button>
-          <select id="race-select" aria-label="Race"></select>
+          <select id="race-select" aria-label="Race" data-testid="race-select"></select>
           <button id="source-gpx" class="icon-btn liquid-pill" type="button" aria-label="Upload GPX">GPX</button>
         </div>
-        <input id="gpx-file" class="file-input" type="file" accept=".gpx,application/gpx+xml,.xml" aria-label="GPX file">
-        <p id="gpx-name" class="micro"></p>
+        <input id="gpx-file" class="file-input" type="file" accept=".gpx,application/gpx+xml,.xml" aria-label="GPX file" data-testid="gpx-file">
+        <p id="gpx-name" class="micro" data-testid="gpx-name"></p>
 
         <div class="setup-grid">
           <label class="field">
@@ -212,13 +212,13 @@
           <button id="gut-reset" class="text-btn" type="button">Reset</button>
         </p>
 
-        <button id="build-plan" class="thumb-btn primary liquid-pill" type="submit" onclick="window.handleBuildPlan && window.handleBuildPlan(event)">Build Plan</button>
+        <button id="build-plan" class="thumb-btn primary liquid-pill" type="submit" data-testid="build-plan" onclick="window.handleBuildPlan && window.handleBuildPlan(event)">Build Plan</button>
       </form>
       </div>
 
       <div id="packing-pane" class="packing-plan-view hidden">
         <div class="pack-head race-header-row">
-          <section id="plan-summary" class="micro hidden" aria-live="polite"></section>
+          <section id="plan-summary" class="micro hidden" aria-live="polite" data-testid="summary"></section>
           <button id="export-card" class="text-btn liquid-pill" type="button" disabled>Export Card</button>
         </div>
         <div id="leg-switch" class="leg-stepper" role="group" aria-label="Aid legs">
@@ -228,7 +228,7 @@
         </div>
         <ul id="warnings"></ul>
         <p id="vest-usage" class="vest-usage hidden"></p>
-        <div id="packing-list"></div>
+        <div id="packing-list" data-testid="packing-list"></div>
       </div>
       <div id="ready-pane" class="configure-view hidden">
         <h2 class="ready-title">Offline readiness</h2>
@@ -257,7 +257,7 @@
             <span><i class="swatch red"></i>Red: Sip Only</span>
           </div>
           <div id="chart-wrap">
-            <canvas id="elevation-chart" aria-label="Elevation profile with fuel stops"></canvas>
+            <canvas id="elevation-chart" aria-label="Elevation profile with fuel stops" data-testid="elevation-chart"></canvas>
           </div>
         </div>
       </div>
@@ -298,12 +298,12 @@
           </div>
           <p id="caffeine-readout" class="hero-caffeine"></p>
         </div>
-        <p id="live-message" class="micro"></p>
+        <p id="live-message" class="micro" data-testid="live-message"></p>
       </div>
       <div class="action-bar">
         <button id="log-intake" class="thumb-btn primary liquid-pill" type="button" disabled>Log Intake</button>
         <div class="action-row">
-          <button id="update-gps" class="liquid-pill action-pill" type="button" disabled>Sync GPS</button>
+          <button id="update-gps" class="liquid-pill action-pill" type="button" data-testid="sync-gps" disabled>Sync GPS</button>
           <button id="gi-rescue" class="liquid-pill action-pill" type="button" disabled>GI Rescue</button>
         </div>
         <div class="finish-row">
@@ -377,6 +377,6 @@
 
   <script src="/vendor/leaflet.js"></script>
   <script src="/vendor/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=18"></script>
+  <script type="module" src="/app.js?v=19"></script>
 </body>
 </html>

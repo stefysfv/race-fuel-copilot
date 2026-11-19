@@ -102,12 +102,17 @@ After **Ready for offline**, the phone can do all of this with no signal:
 
 OpenTopoMap tiles and the Inter font still need a network the first time they are requested. A shell update does not clear the Pyodide cache.
 
-`tests/offline_race.spec.mjs` loads the app, waits for that ready state, goes offline, builds a plan, and recalibrates. With uvicorn already on port 8000:
+`tests/offline_race.spec.mjs` loads the app, waits for that ready state, goes offline, builds a plan, and recalibrates. `tests/e2e/smoke.spec.mjs` is the safety net for UI refactors. It selects the bundled 12 km race, builds a plan, and checks the summary, the elevation chart, the fuel-stop markers on that chart, and a packing card. It then builds again with the network off, recalibrates from a mocked GPS fix, and uploads `frontend/data/gpx/salomon-vitosha-12.gpx` with Playwright's file input. One screenshot of each main view (setup, packing, map, live) is written to `tests/e2e/screenshots/` for a side-by-side look.
+
+These Playwright files are dev-only. The race-day site is the `frontend/` directory. `SHELL_FILES` in `frontend/runtime_manifest.js` does not list `tests/`, and the service worker never precaches them.
+
+With uvicorn already on port 8000:
 
 ```powershell
 npm install
 npx playwright install chromium
 npx playwright test tests/offline_race.spec.mjs
+npx playwright test tests/e2e
 ```
 
 `tests/test_fuel_engine.py` covers the GAP target solve, zone boundaries, red-zone micro-dosing, hot-versus-cool sweat at 70 kg, savoury rotation and vest reduction at food stations, GI Rescue, and custom aid-station snapping.
@@ -132,12 +137,20 @@ npx playwright test tests/offline_race.spec.mjs
 - **Race files** — `frontend/data/races.json` and `frontend/data/gpx/`. The dev server reads those same files from `backend/adapters/catalog.py`. GPX text is parsed in `backend/gpx_parser.py`. The engine package does not read files.
 - **Browser entry** — `generate_plan_json` and `recalibrate_json` in `backend/engine/entry.py`. The page calls them through `frontend/engine_client.js`.
 
-`frontend/app.js` is the page controller.
+`frontend/app.js` boots the page and wires the controls. The rest of the UI is native ES modules beside it.
 
-- **Build and storage** — `readAthlete`, `buildPlan`, `wireCriticalControls`, `resetOutdatedStorage` (around 218–467).
-- **Packing screen** — `renderPacking`, `packCard`, `deliveryRateLabel` (around 516–643).
-- **Map and tabs** — `drawMap`, `showTab` (around 814–860).
-- **Race mode and GPS** — `onRaceModeClick`, `armGpsWatch`, `onRaceGps`, `sendFix` (around 941–1052 and 1574–1631).
-- **Voice and alerts** — `coachSpeech`, `announce`, `pushNote` (around 1179–1343).
-- **Vest and stations** — `setFuelPreference`, `renderVestRows`, `toggleFood` (around 2067–2494).
-- **Startup** — `bind`, `boot` (around 2689–2911).
+- **State** — `state`, `ui`, presets, and default targets in `frontend/state.js`.
+- **Helpers** — `frontend/ui_helpers.js`.
+- **Offline checklist** — `frontend/offline_status.js`.
+- **Saved session** — `persist` and `restore` in `frontend/session.js`.
+- **Vest, stations, and gut** — `frontend/food_menu.js`.
+- **Packing cards** — `frontend/packing.js`.
+- **Place on the plan** — `frontend/plan_cursor.js`.
+- **Live tab** — `frontend/live.js`.
+- **Map** — `frontend/map_screen.js`. Leaflet stays in `frontend/map_controller.js`. The elevation chart is `frontend/elevation_chart.js`.
+- **Plan request** — `frontend/plan_request.js`.
+- **Build Plan** — `frontend/build_plan.js`.
+- **Voice and alerts** — `frontend/alerts.js`.
+- **GPS and the desk simulator** — `frontend/gps.js`.
+- **Tabs and setup panes** — `frontend/navigation.js`.
+- **Engine transport** — `frontend/engine_client.js`. Offline snap math is `frontend/offline_engine.js`. Saved sessions sit in `frontend/offline_db.js`.

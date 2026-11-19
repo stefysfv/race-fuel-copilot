@@ -2,7 +2,7 @@
 
 export const RUNTIME_CACHE = "race-fuel-pyodide-314.0.8";
 
-export const SHELL_CACHE = "race-fuel-v18";
+export const SHELL_CACHE = "race-fuel-v19";
 
 export const RUNTIME_FILES = [
   "/vendor/pyodide/pyodide.mjs",
@@ -36,6 +36,21 @@ export const SHELL_FILES = [
   "/index.html",
   "/style.css",
   "/app.js",
+  "/build_plan.js",
+  "/navigation.js",
+  "/gps.js",
+  "/alerts.js",
+  "/plan_request.js",
+  "/elevation_chart.js",
+  "/map_screen.js",
+  "/live.js",
+  "/plan_cursor.js",
+  "/packing.js",
+  "/food_menu.js",
+  "/session.js",
+  "/offline_status.js",
+  "/ui_helpers.js",
+  "/state.js",
   "/engine_client.js",
   "/runtime_manifest.js",
   "/map_controller.js",

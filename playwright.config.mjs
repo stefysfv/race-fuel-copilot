@@ -2,8 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "tests",
-  testMatch: "offline_race.spec.mjs",
+  testMatch: ["offline_race.spec.mjs", "e2e/**/*.spec.mjs"],
   timeout: 180000,
+  workers: 1,
   use: {
     baseURL: "http://127.0.0.1:8000",
   },
