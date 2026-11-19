@@ -1,5 +1,6 @@
 /** Setup panes and the setup / map / live tabs. */
 
+import { paintFeedback } from "./feedback.js";
 import { renderLive } from "./live.js";
 import { drawMap, mapView } from "./map_screen.js";
 import { paintReadiness } from "./offline_status.js";
@@ -40,10 +41,11 @@ export function toggleSetup() {
 }
 
 export function showTab(name) {
-  const tabs = { setup: "tab-setup", map: "tab-map", live: "tab-live" };
+  const tabs = { setup: "tab-setup", map: "tab-map", live: "tab-live", feedback: "tab-feedback" };
   for (const [key, id] of Object.entries(tabs)) {
     document.querySelector(`#${id}`).classList.toggle("hidden", key !== name);
     const tabButton = document.querySelector(`#nav-${key}`);
+    if (!tabButton) continue;
     if (key === name) {
       tabButton.setAttribute("aria-current", "page");
     } else {
@@ -57,5 +59,8 @@ export function showTab(name) {
   }
   if (name === "live") {
     renderLive();
+  }
+  if (name === "feedback") {
+    paintFeedback();
   }
 }

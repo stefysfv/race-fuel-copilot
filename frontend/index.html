@@ -73,6 +73,12 @@
       </div>
       <p id="app-status" class="status" role="status"></p>
       <p id="offline-prep" class="offline-prep" role="status" data-testid="offline-status"></p>
+      <p id="offline-stale" class="stale-banner hidden" role="status" data-testid="offline-stale"></p>
+      <section id="install-banner" class="install-card hidden" data-testid="install-banner">
+        <p class="install-title">Install for race day</p>
+        <p id="install-steps" data-testid="install-steps"></p>
+        <button id="install-dismiss" class="text-btn" type="button" data-testid="install-dismiss">Not now</button>
+      </section>
     </header>
     <p id="toast" class="toast hidden" role="status"></p>
 
@@ -246,6 +252,7 @@
         <div class="pack-head race-header-row">
           <section id="plan-summary" class="micro hidden" aria-live="polite" data-testid="summary"></section>
           <button id="export-card" class="text-btn liquid-pill" type="button" disabled>Export Card</button>
+          <button id="open-feedback" class="text-btn liquid-pill" type="button" data-testid="open-feedback">How did it go?</button>
         </div>
         <section id="fuel-budget" class="fuel-budget liquid-glass hidden" aria-label="Fuel budget"></section>
         <div id="leg-switch" class="leg-stepper" role="group" aria-label="Aid legs">
@@ -264,8 +271,10 @@
         <ul class="ready-list">
           <li id="ready-engine">Engine downloaded: checking</li>
           <li id="ready-races">Races cached: checking</li>
-          <li id="ready-storage">Storage persisted: checking</li>
-          <li id="ready-home">Home Screen: add Fuel Co-Pilot to your Home Screen. iOS can delete data for a site it treats as unused. This line is a hint.</li>
+          <li id="ready-installed" data-testid="ready-installed">Installed to Home Screen: checking</li>
+          <li id="ready-storage" data-testid="ready-storage">Storage protected: checking</li>
+          <li id="ready-evict" class="ready-evict hidden" data-testid="ready-evict"></li>
+          <li id="ready-verified" data-testid="ready-verified">Last verified offline: not yet</li>
         </ul>
       </div>
     </section>
@@ -341,12 +350,50 @@
         </div>
       </div>
     </section>
+
+    <section id="tab-feedback" class="setup-view hidden" aria-label="Post-race feedback">
+      <h2 class="ready-title">How did it go?</h2>
+      <p id="feedback-preview" class="feedback-preview" data-testid="feedback-preview"></p>
+      <form id="feedback-form" class="feedback-form">
+        <label class="field">
+          <span class="kicker">Race name</span>
+          <input id="feedback-race" type="text" maxlength="120" data-testid="feedback-race" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="kicker">Finish versus predicted time</span>
+          <input id="feedback-finish" type="text" maxlength="160" data-testid="feedback-finish" placeholder="4:12 vs 4:30 predicted" autocomplete="off">
+        </label>
+        <fieldset class="feedback-gi">
+          <legend class="kicker">GI trouble</legend>
+          <label><input type="radio" name="feedback-gi" value="none" checked data-testid="feedback-gi-none"> None</label>
+          <label><input type="radio" name="feedback-gi" value="mild" data-testid="feedback-gi-mild"> Mild</label>
+          <label><input type="radio" name="feedback-gi" value="severe" data-testid="feedback-gi-severe"> Severe</label>
+        </fieldset>
+        <label class="field">
+          <span class="kicker">What you changed</span>
+          <textarea id="feedback-changed" rows="3" maxlength="600" data-testid="feedback-changed"></textarea>
+        </label>
+        <label class="field">
+          <span class="kicker">Notes</span>
+          <textarea id="feedback-notes" rows="4" maxlength="2000" data-testid="feedback-notes"></textarea>
+        </label>
+        <div class="feedback-actions">
+          <button id="feedback-save" class="thumb-btn primary liquid-pill" type="button" data-testid="feedback-save">Save on this phone</button>
+          <button id="feedback-new" class="text-btn liquid-pill" type="button">New note</button>
+          <a id="send-feedback" class="thumb-btn liquid-pill" data-testid="send-feedback" href="mailto:">Send feedback</a>
+        </div>
+        <p id="feedback-status" class="micro" role="status"></p>
+      </form>
+      <h3 class="feedback-saved-title">Saved on this phone</h3>
+      <ul id="feedback-saved" class="feedback-saved"></ul>
+    </section>
     </main>
 
     <nav class="tab-bar bottom-nav liquid-glass" aria-label="Primary">
     <button id="nav-setup" type="button" aria-current="page">Setup</button>
     <button id="nav-map" type="button">Map</button>
     <button id="nav-live" type="button">Live</button>
+    <button id="nav-feedback" type="button" data-testid="nav-feedback">Feedback</button>
   </nav>
   </div>
 

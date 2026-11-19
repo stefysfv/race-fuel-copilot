@@ -8,6 +8,12 @@ There is no hosted demo in this repository. Race day is a static site. FastAPI i
 
 Carb, fluid, and sodium figures are estimates and defaults, so test them in training and adjust. This is not medical advice.
 
+## Privacy
+
+Plans and recalibrations are computed on the phone. The GPX, the athlete profile, and the fueling plan stay in the browser. Nothing is uploaded. There are no analytics and no accounts.
+
+Notes from "How did it go?" are saved in `localStorage` on that phone. They leave the device only if you press **Send feedback**. That action opens a mail draft or a feedback form you chose to fill in. The draft contains the race name, finish versus predicted time, GI trouble, what you changed, and the note. It does not contain a GPS track.
+
 ## The physiological problem
 
 A fixed “one gel every 30 minutes” timer ignores four things that decide whether food stays down:
@@ -142,6 +148,8 @@ npx playwright test tests/e2e
 - **State** — `state`, `ui`, presets, and default targets in `frontend/state.js`.
 - **Helpers** — `frontend/ui_helpers.js`.
 - **Offline checklist** — `frontend/offline_status.js`.
+- **Install card** — `frontend/install_prompt.js`.
+- **Post-race feedback** — `frontend/feedback.js`. `FEEDBACK_EMAIL` and `FEEDBACK_FORM_URL` at the top of that file are the only places to point Send feedback.
 - **Saved session** — `persist` and `restore` in `frontend/session.js`.
 - **Vest, stations, and gut** — `frontend/food_menu.js`.
 - **Packing cards** — `frontend/packing.js`.

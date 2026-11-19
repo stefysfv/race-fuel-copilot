@@ -154,6 +154,8 @@ async function ensureServiceWorker() {
   });
 }
 
+let cacheRetry = false;
+
 async function fetchInto(cache, url) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
@@ -162,8 +164,10 @@ async function fetchInto(cache, url) {
         throw new Error(String(response.status));
       }
       await cache.put(url, response.clone());
+      if (attempt > 0) cacheRetry = true;
       return true;
     } catch (error) {
+      if (attempt < 2) cacheRetry = true;
       await sleep(250 * (attempt + 1));
     }
   }
@@ -344,6 +348,14 @@ async function storageReport() {
     persisted,
     quota: estimate?.quota ?? null,
     usage: estimate?.usage ?? null,
+  };
+}
+
+export function offlineSetupFacts() {
+  return {
+    workerStart: timings.workerStart,
+    workerReadyMs: timings.workerReadyMs,
+    cacheRetry,
   };
 }
 

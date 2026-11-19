@@ -282,8 +282,91 @@ input, select {
 }
 .ready-list li:last-child {
   border-bottom: 0;
+}
+.ready-evict {
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 650;
+}
+.install-card,
+.stale-banner {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff7ed;
+  border: 1px solid rgba(255, 85, 0, 0.35);
+}
+.install-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+}
+#install-steps,
+.stale-banner {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.stale-banner {
+  background: #fff1f2;
+  border-color: rgba(190, 18, 60, 0.35);
+}
+#install-dismiss {
+  margin-top: 8px;
+}
+.feedback-preview {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.feedback-form textarea,
+.feedback-form input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+.feedback-gi {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+.feedback-gi legend {
+  width: 100%;
+  margin-bottom: 4px;
+}
+.feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.feedback-actions a {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.feedback-saved {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.feedback-saved-title {
+  margin: 16px 0 8px;
+  font-size: 16px;
+}
+.feedback-entry {
+  width: 100%;
+  text-align: left;
+  margin: 0 0 8px;
 }
 .diag-panel {
   position: fixed;
@@ -377,6 +460,13 @@ body:has(#diag-panel:not([hidden])) .map-view {
   justify-content: flex-start;
   align-items: stretch;
   min-height: 0;
+}
+body[data-tab="feedback"] #tab-feedback {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  gap: 8px;
+  padding: 0 16px 12px;
 }
 #configure-pane {
   display: flex;
@@ -1365,7 +1455,7 @@ body[data-tab="setup"] #tab-setup { overflow: hidden; }
   bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 9999;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
   height: 64px;
   margin: 0;
@@ -1375,7 +1465,7 @@ body[data-tab="setup"] #tab-setup { overflow: hidden; }
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   box-shadow: none;
 }
@@ -1458,7 +1548,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .leaflet-container { background: #e7eef2; font-family: inherit; }
 
 @media print {
-  .tab-bar, header, #configure-pane, #packing-pane, #ready-pane, #diag-panel, .pane-switch, #close-crew, .desk-sim { display: none !important; }
+  .tab-bar, header, #configure-pane, #packing-pane, #ready-pane, #tab-feedback, #diag-panel, #install-banner, #offline-stale, .pane-switch, #close-crew, .desk-sim { display: none !important; }
   .modal { position: static; display: block !important; background: white; padding: 0; }
   .modal-sheet { box-shadow: none; max-height: none; }
 }

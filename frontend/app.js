@@ -20,6 +20,8 @@ import { raceCoachTick, preloadEnglishVoices, onAlertsClick, onTestAlert, reques
 import { onRaceModeClick, armGpsWatch, paintAutoGps, onUpdateGpsClick, triggerRescue, paintDesk } from "./gps.js";
 import { showSetupPane, toggleSetup, showTab } from "./navigation.js";
 import { buildPlan } from "./build_plan.js";
+import { setupFeedback, paintFeedback } from "./feedback.js";
+import { setupInstallBanner } from "./install_prompt.js";
 
 bindLiveAlerts(logIntake, paintRaceControls);
 onClockTick(() => {
@@ -43,6 +45,8 @@ function wireCriticalControls() {
   document.querySelector("#nav-setup")?.addEventListener("click", () => showTab("setup"));
   document.querySelector("#nav-map")?.addEventListener("click", () => showTab("map"));
   document.querySelector("#nav-live")?.addEventListener("click", () => showTab("live"));
+  document.querySelector("#nav-feedback")?.addEventListener("click", () => showTab("feedback"));
+  document.querySelector("#open-feedback")?.addEventListener("click", () => showTab("feedback"));
 }
 
 function bind() {
@@ -211,9 +215,11 @@ function bind() {
 
 async function init() {
   try {
+    resetOutdatedStorage();
+    setupInstallBanner();
+    setupFeedback();
     setupDiagnostics();
     watchReadiness();
-    resetOutdatedStorage();
     preloadEnglishVoices();
     loadStoredPreferences();
     loadZoneProfile();
@@ -246,6 +252,7 @@ async function init() {
       }
       applyTargetDefault();
       scheduleZonePreview();
+      paintFeedback();
     } catch (error) {
       console.error(error);
       setStatus(error.message);

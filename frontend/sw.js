@@ -10,6 +10,7 @@ import {
 
 /** Paths that failed the last install. A later cache check is the live status. */
 let shellMissing = [];
+let shellRetry = false;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,6 +28,7 @@ async function putWithRetry(cache, url) {
       return "";
     } catch (error) {
       lastError = error?.message || String(error);
+      if (attempt < 2) shellRetry = true;
       await sleep(250 * (attempt + 1));
     }
   }
@@ -73,6 +75,7 @@ self.addEventListener("message", (event) => {
     type: "offline-status",
     ready: shellMissing.length === 0,
     missing: shellMissing.slice(),
+    retry: shellRetry,
   };
   const port = event.ports && event.ports[0];
   if (port) {
