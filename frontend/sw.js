@@ -1,43 +1,57 @@
 /** Two caches. A new app shell must not evict the Pyodide runtime. */
 
-import { RUNTIME_CACHE, RUNTIME_FILES } from "./runtime_manifest.js";
+import {
+  isProductionAsset,
+  RUNTIME_CACHE,
+  RUNTIME_FILES,
+  SHELL_CACHE,
+  SHELL_FILES,
+} from "./runtime_manifest.js";
 
-const SHELL_CACHE = "race-fuel-v17";
-const SHELL = [
-  "/",
-  "/index.html",
-  "/style.css",
-  "/app.js",
-  "/engine_client.js",
-  "/runtime_manifest.js",
-  "/map_controller.js",
-  "/offline_db.js",
-  "/offline_engine.js",
-  "/manifest.json",
-  "/data/races.json",
-  "/data/gpx/salomon-vitosha-12.gpx",
-  "/data/gpx/salomon-vitosha-27.gpx",
-  "/data/gpx/salomon-vitosha-40.gpx",
-  "/data/gpx/vitosha-100.gpx",
-  "/vendor/leaflet.css",
-  "/vendor/leaflet.js",
-  "/vendor/chart.umd.min.js",
-  "/vendor/images/marker-icon.png",
-  "/vendor/images/marker-icon-2x.png",
-  "/vendor/images/marker-shadow.png",
-  "/vendor/images/layers.png",
-  "/vendor/images/layers-2x.png",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/apple-touch-icon.png",
-];
+/** Paths that failed the last install. A later cache check is the live status. */
+let shellMissing = [];
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function putWithRetry(cache, url) {
+  let lastError = "failed";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(String(response.status));
+      }
+      await cache.put(url, response);
+      return "";
+    } catch (error) {
+      lastError = error?.message || String(error);
+      await sleep(250 * (attempt + 1));
+    }
+  }
+  return lastError;
+}
+
+async function precacheShell() {
+  const cache = await caches.open(SHELL_CACHE);
+  const urls = SHELL_FILES.filter(isProductionAsset);
+  const missing = [];
+  for (const url of urls) {
+    const hit = await cache.match(url, { ignoreVary: true });
+    if (hit) continue;
+    const error = await putWithRetry(cache, url);
+    if (error) missing.push(url);
+  }
+  shellMissing = missing;
+}
 
 function isRuntime(url) {
   return RUNTIME_FILES.includes(url.pathname);
 }
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL)));
+  event.waitUntil(precacheShell());
   self.skipWaiting();
 });
 
@@ -53,6 +67,21 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "offline-status") return;
+  const reply = {
+    type: "offline-status",
+    ready: shellMissing.length === 0,
+    missing: shellMissing.slice(),
+  };
+  const port = event.ports && event.ports[0];
+  if (port) {
+    port.postMessage(reply);
+    return;
+  }
+  event.source?.postMessage(reply);
+});
+
 async function networkFirst(request) {
   const cache = await caches.open(SHELL_CACHE);
   try {
@@ -62,7 +91,8 @@ async function networkFirst(request) {
     }
     return response;
   } catch (error) {
-    const cached = await cache.match(request) || await cache.match(new URL(request.url).pathname);
+    const cached = await cache.match(request, { ignoreVary: true })
+      || await cache.match(new URL(request.url).pathname, { ignoreVary: true });
     if (cached) return cached;
     throw error;
   }
@@ -70,7 +100,7 @@ async function networkFirst(request) {
 
 async function cacheFirst(request) {
   const cache = await caches.open(RUNTIME_CACHE);
-  const cached = await cache.match(request);
+  const cached = await cache.match(request, { ignoreVary: true });
   if (cached) return cached;
   const response = await fetch(request);
   if (response.ok) {

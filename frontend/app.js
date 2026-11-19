@@ -6,10 +6,18 @@ not an engine input: the flat GAP pace is solved with two plan requests so
 the predicted clock matches the hours the runner typed.
 */
 
-import { generatePlan, listRaces, prepareOffline, recalibrate } from "./engine_client.js";
+import {
+  diagnosticsSnapshot,
+  engineIsReady,
+  generatePlan,
+  listRaces,
+  onEngineStatus,
+  recalibrate,
+  startEngineWhenIdle,
+} from "./engine_client.js";
 import { loadSession, saveSession } from "./offline_db.js";
 import { segmentAtMinute, snapToSegments } from "./offline_engine.js";
-import { createMapView, positionOnCourse } from "./map_controller.js?v=17";
+import { createMapView, positionOnCourse } from "./map_controller.js?v=18";
 
 const STORAGE_SCHEMA_VERSION = "v11";
 
@@ -135,8 +143,10 @@ const ui = {
   aidDrawer: document.querySelector("#aid-drawer"),
   configurePane: document.querySelector("#configure-pane"),
   packingPane: document.querySelector("#packing-pane"),
+  readyPane: document.querySelector("#ready-pane"),
   paneConfigure: document.querySelector("#pane-configure"),
   panePacking: document.querySelector("#pane-packing"),
+  paneReady: document.querySelector("#pane-ready"),
   legSwitch: document.querySelector("#leg-switch"),
   autoGps: document.querySelector("#auto-gps"),
   autoGpsText: document.querySelector("#auto-gps-text"),
@@ -363,11 +373,21 @@ async function buildPlan(event) {
   buildingPlan = true;
   state.autoGps = true;
   const buildBtn = document.querySelector("#build-plan");
-  if (buildBtn) buildBtn.disabled = true;
+  const starting = !engineIsReady();
+  if (buildBtn) {
+    buildBtn.disabled = true;
+    if (starting) buildBtn.textContent = "Starting engine...";
+  }
+  let stopWatch = () => {};
+  if (starting) {
+    stopWatch = onEngineStatus(() => {
+      if (engineIsReady() && buildBtn) buildBtn.textContent = "Building the plan…";
+    });
+  }
   try {
     armGpsWatch();
     const targetMin = readTargetMin();
-    setStatus("Building the plan…");
+    setStatus(starting ? "Starting engine..." : "Building the plan…");
     const probe = await generatePlan(courseBody(readAthlete(8)));
     let pace = 8 * (targetMin / probe.predicted_duration_min);
     pace = Math.min(19.9, Math.max(3.51, pace));
@@ -395,9 +415,13 @@ async function buildPlan(event) {
     console.error(error);
     setStatus(error?.message || "Could not build the plan.", true);
   } finally {
+    stopWatch();
     buildingPlan = false;
     const buildBtn = document.querySelector("#build-plan");
-    if (buildBtn) buildBtn.disabled = false;
+    if (buildBtn) {
+      buildBtn.disabled = false;
+      buildBtn.textContent = "Build Plan";
+    }
   }
 }
 
@@ -413,6 +437,7 @@ function wireCriticalControls() {
   }
   document.querySelector("#pane-configure")?.addEventListener("click", () => showSetupPane("configure"));
   document.querySelector("#pane-packing")?.addEventListener("click", () => showSetupPane("packing"));
+  document.querySelector("#pane-ready")?.addEventListener("click", () => showSetupPane("ready"));
   document.querySelector("#nav-setup")?.addEventListener("click", () => showTab("setup"));
   document.querySelector("#nav-map")?.addEventListener("click", () => showTab("map"));
   document.querySelector("#nav-live")?.addEventListener("click", () => showTab("live"));
@@ -449,16 +474,144 @@ function setupSummaryLine() {
 }
 
 function showSetupPane(pane) {
-  const packing = pane === "packing";
-  state.setupPane = packing ? "packing" : "configure";
-  ui.configurePane.classList.toggle("hidden", packing);
-  ui.packingPane.classList.toggle("hidden", !packing);
-  ui.paneConfigure.setAttribute("aria-selected", packing ? "false" : "true");
-  ui.panePacking.setAttribute("aria-selected", packing ? "true" : "false");
-  if (!packing) {
+  const name = pane === "packing" || pane === "ready" ? pane : "configure";
+  state.setupPane = name;
+  ui.configurePane.classList.toggle("hidden", name !== "configure");
+  ui.packingPane.classList.toggle("hidden", name !== "packing");
+  ui.readyPane?.classList.toggle("hidden", name !== "ready");
+  ui.paneConfigure.setAttribute("aria-selected", name === "configure" ? "true" : "false");
+  ui.panePacking.setAttribute("aria-selected", name === "packing" ? "true" : "false");
+  ui.paneReady?.setAttribute("aria-selected", name === "ready" ? "true" : "false");
+  if (name === "configure") {
     ui.form?.classList.remove("hidden");
     if (ui.configurePane) ui.configurePane.scrollTop = 0;
   }
+  if (name === "ready") {
+    paintReadiness().catch((error) => console.error(error));
+  }
+}
+
+function cacheLine(group) {
+  if (!group) return "—";
+  if (!group.missing.length) return `${group.cached}/${group.total} cached`;
+  return `${group.cached}/${group.total} cached; missing ${group.missing.join(", ")}`;
+}
+
+function paintDiag(report) {
+  const panel = document.querySelector("#diag-panel");
+  if (!panel || panel.hidden) return;
+  const box = document.querySelector("#diag-json");
+  if (box) box.value = JSON.stringify(report, null, 2);
+  const list = document.querySelector("#diag-list");
+  if (!list) return;
+  const readyText = report.workerReadyMs == null
+    ? "not yet"
+    : `${report.workerReadyMs} ms (${report.workerStart || "unknown"})`;
+  const rows = [
+    ["Worker ready", readyText],
+    ["Last plan", report.lastPlanMs == null ? "—" : `${report.lastPlanMs} ms`],
+    ["Last recalibrate", report.lastRecalibrateMs == null ? "—" : `${report.lastRecalibrateMs} ms`],
+    ["Shell cache", cacheLine(report.caches.shell)],
+    ["Races cache", cacheLine(report.caches.races)],
+    ["Pyodide cache", cacheLine(report.caches.pyodide)],
+    ["Engine cache", cacheLine(report.caches.engine)],
+    ["Storage persisted", String(report.storage.persisted)],
+    ["Storage estimate", `${report.storage.usage ?? "?"} of ${report.storage.quota ?? "?"}`],
+    ["Offline ready", report.offlineReady ? "yes" : `no — ${report.missing.join(", ")}`],
+    ["User agent", report.userAgent],
+  ];
+  list.replaceChildren();
+  for (const [label, value] of rows) {
+    const item = document.createElement("div");
+    const name = document.createElement("dt");
+    name.textContent = label;
+    const detail = document.createElement("dd");
+    detail.textContent = value;
+    item.append(name, detail);
+    list.append(item);
+  }
+}
+
+async function paintReadiness() {
+  const report = await diagnosticsSnapshot();
+  const engineMissing = [...report.caches.pyodide.missing, ...report.caches.engine.missing];
+  const engineNode = document.querySelector("#ready-engine");
+  if (engineNode) {
+    engineNode.textContent = engineMissing.length
+      ? `Engine downloaded: no — ${engineMissing.join(", ")}`
+      : "Engine downloaded: yes";
+  }
+  const racesNode = document.querySelector("#ready-races");
+  if (racesNode) {
+    const missing = report.caches.races.missing;
+    racesNode.textContent = missing.length
+      ? `Races cached: no — ${missing.join(", ")}`
+      : "Races cached: yes";
+  }
+  const storageNode = document.querySelector("#ready-storage");
+  if (storageNode) {
+    storageNode.textContent = `Storage persisted: ${report.storage.persisted ? "yes" : "no"}`;
+  }
+  const homeNode = document.querySelector("#ready-home");
+  if (homeNode) {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    homeNode.textContent = standalone
+      ? "Home Screen: this copy is open from the Home Screen."
+      : "Home Screen: add Fuel Co-Pilot to your Home Screen. iOS can delete data for a site it treats as unused. This line is a hint.";
+  }
+  const line = document.querySelector("#offline-ready-line");
+  if (line) {
+    line.textContent = report.offlineReady
+      ? "offline ready: yes"
+      : `offline ready: no — ${report.missing.join(", ")}`;
+  }
+  paintDiag(report);
+}
+
+function copyDiagnostics() {
+  const box = document.querySelector("#diag-json");
+  const note = document.querySelector("#diag-copy-note");
+  const text = box?.value || "";
+  if (!text) {
+    if (note) note.textContent = "Nothing to copy yet.";
+    return;
+  }
+  const done = (message) => {
+    if (note) note.textContent = message;
+  };
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => done("Copied.")).catch(() => {
+      box.focus();
+      box.select();
+      done("Select the text and copy it.");
+    });
+    return;
+  }
+  box.focus();
+  box.select();
+  done("Select the text and copy it.");
+}
+
+function setupDiagnostics() {
+  const enabled = new URLSearchParams(location.search).get("diag") === "1";
+  const panel = document.querySelector("#diag-panel");
+  if (!panel) return;
+  panel.hidden = !enabled;
+  if (!enabled) return;
+  document.querySelector("#diag-copy")?.addEventListener("click", copyDiagnostics);
+}
+
+function watchReadiness() {
+  onEngineStatus(() => {
+    paintReadiness().catch((error) => console.error(error));
+  });
+  setInterval(() => {
+    const diag = document.querySelector("#diag-panel");
+    const diagOpen = Boolean(diag && !diag.hidden);
+    if (state.setupPane === "ready" || diagOpen) {
+      paintReadiness().catch((error) => console.error(error));
+    }
+  }, 3000);
 }
 
 function collapseSetup() {
@@ -2805,7 +2958,8 @@ function bind() {
 
 async function init() {
   try {
-    prepareOffline().catch((error) => console.error(error));
+    setupDiagnostics();
+    watchReadiness();
     resetOutdatedStorage();
     preloadEnglishVoices();
     loadStoredPreferences();
@@ -2850,7 +3004,7 @@ async function init() {
         reloaded = true;
         window.location.reload();
       });
-      navigator.serviceWorker.register("/sw.js?v=17", { type: "module" }).then((registration) => {
+      navigator.serviceWorker.register("/sw.js?v=18", { type: "module" }).then((registration) => {
         registration.update().catch(() => {});
       }).catch(() => {});
     }
@@ -2866,6 +3020,7 @@ function boot() {
     console.error(error);
   }
   init();
+  startEngineWhenIdle();
 }
 
 if (document.readyState === "loading") {

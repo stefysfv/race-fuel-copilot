@@ -235,15 +235,98 @@ input, select {
 
 .pane-switch {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
   margin-bottom: 12px;
 }
 .pane-switch button {
-  height: 36px;
+  height: auto;
+  min-height: 36px;
+  padding: 6px 8px;
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+}
+.ready-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 800;
+}
+.ready-note {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 800;
+}
+#offline-ready-line {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.ready-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ready-list li {
+  margin: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ready-list li:last-child {
+  border-bottom: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+.diag-panel {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 30;
+  max-height: min(220px, 32vh);
+  overflow: auto;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+}
+body:has(#diag-panel:not([hidden])) .configure-view,
+body:has(#diag-panel:not([hidden])) .packing-plan-view,
+body:has(#diag-panel:not([hidden])) .live-view,
+body:has(#diag-panel:not([hidden])) .map-view {
+  scroll-padding-bottom: 200px;
+  padding-bottom: 200px;
+}
+.diag-panel[hidden] { display: none !important; }
+.diag-panel dl { margin: 0 0 8px; }
+.diag-panel dt {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.diag-panel dd {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+#diag-json {
+  width: 100%;
+  min-height: 72px;
+  margin: 0 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
 }
 .pane-switch button,
 .leg-pills button,
@@ -1302,7 +1385,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .leaflet-container { background: #e7eef2; font-family: inherit; }
 
 @media print {
-  .tab-bar, header, #configure-pane, #packing-pane, .pane-switch, #close-crew, .desk-sim { display: none !important; }
+  .tab-bar, header, #configure-pane, #packing-pane, #ready-pane, #diag-panel, .pane-switch, #close-crew, .desk-sim { display: none !important; }
   .modal { position: static; display: block !important; background: white; padding: 0; }
   .modal-sheet { box-shadow: none; max-height: none; }
 }

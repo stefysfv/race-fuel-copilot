@@ -16,7 +16,7 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/vendor/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=17">
+  <link rel="stylesheet" href="/style.css?v=18">
   <style>
     html, body { height: 100dvh; width: 100vw; margin: 0; overflow: hidden; }
   </style>
@@ -24,7 +24,7 @@
 <body data-tab="setup">
   <script>
     (function () {
-      var SHELL = "v17";
+      var SHELL = "v18";
       var guard = "fuel_sw_boot";
       try {
         if (sessionStorage.getItem(guard) === SHELL) return;
@@ -36,7 +36,7 @@
         var stale = regs.filter(function (reg) {
           var worker = reg.active || reg.waiting || reg.installing;
           var script = worker && worker.scriptURL ? worker.scriptURL : "";
-          return script.indexOf("v=17") === -1;
+          return script.indexOf("v=18") === -1;
         });
         if (!stale.length) {
           try { sessionStorage.setItem(guard, SHELL); } catch (error) {}
@@ -72,7 +72,7 @@
         </div>
       </div>
       <p id="app-status" class="status" role="status"></p>
-      <p id="offline-prep" class="offline-prep" role="status" data-state="working">Preparing offline mode... 0%</p>
+      <p id="offline-prep" class="offline-prep" role="status"></p>
     </header>
     <p id="toast" class="toast hidden" role="status"></p>
 
@@ -81,6 +81,7 @@
       <div class="pane-switch" role="tablist" aria-label="Setup views">
         <button id="pane-configure" class="liquid-pill" type="button" role="tab" aria-selected="true" aria-controls="configure-pane">Configure</button>
         <button id="pane-packing" class="liquid-pill" type="button" role="tab" aria-selected="false" aria-controls="packing-pane">Packing Plan</button>
+        <button id="pane-ready" class="liquid-pill" type="button" role="tab" aria-selected="false" aria-controls="ready-pane">Offline</button>
       </div>
       <div id="configure-pane" class="configure-view">
       <button id="setup-summary" class="setup-summary hidden" type="button" aria-expanded="false">
@@ -229,6 +230,17 @@
         <p id="vest-usage" class="vest-usage hidden"></p>
         <div id="packing-list"></div>
       </div>
+      <div id="ready-pane" class="configure-view hidden">
+        <h2 class="ready-title">Offline readiness</h2>
+        <p class="ready-note">Check this on Wi-Fi before race day.</p>
+        <p id="offline-ready-line">offline ready: no</p>
+        <ul class="ready-list">
+          <li id="ready-engine">Engine downloaded: checking</li>
+          <li id="ready-races">Races cached: checking</li>
+          <li id="ready-storage">Storage persisted: checking</li>
+          <li id="ready-home">Home Screen: add Fuel Co-Pilot to your Home Screen. iOS can delete data for a site it treats as unused. This line is a hint.</li>
+        </ul>
+      </div>
     </section>
 
     <section id="tab-map" class="map-view hidden" aria-label="Topo map and elevation">
@@ -355,8 +367,16 @@
     </div>
   </div>
 
+  <aside id="diag-panel" class="diag-panel" hidden>
+    <p class="kicker">Diagnostics</p>
+    <button id="diag-copy" class="thumb-btn primary" type="button">Copy as JSON</button>
+    <p id="diag-copy-note" class="micro"></p>
+    <dl id="diag-list"></dl>
+    <textarea id="diag-json" readonly aria-label="Diagnostics JSON"></textarea>
+  </aside>
+
   <script src="/vendor/leaflet.js"></script>
   <script src="/vendor/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=17"></script>
+  <script type="module" src="/app.js?v=18"></script>
 </body>
 </html>
