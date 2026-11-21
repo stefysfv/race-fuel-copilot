@@ -8,7 +8,7 @@
 import { FEEDBACK_KEY, readJson, writeJson } from "./local_store.js";
 import { state } from "./state.js";
 
-export const FEEDBACK_EMAIL = "";
+export const FEEDBACK_EMAIL = "stefanaky.yos@gmail.com";
 export const FEEDBACK_FORM_URL = "";
 
 const PREVIEW = "Send feedback includes only these fields: race name, finish versus predicted time, GI trouble (none, mild, or severe), what you changed, and your note. It does not include GPS tracks, analytics, or an account. Nothing is sent until you press Send feedback.";
@@ -62,15 +62,18 @@ export function feedbackHref(entry, options = {}) {
     }
     return url.toString();
   }
-  const lines = [
-    `Race name: ${payload.race}`,
-    `Finish versus predicted time: ${payload.finish}`,
-    `GI trouble: ${payload.gi}`,
-    `What you changed: ${payload.changed}`,
-    `Notes: ${payload.notes}`,
-  ];
   const subject = "Race Fuel Co-Pilot feedback";
-  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(feedbackPlainText(entry))}`;
+}
+
+export function feedbackPlainText(entry) {
+  return [
+    `Race name: ${entry.raceName || ""}`,
+    `Finish versus predicted time: ${entry.finishNote || ""}`,
+    `GI trouble: ${entry.gi || "none"}`,
+    `What you changed: ${entry.changed || ""}`,
+    `Notes: ${entry.notes || ""}`,
+  ].join("\n");
 }
 
 function fillForm(entry) {
@@ -156,6 +159,28 @@ export function setupFeedback() {
     saveFeedback();
   });
   document.querySelector("#feedback-save")?.addEventListener("click", saveFeedback);
+  document.querySelector("#feedback-copy")?.addEventListener("click", async () => {
+    const text = feedbackPlainText(readForm());
+    const status = document.querySelector("#feedback-status");
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const box = document.createElement("textarea");
+        box.value = text;
+        box.setAttribute("readonly", "");
+        box.style.position = "fixed";
+        box.style.opacity = "0";
+        document.body.append(box);
+        box.select();
+        document.execCommand("copy");
+        box.remove();
+      }
+      if (status) status.textContent = "Copied feedback. Paste it into an email or message.";
+    } catch (error) {
+      if (status) status.textContent = "Could not copy automatically. Use Send feedback or select your text.";
+    }
+  });
   document.querySelector("#feedback-new")?.addEventListener("click", () => {
     fillForm(null);
     const race = document.querySelector("#feedback-race");

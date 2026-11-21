@@ -184,7 +184,8 @@ test("saves feedback on the phone and builds the send link without a POST", asyn
     };
   }, FEEDBACK_KEY);
   expect(links.live).toBe(links.built);
-  expect(links.live.startsWith("mailto:?subject=")).toBe(true);
+  expect(links.live.startsWith("mailto:?")).toBe(false);
+  expect(/^mailto:[^?]+\?subject=/.test(links.live) || /^https?:\/\//.test(links.live)).toBe(true);
   const mailBody = decodeURIComponent(links.live);
   expect(mailBody).toContain("Race name: Salomon Vitosha Trail 27 km");
   expect(mailBody).toContain("Finish versus predicted time: 4:12 vs 4:05 predicted");
@@ -216,6 +217,8 @@ test("saves feedback on the phone and builds the send link without a POST", asyn
     }, true);
   });
   await page.getByTestId("send-feedback").click();
+  await page.getByTestId("feedback-copy").click();
+  await expect(page.locator("#feedback-status")).toContainText(/Copied feedback|Could not copy/);
   expect(posts).toEqual([]);
 
   await page.locator("#nav-setup").click();
