@@ -1779,22 +1779,27 @@ body.battery-saver .leaflet-container {
 .how-it-works a { color: #ff5500; font-weight: 600; }
 .bottom-nav,
 .tab-bar.bottom-nav {
-  bottom: calc(36px + env(safe-area-inset-bottom, 0px)) !important;
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 900 !important;
+}
+#app-main {
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
 }
 .app-footer {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 45;
+  z-index: 900;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-height: 30px;
-  padding: 5px 10px calc(10px + env(safe-area-inset-bottom, 0px));
-  font-size: 11px;
+  min-height: 24px;
+  padding: 3px 8px max(4px, env(safe-area-inset-bottom, 0px));
+  font-size: 10.5px;
+  line-height: 1.2;
   color: #475569;
   background: rgba(236, 240, 245, 0.96);
   border-top: 1px solid rgba(15, 23, 42, 0.08);
@@ -1824,16 +1829,16 @@ body.battery-saver .footer-link {
   .app-footer, .whats-new, .landing-intro { display: none !important; }
 }
 
-/* Mobile UI polish (v34) */
+/* Mobile UI polish (v35) */
 
-/* 1. Modals always sit above bottom nav, footer, and Leaflet controls; close button never overlaps text */
+/* 1. Modals always beat bottom-nav (z-index 900), footer, and Leaflet controls */
 .modal {
-  z-index: 2000 !important;
+  z-index: 20000 !important;
 }
 .modal-sheet {
   position: relative;
-  max-height: calc(100dvh - 28px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
 }
 .modal-top {
   position: sticky;
@@ -1857,7 +1862,34 @@ body.battery-saver .modal-top {
   background: #000000 !important;
 }
 
-/* 2. Crew Sheet: stacked station cards on mobile screens, 7-column table on desktop and print */
+/* 2. Packing Plan & Live scroll cleanly without dead gaps */
+#packing-pane {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 16px;
+}
+#packing-list {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+}
+#packing-list .leg-card,
+#packing-list .leg-card-scroll {
+  flex: none !important;
+  overflow: visible !important;
+}
+body[data-tab="live"] #tab-live {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
+}
+body[data-tab="feedback"] #tab-feedback {
+  padding-bottom: 20px;
+}
+.stop-list {
+  padding-bottom: 12px;
+}
+
+/* 3. Crew Sheet: stacked station cards on narrow screens, 7-column table on desktop and print */
 .crew-bag {
   white-space: nowrap;
 }
@@ -1961,19 +1993,6 @@ body.battery-saver .modal-top {
   }
 }
 
-/* 3. Generous bottom clearance on every tab so content never clips behind bottom-nav + footer */
-#tab-setup,
-#tab-map,
-#tab-live,
-#tab-feedback {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(136px + env(safe-area-inset-bottom, 0px)) !important;
-}
-#tab-live .hero {
-  margin-bottom: 10px;
-}
-
 /* 4. Fix distorted GI TROUBLE radio buttons on iOS Safari */
 input[type="radio"] {
   width: 20px !important;
@@ -2001,11 +2020,11 @@ body.battery-saver #tab-feedback label:has(input[type="radio"]) {
   border-color: #64748b !important;
 }
 
-/* 5. Toast sits below header title; Ready for offline gets readable pill backdrop over map */
+/* 5. Toast below header title; Ready for offline pill over map */
 #toast {
   top: calc(env(safe-area-inset-top, 0px) + 58px) !important;
 }
-body[data-tab="map"] #offline-status,
+body[data-tab="map"] #offline-prep,
 body[data-tab="map"] [data-testid="offline-status"] {
   display: inline-block;
   width: fit-content;
@@ -2015,7 +2034,7 @@ body[data-tab="map"] [data-testid="offline-status"] {
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.14);
 }
-body.battery-saver[data-tab="map"] #offline-status,
+body.battery-saver[data-tab="map"] #offline-prep,
 body.battery-saver[data-tab="map"] [data-testid="offline-status"] {
   background: rgba(0, 0, 0, 0.88) !important;
   border: 1px solid #475569;
