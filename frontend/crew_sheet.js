@@ -152,13 +152,13 @@ export function renderCrewSheet() {
   const bodyRows = rows.map((row) => {
     const bag = row.drop_bag ? ' <span class="crew-bag">Drop bag</span>' : "";
     return `<tr data-testid="crew-row">
-      <td><strong>${escapeHtml(row.name)}</strong>${bag}<br><span class="crew-dist">${escapeHtml(formatDistance(row.distance_km, { digits: 1 }))}</span></td>
-      <td data-testid="crew-eta-fast">${escapeHtml(formatDuration(row.eta_fast_min))}</td>
-      <td data-testid="crew-eta-plan"><strong>${escapeHtml(formatDuration(row.eta_plan_min))}</strong></td>
-      <td data-testid="crew-eta-slow">${escapeHtml(formatDuration(row.eta_slow_min))}</td>
-      <td>${escapeHtml(row.cutoff)}</td>
-      <td>${escapeHtml(row.hand_over)}</td>
-      <td>${escapeHtml(row.carrying)}</td>
+      <td class="crew-cell-station" data-label="Station"><span><strong>${escapeHtml(row.name)}</strong>${bag}</span><span class="crew-dist">${escapeHtml(formatDistance(row.distance_km, { digits: 1 }))}</span></td>
+      <td class="crew-cell-eta" data-label="Fast (−10%)" data-testid="crew-eta-fast">${escapeHtml(formatDuration(row.eta_fast_min))}</td>
+      <td class="crew-cell-eta crew-cell-eta-plan" data-label="Plan ETA" data-testid="crew-eta-plan"><strong>${escapeHtml(formatDuration(row.eta_plan_min))}</strong></td>
+      <td class="crew-cell-eta" data-label="Slow (+10%)" data-testid="crew-eta-slow">${escapeHtml(formatDuration(row.eta_slow_min))}</td>
+      <td class="crew-cell-cutoff" data-label="Cutoff">${escapeHtml(row.cutoff)}</td>
+      <td class="crew-cell-handover" data-label="Hand over">${escapeHtml(row.hand_over)}</td>
+      <td class="crew-cell-carry" data-label="Runner carries in">${escapeHtml(row.carrying)}</td>
     </tr>`;
   }).join("");
   const rescueItems = GI_RESCUE_STEPS.map((step) => `<li>${escapeHtml(step)}</li>`).join("");
