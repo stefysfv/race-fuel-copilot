@@ -23,6 +23,7 @@ import { buildPlan } from "./build_plan.js";
 import { setupFeedback, paintFeedback } from "./feedback.js";
 import { repaintGpxUnits, setupGpxUpload } from "./gpx_upload.js";
 import { setupInstallBanner } from "./install_prompt.js";
+import { setupVersionUi } from "./version.js";
 import { getUnitSystem, onUnitChange, setUnitSystem } from "./units.js";
 
 bindLiveAlerts(logIntake, paintRaceControls);
@@ -229,6 +230,7 @@ async function init() {
   try {
     resetOutdatedStorage();
     setupInstallBanner();
+    setupVersionUi();
     setupFeedback();
     setupDiagnostics();
     watchReadiness();

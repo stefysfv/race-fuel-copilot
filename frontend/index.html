@@ -11,7 +11,16 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Fuel Co-Pilot">
-  <title>Race Fuel Co-Pilot</title>
+  <title>Race Fuel Co-Pilot — Terrain-Aware Trail &amp; Ultra Fueling</title>
+  <meta name="description" content="Offline-first trail and ultra fueling co-pilot. Turns your GPX into a grade-aware carb, fluid, sodium, and crew plan right on your phone.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Race Fuel Co-Pilot — Terrain-Aware Trail &amp; Ultra Fueling">
+  <meta property="og:description" content="Offline-first trail and ultra fueling co-pilot. Computes carb, fluid, sodium, and live GPS recalibrations on your phone.">
+  <meta property="og:url" content="https://race-fuel-copilot.stefanaky-yos.workers.dev/">
+  <meta property="og:image" content="https://race-fuel-copilot.stefanaky-yos.workers.dev/icons/icon-512.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Race Fuel Co-Pilot">
+  <meta name="twitter:description" content="Terrain-aware carb, fluid, and sodium plans for trail ultras. 100% on-device and offline-ready.">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -89,7 +98,28 @@
         <button id="pane-packing" class="liquid-pill" type="button" role="tab" aria-selected="false" aria-controls="packing-pane">Packing Plan</button>
         <button id="pane-ready" class="liquid-pill" type="button" role="tab" aria-selected="false" aria-controls="ready-pane">Offline</button>
       </div>
+      <div id="whats-new-banner" class="whats-new hidden" role="status" data-testid="whats-new-banner">
+        <span>Updated to <strong>v1.0.0</strong> — see what's new.</span>
+        <div class="whats-new-actions">
+          <button id="whats-new-open" class="text-btn" type="button" data-testid="whats-new-open">What's new</button>
+          <button id="whats-new-dismiss" class="text-btn" type="button" data-testid="whats-new-dismiss">Dismiss</button>
+        </div>
+      </div>
+
       <div id="configure-pane" class="configure-view">
+        <section class="landing-intro" data-testid="landing-intro">
+          <p class="landing-lead"><strong>Grade-aware fueling for mountain ultras.</strong> Upload any GPX or pick a course to get a packing list, crew sheet, and live GPS fuel coach—computed 100% on your phone with zero signal required.</p>
+          <details class="how-it-works" data-testid="how-it-works">
+            <summary>How it works: Green, Yellow &amp; Red fueling zones</summary>
+            <p>Steep climbs pull blood away from your stomach and steep descents slosh it. The planner slices your GPX into 500 m segments and shifts feeds within &plusmn;6 minutes onto safer ground:</p>
+            <ul>
+              <li><strong>Green (&minus;8% to +5%):</strong> Runnable ground — full carb dose (gels or real food).</li>
+              <li><strong>Yellow (+5% to +10% or &minus;8% to &minus;12%):</strong> Moderate slope — half dose as gel or drink mix.</li>
+              <li><strong>Red (steeper than +10% or &minus;12%):</strong> Steep climb or drop — 15 g liquid micro-dose only, never carried as debt.</li>
+            </ul>
+            <p class="micro"><a href="https://github.com/stefysfv/race-fuel-copilot/blob/main/docs/physiology-assumptions.md" target="_blank" rel="noopener noreferrer" data-testid="physiology-link">Read the full physiology &amp; model assumptions &rarr;</a></p>
+          </details>
+        </section>
       <button id="setup-summary" class="setup-summary hidden" type="button" aria-expanded="false">
         <span id="setup-summary-text"></span>
         <span class="edit-label">Edit Setup ▾</span>
@@ -443,6 +473,16 @@
     <button id="nav-live" type="button">Live</button>
     <button id="nav-feedback" type="button" data-testid="nav-feedback">Feedback</button>
   </nav>
+  <footer class="app-footer" data-testid="app-footer">
+    <a href="/privacy.html" data-testid="footer-privacy">Privacy</a>
+    <span>&middot;</span>
+    <a href="/terms.html" data-testid="footer-terms">Terms &amp; Not Medical Advice</a>
+    <span>&middot;</span>
+    <button id="open-changelog" class="footer-link" type="button" data-testid="footer-changelog"><span id="app-version">v1.0.0</span></button>
+    <span>&middot;</span>
+    <button id="optin-copy-diag" class="footer-link" type="button" data-testid="optin-copy-diag">Copy diagnostics</button>
+    <span id="optin-diag-note" class="micro" role="status" data-testid="optin-diag-note"></span>
+  </footer>
   </div>
 
   <div id="crew-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Crew card">
@@ -487,6 +527,17 @@
       </div>
       <button id="save-gut" class="thumb-btn primary" type="button">Save gut check</button>
       <button id="close-gut-bottom" class="thumb-btn" type="button">Close</button>
+    </div>
+  </div>
+
+  <div id="changelog-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Changelog" data-testid="changelog-modal">
+    <div class="modal-sheet liquid-glass">
+      <div class="modal-top">
+        <strong>What's New &amp; Changelog</strong>
+        <button id="close-changelog" class="modal-x" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div id="changelog-body" class="changelog-body"></div>
+      <button id="close-changelog-bottom" class="thumb-btn" type="button">Close</button>
     </div>
   </div>
 

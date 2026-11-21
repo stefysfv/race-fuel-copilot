@@ -1749,3 +1749,77 @@ body.battery-saver .leaflet-container {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+.whats-new {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  background: rgba(255, 85, 0, 0.1);
+  border: 1px solid rgba(255, 85, 0, 0.3);
+  font-size: 12px;
+}
+.whats-new-actions { display: flex; gap: 6px; }
+.landing-intro {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.landing-lead { margin: 0 0 6px; }
+.how-it-works summary { cursor: pointer; font-weight: 700; color: #0f172a; }
+.how-it-works p { margin: 6px 0; }
+.how-it-works ul { margin: 4px 0 6px; padding-left: 18px; }
+.how-it-works a { color: #ff5500; font-weight: 600; }
+.bottom-nav,
+.tab-bar.bottom-nav {
+  bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.app-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
+  font-size: 11px;
+  color: #475569;
+  background: rgba(236, 240, 245, 0.94);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+body.battery-saver .app-footer {
+  background: #000000 !important;
+  border-top-color: #334155 !important;
+}
+.app-footer a,
+.footer-link {
+  color: #334155;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+body.battery-saver .app-footer,
+body.battery-saver .app-footer a,
+body.battery-saver .footer-link {
+  color: #cbd5e1 !important;
+}
+.changelog-body h3 { margin: 10px 0 4px; font-size: 14px; }
+.changelog-body ul { margin: 0 0 8px; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+@media print {
+  .app-footer, .whats-new, .landing-intro { display: none !important; }
+}

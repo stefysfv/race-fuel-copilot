@@ -203,7 +203,32 @@ export function copyDiagnostics() {
   done("Select the text and copy it.");
 }
 
+export async function copyOptInDiagnostics() {
+  const note = document.querySelector("#optin-diag-note");
+  try {
+    const report = await diagnosticsSnapshot();
+    const payload = JSON.stringify({
+      ...report,
+      installed: isInstalled(),
+      lastVerifiedOffline: verifiedAt(),
+      firstOffline: readJson(FIRST_OFFLINE_KEY),
+      battery: batteryDiagSnapshot(),
+    }, null, 2);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(payload);
+      if (note) note.textContent = "Diagnostics copied. Paste into your bug report — nothing was sent automatically.";
+      return;
+    }
+    const box = document.querySelector("#diag-json");
+    if (box) box.value = payload;
+    if (note) note.textContent = "Clipboard unavailable. Open ?diag=1 to copy diagnostics JSON.";
+  } catch {
+    if (note) note.textContent = "Could not collect diagnostics.";
+  }
+}
+
 export function setupDiagnostics() {
+  document.querySelector("#optin-copy-diag")?.addEventListener("click", copyOptInDiagnostics);
   const enabled = new URLSearchParams(location.search).get("diag") === "1";
   const panel = document.querySelector("#diag-panel");
   if (!panel) return;

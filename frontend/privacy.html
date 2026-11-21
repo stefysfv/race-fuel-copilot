@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy — Race Fuel Co-Pilot</title>
+  <link rel="stylesheet" href="/style.css?v=23">
+  <style>
+    html, body { height: auto; overflow: auto; background: #f8fafc; color: #0f172a; }
+    .doc-page { max-width: 720px; margin: 0 auto; padding: 24px 18px 48px; line-height: 1.6; }
+    .doc-page h1 { font-size: 26px; margin-bottom: 6px; }
+    .doc-page h2 { font-size: 17px; margin-top: 22px; }
+    .doc-back { display: inline-block; margin-bottom: 16px; color: #ff5500; font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main class="doc-page">
+    <a class="doc-back" href="/">&larr; Back to Race Fuel Co-Pilot</a>
+    <h1>Privacy Policy</h1>
+    <p><strong>Short version:</strong> Your GPX files, athlete profile, GPS location, and fueling plans stay on your phone. There are no accounts, no cloud database, no analytics, and no automatic error reporting.</p>
+
+    <h2>1. On-device computation</h2>
+    <p>All route parsing, Grade Adjusted Pace math, fueling schedules, and live GPS recalibrations run locally inside your browser using WebAssembly (Pyodide). Your GPX uploads and live coordinates are never uploaded to a server.</p>
+
+    <h2>2. Local storage on your device</h2>
+    <p>The app stores your preferences, active plan, cached offline files, and optional post-race notes in your browser's <code>localStorage</code>, <code>IndexedDB</code>, and Cache Storage so the app works without signal on race day. Clearing site data in your browser removes everything.</p>
+
+    <h2>3. Optional feedback &amp; bug reports</h2>
+    <p>Post-race notes ("How did it go?") remain on your phone unless you explicitly tap <strong>Send feedback</strong>, which opens your own email client or chosen form with only the fields shown in the preview (never your GPX track). Diagnostics are strictly opt-in via <strong>Copy diagnostics</strong>—nothing is ever sent automatically.</p>
+
+    <h2>4. Third-party map tiles &amp; fonts</h2>
+    <p>When you are online (and Battery Saver is off), the map requests OpenTopoMap tiles and Google Fonts directly from your browser. Offline or in Battery Saver mode, no external tile requests are made.</p>
+  </main>
+</body>
+</html>
