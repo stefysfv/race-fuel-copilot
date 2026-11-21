@@ -7,11 +7,15 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: |
             requirements.txt
@@ -40,12 +44,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-chromium-webkit-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install Python dependencies
         run: pip install -r requirements-dev.txt
       - name: Install Node dependencies
         run: npm ci
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
       - name: Run end-to-end tests
         run: npx playwright test tests/e2e

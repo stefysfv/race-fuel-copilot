@@ -1,0 +1,296 @@
+{
+  "strip_keys": [
+    "reasons",
+    "forfeited",
+    "fuel_budget",
+    "green_min_grade",
+    "green_max_grade",
+    "red_descent_grade",
+    "red_climb_grade"
+  ],
+  "cases": [
+    {
+      "name": "generate-plan__salomon-vitosha-12__default",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-12",
+        "athlete": {}
+      },
+      "golden": "generate-plan__salomon-vitosha-12__default.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-12__hot-85kg",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-12",
+        "athlete": {
+          "weight_kg": 85,
+          "temperature_c": 32
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-12__hot-85kg.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-12__sensitive-early-savoury",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-12",
+        "athlete": {
+          "climb_sensitivity": "sensitive",
+          "early_savoury": true
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-12__sensitive-early-savoury.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-12__target-time",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-12",
+        "athlete": {
+          "target_time_minutes": 180
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-12__target-time.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-12__real-food-heavy",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-12",
+        "athlete": {
+          "fuel_preference": "real_food_heavy"
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-12__real-food-heavy.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-27__default",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-27",
+        "athlete": {}
+      },
+      "golden": "generate-plan__salomon-vitosha-27__default.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-27__hot-85kg",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-27",
+        "athlete": {
+          "weight_kg": 85,
+          "temperature_c": 32
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-27__hot-85kg.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-27__sensitive-early-savoury",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-27",
+        "athlete": {
+          "climb_sensitivity": "sensitive",
+          "early_savoury": true
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-27__sensitive-early-savoury.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-27__target-time",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-27",
+        "athlete": {
+          "target_time_minutes": 180
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-27__target-time.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-27__real-food-heavy",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-27",
+        "athlete": {
+          "fuel_preference": "real_food_heavy"
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-27__real-food-heavy.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-40__default",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-40",
+        "athlete": {}
+      },
+      "golden": "generate-plan__salomon-vitosha-40__default.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-40__hot-85kg",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-40",
+        "athlete": {
+          "weight_kg": 85,
+          "temperature_c": 32
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-40__hot-85kg.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-40__sensitive-early-savoury",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-40",
+        "athlete": {
+          "climb_sensitivity": "sensitive",
+          "early_savoury": true
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-40__sensitive-early-savoury.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-40__target-time",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-40",
+        "athlete": {
+          "target_time_minutes": 180
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-40__target-time.json"
+    },
+    {
+      "name": "generate-plan__salomon-vitosha-40__real-food-heavy",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "salomon-vitosha-40",
+        "athlete": {
+          "fuel_preference": "real_food_heavy"
+        }
+      },
+      "golden": "generate-plan__salomon-vitosha-40__real-food-heavy.json"
+    },
+    {
+      "name": "generate-plan__vitosha-100__default",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "vitosha-100",
+        "athlete": {}
+      },
+      "golden": "generate-plan__vitosha-100__default.json"
+    },
+    {
+      "name": "generate-plan__vitosha-100__hot-85kg",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "vitosha-100",
+        "athlete": {
+          "weight_kg": 85,
+          "temperature_c": 32
+        }
+      },
+      "golden": "generate-plan__vitosha-100__hot-85kg.json"
+    },
+    {
+      "name": "generate-plan__vitosha-100__sensitive-early-savoury",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "vitosha-100",
+        "athlete": {
+          "climb_sensitivity": "sensitive",
+          "early_savoury": true
+        }
+      },
+      "golden": "generate-plan__vitosha-100__sensitive-early-savoury.json"
+    },
+    {
+      "name": "generate-plan__vitosha-100__target-time",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "vitosha-100",
+        "athlete": {
+          "target_time_minutes": 180
+        }
+      },
+      "golden": "generate-plan__vitosha-100__target-time.json"
+    },
+    {
+      "name": "generate-plan__vitosha-100__real-food-heavy",
+      "endpoint": "generate-plan",
+      "request": {
+        "race_id": "vitosha-100",
+        "athlete": {
+          "fuel_preference": "real_food_heavy"
+        }
+      },
+      "golden": "generate-plan__vitosha-100__real-food-heavy.json"
+    },
+    {
+      "name": "generate-plan__custom-gpx",
+      "endpoint": "generate-plan",
+      "gpx_fixture": "fixtures/custom_course.gpx",
+      "request": {
+        "athlete": {},
+        "aid_stations": [
+          {
+            "name": "Bezbog",
+            "distance_km": 2.03,
+            "has_water": true,
+            "has_food": true,
+            "cutoff_hours": 6.5
+          }
+        ]
+      },
+      "golden": "generate-plan__custom-gpx.json"
+    },
+    {
+      "name": "recalibrate__mid-race",
+      "endpoint": "recalibrate",
+      "request": {
+        "race_id": "salomon-vitosha-27",
+        "athlete": {},
+        "latitude": 42.5632102570075,
+        "longitude": 23.2704473114883,
+        "elapsed_min": 110.946,
+        "gi_rescue": false
+      },
+      "golden": "recalibrate__mid-race.json"
+    },
+    {
+      "name": "recalibrate__gi-rescue",
+      "endpoint": "recalibrate",
+      "request": {
+        "race_id": "salomon-vitosha-27",
+        "athlete": {},
+        "latitude": 42.5632102570075,
+        "longitude": 23.2704473114883,
+        "elapsed_min": 110.946,
+        "gi_rescue": true
+      },
+      "golden": "recalibrate__gi-rescue.json"
+    },
+    {
+      "name": "recalibrate__off-course",
+      "endpoint": "recalibrate",
+      "request": {
+        "race_id": "salomon-vitosha-27",
+        "athlete": {},
+        "latitude": 42.5654585610223,
+        "longitude": 23.2704473114883,
+        "elapsed_min": 110.946,
+        "gi_rescue": false
+      },
+      "golden": "recalibrate__off-course.json"
+    }
+  ],
+  "non_api_goldens": [
+    "reasons__aid-plate.json",
+    "reasons__flat-30km.json",
+    "reasons__rescue.json",
+    "reasons__short-race.json"
+  ]
+}

@@ -60,3 +60,7 @@ Cloudflare reads `frontend/_headers` for static asset headers:
 2. Open the deployed HTTPS URL on a phone on Wi-Fi and wait for **Ready for offline**.
 3. Check **Privacy**, **Terms & Not Medical Advice**, **Changelog**, and **Copy diagnostics** in the footer.
 4. Add to Home Screen, turn on Airplane Mode, reload, and confirm a plan builds offline.
+
+## 7. Pyodide & golden parity
+
+`tests/e2e/engine_parity.spec.mjs` runs every case in `tests/golden/cases.json` through the real browser Pyodide worker (in both Chromium and WebKit) and deep-compares the output against the golden snapshots with a `1e-6` float tolerance, guaranteeing that plans computed offline on phones match the server test suite. When refreshing the Pyodide bundle, update `frontend/vendor/pyodide/VERSIONS.json`, match the `pydantic==...` pin in `requirements.txt` (enforced by `tests/test_runtime_versions.py`), rebuild `frontend/engine.zip` if engine code changed, and rerun both `pytest` and `npx playwright test tests/e2e`.

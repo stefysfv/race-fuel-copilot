@@ -18,12 +18,23 @@ const python = pythonCommand();
 
 export default defineConfig({
   testDir: "tests",
-  testMatch: ["offline_race.spec.mjs", "e2e/**/*.spec.mjs"],
   timeout: 180000,
   workers: 1,
   use: {
     baseURL: "http://127.0.0.1:8000",
   },
+  projects: [
+    {
+      name: "chromium",
+      testMatch: ["offline_race.spec.mjs", "e2e/**/*.spec.mjs"],
+      use: { browserName: "chromium" },
+    },
+    {
+      name: "webkit-parity",
+      testMatch: ["e2e/engine_parity.spec.mjs"],
+      use: { browserName: "webkit" },
+    },
+  ],
   webServer: {
     command: `${python} -m uvicorn backend.main:app --host 127.0.0.1 --port 8000`,
     url: "http://127.0.0.1:8000",

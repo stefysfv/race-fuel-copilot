@@ -8,6 +8,7 @@ before that comparison. A normal run never writes those files. Pass
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -18,48 +19,13 @@ from fastapi.testclient import TestClient
 from backend.main import app
 
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden"
+CASES_PATH = GOLDEN_DIR / "cases.json"
 FLOAT_DECIMALS = 6
 DIFF_LIMIT = 12
 
-# One third of the recorded 27 km track. 110.946 min is 1.2x the default
-# plan's predicted time there, so the fix is mid-race and behind the plan.
-# The off-course fix is the same clock, 250 m north of that point.
-MID_RACE_LAT = 42.5632102570075
-MID_RACE_LON = 23.2704473114883
-MID_RACE_ELAPSED_MIN = 110.946
-OFF_COURSE_LAT = 42.5654585610223
-
-RACE_IDS = (
-    "salomon-vitosha-12",
-    "salomon-vitosha-27",
-    "salomon-vitosha-40",
-    "vitosha-100",
-)
-
-# target_time_minutes is set above the 120 min short-race line.
-ATHLETES: dict[str, dict[str, Any]] = {
-    "default": {},
-    "hot-85kg": {"weight_kg": 85, "temperature_c": 32},
-    "sensitive-early-savoury": {"climb_sensitivity": "sensitive", "early_savoury": True},
-    "target-time": {"target_time_minutes": 180},
-    "real-food-heavy": {"fuel_preference": "real_food_heavy"},
-}
-
-client = TestClient(app)
-
-
-# Reasons, forfeited rows, and the fuel budget are additive. Older snapshots
-# do not contain them, and the 70–85% info note must not land in `warnings`.
-_ADDITIVE_KEYS = frozenset({"reasons", "forfeited", "fuel_budget"})
-# Optional zone lines. Snapshots were recorded before these fields existed.
-# Dropping them keeps a null and an explicit Default preset comparable.
-_ZONE_EDGE_KEYS = frozenset({
-    "green_min_grade",
-    "green_max_grade",
-    "red_descent_grade",
-    "red_climb_grade",
-})
-_SNAPSHOT_SKIP = _ADDITIVE_KEYS | _ZONE_EDGE_KEYS
+_MANIFEST: dict[str, Any] = json.loads(CASES_PATH.read_text(encoding="utf-8"))
+_SNAPSHOT_SKIP = frozenset(_MANIFEST["strip_keys"])
+GOLDEN_CASES: list[dict[str, Any]] = list(_MANIFEST["cases"])
 
 # Default preset, in the same order as the setup screen: full gel down to,
 # full gel up to, red below, red above.
@@ -69,9 +35,16 @@ _DEFAULT_EDGES = {
     "red_descent_grade": -12,
     "red_climb_grade": 10,
 }
+
 # The sensitive snapshot depends on climb_sensitivity moving green max to
 # +3.5%. Sending green_max 5 replaces that, so it is not a Default check.
-_CONSTANT_ATHLETES = [name for name in ATHLETES if name != "sensitive-early-savoury"]
+_DEFAULT_EDGE_CASES = [
+    case
+    for case in GOLDEN_CASES
+    if case["request"].get("athlete", {}).get("climb_sensitivity") != "sensitive"
+]
+
+client = TestClient(app)
 
 
 def _strip_additive(value: Any) -> Any:
@@ -184,139 +157,52 @@ def _post(path: str, body: dict[str, Any]) -> Any:
     return response.json()
 
 
-def _course_gpx() -> str:
-    """A short uploaded track: 6 km heading north at a steady +2% grade."""
-
-    lat = 42.58
-    lon = 23.29
-    elevation = 1500.0
-    meters_per_deg = 6_371_000.0 * 3.141592653589793 / 180.0
-    step_m = 50.0
-    rise = (2.0 / 100.0) * step_m
-    dlat = step_m / meters_per_deg
-    rows = [f'<trkpt lat="{lat:.6f}" lon="{lon:.6f}"><ele>{elevation:.1f}</ele></trkpt>']
-    for _ in range(120):
-        lat += dlat
-        elevation += rise
-        rows.append(f'<trkpt lat="{lat:.6f}" lon="{lon:.6f}"><ele>{elevation:.1f}</ele></trkpt>')
-    body = "".join(rows)
-    return f'<?xml version="1.0"?><gpx version="1.1"><trk><trkseg>{body}</trkseg></trk></gpx>'
+def _request_for(case: dict[str, Any]) -> dict[str, Any]:
+    body = copy.deepcopy(case["request"])
+    fixture = case.get("gpx_fixture")
+    if fixture:
+        body["gpx_xml"] = (GOLDEN_DIR / fixture).read_text(encoding="utf-8")
+    return body
 
 
-@pytest.mark.parametrize("race_id", RACE_IDS)
-@pytest.mark.parametrize("athlete_name", list(ATHLETES))
-def test_catalog_plan_golden(race_id: str, athlete_name: str, update_golden: bool) -> None:
-    payload = _post(
-        "/api/generate-plan",
-        {"race_id": race_id, "athlete": ATHLETES[athlete_name]},
+def test_golden_manifest_is_complete() -> None:
+    """Every snapshot in tests/golden must be listed in cases.json, and vice versa."""
+
+    api_listed = {case["golden"] for case in GOLDEN_CASES}
+    non_api = set(_MANIFEST.get("non_api_goldens", []))
+    assert api_listed.isdisjoint(non_api)
+    listed = api_listed | non_api
+    on_disk = {p.name for p in GOLDEN_DIR.glob("*.json") if p.name != "cases.json"}
+    assert listed == on_disk, (
+        f"cases.json and tests/golden/*.json disagree. "
+        f"Missing from cases.json: {sorted(on_disk - listed)}. "
+        f"Missing on disk: {sorted(listed - on_disk)}."
     )
-    assert_golden(f"generate-plan__{race_id}__{athlete_name}.json", payload, update_golden)
 
 
-def test_custom_gpx_golden(update_golden: bool) -> None:
-    payload = _post(
-        "/api/generate-plan",
-        {
-            "gpx_xml": _course_gpx(),
-            "athlete": {},
-            "aid_stations": [
-                {
-                    "name": "Bezbog",
-                    "distance_km": 2.03,
-                    "has_water": True,
-                    "has_food": True,
-                    "cutoff_hours": 6.5,
-                }
-            ],
-        },
-    )
-    names = [leg["to_name"] for leg in payload["aid_legs"]]
-    assert "Bezbog" in names
-    assert_golden("generate-plan__custom-gpx.json", payload, update_golden)
+@pytest.mark.parametrize("case", GOLDEN_CASES, ids=[c["name"] for c in GOLDEN_CASES])
+def test_golden_case(case: dict[str, Any], update_golden: bool) -> None:
+    payload = _post(f"/api/{case['endpoint']}", _request_for(case))
+    if case["name"] == "generate-plan__custom-gpx":
+        names = [leg["to_name"] for leg in payload["aid_legs"]]
+        assert "Bezbog" in names
+    elif case["name"] == "recalibrate__mid-race":
+        assert payload["snap"]["on_course"] is True
+        assert payload["gi_rescue_applied"] is False
+    elif case["name"] == "recalibrate__gi-rescue":
+        assert payload["gi_rescue_applied"] is True
+    elif case["name"] == "recalibrate__off-course":
+        assert payload["snap"]["on_course"] is False
+    assert_golden(case["golden"], payload, update_golden)
 
 
-def _recalibrate(extra: dict[str, Any]) -> Any:
-    """Recalibrate the 27 km catalog race from a shared mid-race clock."""
-
-    body = {
-        "race_id": "salomon-vitosha-27",
-        "athlete": {},
-        "latitude": MID_RACE_LAT,
-        "longitude": MID_RACE_LON,
-        "elapsed_min": MID_RACE_ELAPSED_MIN,
-        "gi_rescue": False,
-    }
-    body.update(extra)
-    return _post("/api/recalibrate", body)
-
-
-def test_recalibrate_mid_race_golden(update_golden: bool) -> None:
-    payload = _recalibrate({})
-    assert payload["snap"]["on_course"] is True
-    assert payload["gi_rescue_applied"] is False
-    assert_golden("recalibrate__mid-race.json", payload, update_golden)
-
-
-def test_recalibrate_gi_rescue_golden(update_golden: bool) -> None:
-    payload = _recalibrate({"gi_rescue": True})
-    assert payload["gi_rescue_applied"] is True
-    assert_golden("recalibrate__gi-rescue.json", payload, update_golden)
-
-
-def test_recalibrate_off_course_golden(update_golden: bool) -> None:
-    payload = _recalibrate({"latitude": OFF_COURSE_LAT})
-    assert payload["snap"]["on_course"] is False
-    assert_golden("recalibrate__off-course.json", payload, update_golden)
-
-
-def _skip_snapshot_rewrite(update_golden: bool) -> None:
-    """Explicit Default numbers are checked against the snapshots, not written over them."""
+@pytest.mark.parametrize("case", _DEFAULT_EDGE_CASES, ids=[c["name"] for c in _DEFAULT_EDGE_CASES])
+def test_explicit_default_edges_match_golden(case: dict[str, Any], update_golden: bool) -> None:
+    """(-8, +5, -12, +10) matches the snapshot built with those lines omitted."""
 
     if update_golden:
         pytest.skip("explicit defaults are checked against the existing snapshots")
-
-
-@pytest.mark.parametrize("race_id", RACE_IDS)
-@pytest.mark.parametrize("athlete_name", _CONSTANT_ATHLETES)
-def test_explicit_default_edges_match_catalog_golden(
-    race_id: str,
-    athlete_name: str,
-    update_golden: bool,
-) -> None:
-    """(-8, +5, -12, +10) matches the snapshot built with those lines omitted."""
-
-    _skip_snapshot_rewrite(update_golden)
-    athlete = {**ATHLETES[athlete_name], **_DEFAULT_EDGES}
-    payload = _post("/api/generate-plan", {"race_id": race_id, "athlete": athlete})
-    assert_golden(f"generate-plan__{race_id}__{athlete_name}.json", payload, False)
-
-
-def test_explicit_default_edges_match_custom_gpx_golden(update_golden: bool) -> None:
-    _skip_snapshot_rewrite(update_golden)
-    payload = _post(
-        "/api/generate-plan",
-        {
-            "gpx_xml": _course_gpx(),
-            "athlete": dict(_DEFAULT_EDGES),
-            "aid_stations": [
-                {
-                    "name": "Bezbog",
-                    "distance_km": 2.03,
-                    "has_water": True,
-                    "has_food": True,
-                    "cutoff_hours": 6.5,
-                }
-            ],
-        },
-    )
-    assert_golden("generate-plan__custom-gpx.json", payload, False)
-
-
-def test_explicit_default_edges_match_recalibrate_goldens(update_golden: bool) -> None:
-    _skip_snapshot_rewrite(update_golden)
-    mid = _recalibrate({"athlete": dict(_DEFAULT_EDGES)})
-    assert_golden("recalibrate__mid-race.json", mid, False)
-    rescue = _recalibrate({"athlete": dict(_DEFAULT_EDGES), "gi_rescue": True})
-    assert_golden("recalibrate__gi-rescue.json", rescue, False)
-    off = _recalibrate({"athlete": dict(_DEFAULT_EDGES), "latitude": OFF_COURSE_LAT})
-    assert_golden("recalibrate__off-course.json", off, False)
+    body = _request_for(case)
+    body["athlete"] = {**body.get("athlete", {}), **_DEFAULT_EDGES}
+    payload = _post(f"/api/{case['endpoint']}", body)
+    assert_golden(case["golden"], payload, False)
