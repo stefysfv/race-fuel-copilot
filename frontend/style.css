@@ -1779,11 +1779,11 @@ body.battery-saver .leaflet-container {
 .how-it-works a { color: #ff5500; font-weight: 600; }
 .bottom-nav,
 .tab-bar.bottom-nav {
-  bottom: calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+  bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
   z-index: 900 !important;
 }
 #app-main {
-  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
 }
 .app-footer {
   position: fixed;
@@ -2038,4 +2038,83 @@ body.battery-saver[data-tab="map"] #offline-prep,
 body.battery-saver[data-tab="map"] [data-testid="offline-status"] {
   background: rgba(0, 0, 0, 0.88) !important;
   border: 1px solid #475569;
+}
+
+/* v36 visual polish */
+
+/* Header '?' info button */
+.brand-lockup {
+  width: 100%;
+}
+.info-btn {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #334155;
+  flex: 0 0 auto;
+}
+.info-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+.info-links a.thumb-btn,
+.info-links button.thumb-btn {
+  text-align: center;
+  text-decoration: none;
+  color: #0f172a;
+}
+
+/* Reclaim vertical space on Map & Live tabs by hiding the brand lockup */
+body[data-tab="live"] .brand {
+  display: none;
+}
+body[data-tab="map"] .brand {
+  padding-top: max(6px, env(safe-area-inset-top, 0px));
+  padding-bottom: 4px;
+}
+body[data-tab="map"] .brand-lockup,
+body[data-tab="map"] #install-banner {
+  display: none;
+}
+
+/* Sticky Build Plan button inside Setup scroll area */
+#build-plan {
+  position: sticky;
+  bottom: 8px;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(15, 17, 21, 0.22);
+}
+
+/* Cleaner drawers & selects */
+.drawer summary {
+  font-weight: 700;
+  font-size: 13.5px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.drawer summary::-webkit-details-marker {
+  display: none;
+}
+.drawer summary::after {
+  content: "+";
+  font-size: 16px;
+  font-weight: 700;
+  color: #64748b;
+}
+.drawer[open] summary::after {
+  content: "\2212";
 }

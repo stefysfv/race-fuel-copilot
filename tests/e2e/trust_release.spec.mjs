@@ -21,6 +21,8 @@ test("exposes privacy, terms, OG metadata, How It Works, changelog, what's new, 
   await expect(page.getByTestId("how-it-works")).toContainText("Green");
   await expect(page.getByTestId("physiology-link")).toHaveAttribute("href", /physiology-assumptions\.md/);
 
+  await page.getByTestId("open-info").click();
+  await expect(page.getByTestId("info-modal")).toBeVisible();
   await expect(page.getByTestId("footer-privacy")).toHaveAttribute("href", "/privacy.html");
   await expect(page.getByTestId("footer-terms")).toHaveAttribute("href", "/terms.html");
   await page.getByTestId("footer-changelog").click();
@@ -39,9 +41,11 @@ test("exposes privacy, terms, OG metadata, How It Works, changelog, what's new, 
   page.on("request", (req) => {
     if (req.method() === "POST") posts.push(req.url());
   });
+  await page.getByTestId("open-info").click();
   await page.getByTestId("optin-copy-diag").click();
   await expect(page.getByTestId("optin-diag-note")).not.toHaveText("");
   expect(posts).toEqual([]);
+  await page.locator("#close-info").click();
 
   await page.goto("/privacy.html");
   await expect(page.locator("h1")).toContainText("Privacy Policy");

@@ -79,6 +79,7 @@
           <p class="brand-title">FUEL CO-PILOT<span class="brand-dot" aria-hidden="true"></span></p>
           <p class="brand-sub">Mountain Ultra Engine</p>
         </div>
+        <button id="open-info" class="info-btn liquid-pill" type="button" aria-label="About, Privacy, Terms and Diagnostics" data-testid="open-info">?</button>
       </div>
       <p id="app-status" class="status" role="status"></p>
       <p id="offline-prep" class="offline-prep" role="status" data-testid="offline-status"></p>
@@ -473,16 +474,7 @@
     <button id="nav-live" type="button">Live</button>
     <button id="nav-feedback" type="button" data-testid="nav-feedback">Feedback</button>
   </nav>
-  <footer class="app-footer" data-testid="app-footer">
-    <a href="/privacy.html" data-testid="footer-privacy">Privacy</a>
-    <span>&middot;</span>
-    <a href="/terms.html" data-testid="footer-terms">Terms &amp; Not Medical Advice</a>
-    <span>&middot;</span>
-    <button id="open-changelog" class="footer-link" type="button" data-testid="footer-changelog"><span id="app-version">v1.0.0</span></button>
-    <span>&middot;</span>
-    <button id="optin-copy-diag" class="footer-link" type="button" data-testid="optin-copy-diag">Copy diagnostics</button>
-    <span id="optin-diag-note" class="micro" role="status" data-testid="optin-diag-note"></span>
-  </footer>
+
   </div>
 
   <div id="crew-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Crew card">
@@ -527,6 +519,24 @@
       </div>
       <button id="save-gut" class="thumb-btn primary" type="button">Save gut check</button>
       <button id="close-gut-bottom" class="thumb-btn" type="button">Close</button>
+    </div>
+  </div>
+
+  <div id="info-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="About and Legal" data-testid="info-modal">
+    <div class="modal-sheet liquid-glass">
+      <div class="modal-top">
+        <strong>About Fuel Co-Pilot</strong>
+        <button id="close-info" class="modal-x" type="button" aria-label="Close">&times;</button>
+      </div>
+      <p class="micro">100% on-device trail &amp; ultra fueling engine. No accounts, no tracking, no automatic error reporting.</p>
+      <div class="info-links">
+        <a class="thumb-btn liquid-pill" href="/privacy.html" data-testid="footer-privacy">Privacy Policy</a>
+        <a class="thumb-btn liquid-pill" href="/terms.html" data-testid="footer-terms">Terms &amp; Not Medical Advice</a>
+        <button id="open-changelog" class="thumb-btn liquid-pill" type="button" data-testid="footer-changelog">What's New &amp; Changelog (<span id="app-version">v1.0.0</span>)</button>
+        <button id="optin-copy-diag" class="thumb-btn liquid-pill" type="button" data-testid="optin-copy-diag">Copy diagnostics (bug report)</button>
+      </div>
+      <p id="optin-diag-note" class="micro" role="status" data-testid="optin-diag-note"></p>
+      <button id="close-info-bottom" class="thumb-btn" type="button">Close</button>
     </div>
   </div>
 

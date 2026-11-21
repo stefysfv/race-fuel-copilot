@@ -43,7 +43,21 @@ export function setupVersionUi() {
     }
   }
 
-  const openModal = () => modal?.classList.remove("hidden");
+  const infoModal = document.querySelector("#info-modal");
+  const openInfoBtn = document.querySelector("#open-info");
+  const closeInfoBtn = document.querySelector("#close-info");
+  const closeInfoBottom = document.querySelector("#close-info-bottom");
+
+  const openInfo = () => infoModal?.classList.remove("hidden");
+  const closeInfo = () => infoModal?.classList.add("hidden");
+  openInfoBtn?.addEventListener("click", openInfo);
+  closeInfoBtn?.addEventListener("click", closeInfo);
+  closeInfoBottom?.addEventListener("click", closeInfo);
+
+  const openModal = () => {
+    closeInfo();
+    modal?.classList.remove("hidden");
+  };
   const closeModal = () => modal?.classList.add("hidden");
   openBtn?.addEventListener("click", openModal);
   closeBtn?.addEventListener("click", closeModal);
