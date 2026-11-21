@@ -4,6 +4,7 @@ import { nextStop, shortIntake } from "./plan_cursor.js";
 import { state } from "./state.js";
 import { elapsedMin, setStatus } from "./ui_helpers.js";
 import { recordNotification, recordSpeech, setWakeLockState } from "./battery_diag.js";
+import { persist } from "./session.js";
 
 let logIntake = async () => {};
 let paintRaceControls = () => {};
@@ -77,7 +78,7 @@ export function coachSpeech(stop) {
   return `Fuel time. Take ${Math.round(stop.carbs_g)} grams ${stop.product || "gel"}. ${gradeBit}`;
 }
 
-export function primeAudio() {
+function ensureAudioContext() {
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) {
     return null;
@@ -86,20 +87,25 @@ export function primeAudio() {
     state.audioCtx = new Ctx();
   }
   if (state.audioCtx.state === "suspended") {
-    state.audioCtx.resume();
-  }
-  if (window.speechSynthesis) {
-    const unlock = new SpeechSynthesisUtterance(" ");
-    unlock.volume = 0;
-    if (applyEnglishVoice(unlock)) {
-      window.speechSynthesis.speak(unlock);
-    }
+    state.audioCtx.resume().catch(() => {});
   }
   return state.audioCtx;
 }
 
+export function primeAudio() {
+  const ctx = ensureAudioContext();
+  if (window.speechSynthesis && !state.speechPrimed) {
+    state.speechPrimed = true;
+    const unlock = new SpeechSynthesisUtterance(" ");
+    unlock.volume = 0;
+    applyEnglishVoice(unlock);
+    window.speechSynthesis.speak(unlock);
+  }
+  return ctx;
+}
+
 export function playChime() {
-  const ctx = primeAudio();
+  const ctx = ensureAudioContext();
   if (!ctx) {
     return;
   }
@@ -166,7 +172,8 @@ export function getEnglishFemaleVoice() {
 export function applyEnglishVoice(utterance) {
   const voice = getEnglishFemaleVoice();
   if (!voice || !String(voice.lang || "").toLowerCase().startsWith("en")) {
-    return false;
+    utterance.lang = "en-US";
+    return true;
   }
   utterance.voice = voice;
   utterance.lang = voice.lang;
@@ -262,12 +269,14 @@ export async function onAlertsClick() {
   if (state.alerts) {
     state.alerts = false;
     paintRaceControls();
+    persist();
     setStatus("Race alerts off.");
     return;
   }
   const granted = await ensureNotifyPermission();
   state.alerts = true;
   paintRaceControls();
+  persist();
   setStatus(granted ? "Race alerts on. Lock screen and voice." : alertsBlockedMessage());
 }
 

@@ -76,3 +76,19 @@ User agent: `Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/
 Offline caches: `offlineReady: true`, 0 missing. Shell 45/45, races 5/5, Pyodide 10/10, engine 2/2.
 
 Storage: 22.98 MB (~21.9 MiB) used of 41.23 GB quota. `persisted: false` on a normal Safari tab. Add to Home Screen is recommended so WebKit does not evict the site after 7 days.
+
+## 5. 60-minute outdoor endurance test (v0.9.0-beta)
+
+Run this once outdoors on a real trail or steep walk/run before calling the app v1.0.0.
+
+1. On Wi-Fi, open the installed Home Screen PWA and confirm **Ready for offline** (`race-fuel-v38` or newer).
+2. Build a plan (your uploaded GPX or a Vitosha course) and tap **Live**.
+3. Turn on **Airplane Mode** (Wi-Fi and cellular off; GPS stays active on iOS/Android).
+4. Tap **Audio**, **Battery Saver**, and **Race Mode** in that order. Tap **Test Voice** once to confirm chime + speech fire cleanly.
+5. Note start time, start battery `%`, and screen brightness (~30–40%).
+6. Run/hike for 60 minutes. Lock the screen for at least one 10-minute stretch, then unlock to confirm the clock catches up without firing stale overdue alarms. Log at least one feed with **I ate** and test **GI trouble** once.
+7. At 60 minutes, open the **?** info sheet, tap **Copy diagnostics**, and paste the battery metrics (`gpsFixes`, `gpsRejectedAccuracy`, `gpsRejectedJump`, `recalibrations`, `speechCount`, `backgroundResumes`, `wakeLockState`) alongside your measured battery drain below.
+
+| Date | Device & OS | Start % | End % | Drain (%/h) | Est. 12h drain | GPS fixes / rejected | Recals | Voice cues OK? | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| | | | | | | | | | |
