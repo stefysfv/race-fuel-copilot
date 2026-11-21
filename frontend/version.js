@@ -2,17 +2,17 @@
 
 import { readText, writeText } from "./local_store.js";
 
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "0.9.0-beta";
 export const SEEN_VERSION_KEY = "fuel-seen-version";
 
 export const CHANGELOG = [
   {
-    version: "1.0.0",
+    version: "0.9.0-beta",
     date: "2026-11-21",
     items: [
       "Added Privacy Policy, Terms & Not-Medical-Advice pages, MIT License, and in-app Changelog.",
       "Added opt-in Copy Diagnostics for bug reports (zero automatic error reporting).",
-      "Added 12+ hour endurance features: GPS quality guard, adaptive polling, Battery Saver OLED mode, wake lock, and 48 px+ glove-friendly Race Mode buttons.",
+      "Added long-ultra battery features (field battery test pending): GPS quality guard, adaptive polling, Battery Saver OLED mode, wake lock, and 48 px+ glove-friendly Race Mode buttons.",
       "Added Metric/Imperial units toggle and print/shareable Crew Sheet with +/-10% ETA bands.",
     ],
   },

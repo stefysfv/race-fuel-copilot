@@ -27,11 +27,12 @@ test("exposes privacy, terms, OG metadata, How It Works, changelog, what's new, 
   await expect(page.getByTestId("footer-terms")).toHaveAttribute("href", "/terms.html");
   await page.getByTestId("footer-changelog").click();
   await expect(page.getByTestId("changelog-modal")).toBeVisible();
-  await expect(page.getByTestId("changelog-modal")).toContainText("v1.0.0");
+  await expect(page.getByTestId("changelog-modal")).toContainText("v0.9.0-beta");
+  await expect(page.locator("link[href*='fonts.googleapis.com']")).toHaveCount(0);
   await page.locator("#close-changelog").click();
   await expect(page.getByTestId("changelog-modal")).toBeHidden();
 
-  await page.evaluate(() => localStorage.setItem("fuel-seen-version", "0.9.0"));
+  await page.evaluate(() => localStorage.setItem("fuel-seen-version", "0.8.0-beta"));
   await page.reload();
   await expect(page.getByTestId("whats-new-banner")).toBeVisible();
   await page.getByTestId("whats-new-dismiss").click();
