@@ -17,7 +17,7 @@ import { drawMap, mapApi } from "./map_screen.js";
 import { applyTargetDefault, paintAidDrawer, paintRaceOptions, paintUnitInputs, setSource, setCarbs, syncTempFromInput, syncWeightFromInput, loadRaces } from "./plan_request.js";
 import { applyZonePreset, loadZoneProfile, onZoneSlider, scheduleZonePreview } from "./zone_profile.js";
 import { raceCoachTick, preloadEnglishVoices, onAlertsClick, onTestAlert, requestWakeLock, bindLiveAlerts } from "./alerts.js";
-import { onRaceModeClick, armGpsWatch, paintAutoGps, onUpdateGpsClick, triggerRescue, paintDesk, loadBatterySaver, setBatterySaver, handleVisibilityChange } from "./gps.js";
+import { onRaceModeClick, togglePauseRace, openRestartModal, closeRestartModal, confirmRestartRace, skipStartCountdown, armGpsWatch, paintAutoGps, onUpdateGpsClick, triggerRescue, paintDesk, loadBatterySaver, setBatterySaver, handleVisibilityChange } from "./gps.js";
 import { showSetupPane, toggleSetup, showTab } from "./navigation.js";
 import { buildPlan } from "./build_plan.js";
 import { setupFeedback, paintFeedback } from "./feedback.js";
@@ -28,7 +28,7 @@ import { getUnitSystem, onUnitChange, setUnitSystem } from "./units.js";
 
 bindLiveAlerts(logIntake, paintRaceControls);
 onClockTick(() => {
-  if (state.raceMode || state.alerts) raceCoachTick();
+  if ((state.raceMode || state.alerts) && !state.pausedAt && !state.raceCountdown) raceCoachTick();
 });
 onPaintDesk(paintDesk);
 
@@ -98,6 +98,13 @@ function bind() {
   });
   ui.rescue?.addEventListener("click", () => triggerRescue());
   ui.raceMode?.addEventListener("click", onRaceModeClick);
+  ui.racePause?.addEventListener("click", togglePauseRace);
+  ui.raceRestart?.addEventListener("click", openRestartModal);
+  ui.confirmRestart?.addEventListener("click", () => confirmRestartRace());
+  ui.cancelRestart?.addEventListener("click", closeRestartModal);
+  ui.closeRestart?.addEventListener("click", closeRestartModal);
+  ui.restartModal?.addEventListener("click", (event) => { if (event.target === ui.restartModal) closeRestartModal(); });
+  ui.raceCountdownSkip?.addEventListener("click", skipStartCountdown);
   ui.batterySaver?.addEventListener("click", () => setBatterySaver(!state.batterySaver));
   ui.undoAuto?.addEventListener("click", () => undoAutoLog());
   ui.alerts?.addEventListener("click", () => onAlertsClick());

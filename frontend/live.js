@@ -1,7 +1,7 @@
 /** Live tab: countdown, intake text, intake log, and the race clock. */
 
 import { state, ui } from "./state.js";
-import { compactHours, elapsedMin, formatClock, setStatus } from "./ui_helpers.js";
+import { compactHours, elapsedMin, formatClock, formatElapsedClock, setStatus } from "./ui_helpers.js";
 import { currentSegment, nextAid, nextStop, shortIntake } from "./plan_cursor.js";
 import { persist } from "./session.js";
 import { formatDistance } from "./units.js";
@@ -48,6 +48,8 @@ export function renderLive() {
     ui.intake.textContent = "Build a plan";
     paintBadge(null);
     ui.nextAid.textContent = "—";
+    paintRaceHud(0);
+    renderRaceLog();
     return;
   }
   if (!stop) {
@@ -64,9 +66,12 @@ export function renderLive() {
     ui.countdown.classList.remove("is-complete");
     const remaining = stop.scheduled_minute - elapsed;
     ui.countdown.textContent = remaining > 0 ? formatClock(remaining) : "Due";
-    ui.caption.textContent = flavorTag(stop);
+    const tag = flavorTag(stop);
+    ui.caption.textContent = state.pausedAt ? (tag ? `Paused · ${tag}` : "Paused") : tag;
     ui.intake.textContent = shortIntake(stop);
   }
+  paintRaceHud(elapsed);
+  renderRaceLog();
   paintBadge(currentSegment());
   const aid = nextAid(clockOn ? elapsed : 0);
   ui.nextAid.textContent = aid ? compactHours(aid.etaMin) : "—";
@@ -92,9 +97,62 @@ export function startClock() {
     return;
   }
   state.startedAt = Date.now();
+  state.pausedAt = null;
+  state.pausedTotalMs = 0;
+  if (!state.logged.length) state.intakeHistory = [];
   ensureTicker();
   renderLive();
   persist();
+}
+
+export function paintRaceHud(elapsed = elapsedMin()) {
+  const active = Boolean(state.raceMode || state.startedAt);
+  ui.raceHud?.classList.toggle("hidden", !active);
+  ui.raceSessionControls?.classList.toggle("hidden", !active);
+  if (!active) return;
+  if (ui.raceLiveBadge) {
+    ui.raceLiveBadge.classList.toggle("is-paused", Boolean(state.pausedAt));
+    if (state.raceCountdown) {
+      ui.raceLiveBadge.textContent = "STARTING...";
+    } else if (state.pausedAt) {
+      ui.raceLiveBadge.textContent = "PAUSED";
+    } else if (state.raceMode) {
+      ui.raceLiveBadge.textContent = "RACE LIVE";
+    } else {
+      ui.raceLiveBadge.textContent = "TIMER ON";
+    }
+  }
+  if (ui.raceElapsed) {
+    ui.raceElapsed.textContent = formatElapsedClock(elapsed);
+  }
+  if (ui.racePause) {
+    ui.racePause.textContent = state.pausedAt ? "Resume" : "Pause";
+    ui.racePause.setAttribute("aria-pressed", state.pausedAt ? "true" : "false");
+  }
+}
+
+export function renderRaceLog() {
+  if (!ui.raceLogCard || !ui.raceLogList) return;
+  const active = Boolean(state.raceMode || state.startedAt || state.intakeHistory.length);
+  ui.raceLogCard.classList.toggle("hidden", !active);
+  if (!active) return;
+  ui.raceLogList.replaceChildren();
+  const rows = Array.isArray(state.intakeHistory) ? state.intakeHistory : [];
+  if (!rows.length) {
+    const empty = document.createElement("li");
+    empty.className = "race-log-empty";
+    empty.textContent = "No intakes logged yet. Tap I ate when you fuel.";
+    ui.raceLogList.append(empty);
+    return;
+  }
+  for (const item of rows.slice(0, 8)) {
+    const li = document.createElement("li");
+    li.className = "race-log-item";
+    const autoTag = item.auto ? " (auto)" : "";
+    const clock = item.clockText || "";
+    li.textContent = `${clock} · ${item.label}${autoTag}`;
+    ui.raceLogList.append(li);
+  }
 }
 
 export function ensureTicker() {
@@ -125,6 +183,13 @@ export async function logIntake(options = {}) {
   }
   state.logged.push(stop.sequence);
   state.dueFired.add(stop.sequence);
+  state.intakeHistory.unshift({
+    sequence: stop.sequence,
+    clockText: formatElapsedClock(elapsedMin()),
+    label: shortIntake(stop),
+    carbs_g: Math.round(stop.carbs_g || 0),
+    auto: Boolean(options.auto),
+  });
   if (options.auto) {
     state.lastAutoLog = stop.sequence;
     setStatus(`Auto-logged ${stop.carbs_g.toFixed(0)} g at ${formatDistance(stop.distance_km, { digits: 1 })}.`);
@@ -144,6 +209,8 @@ export function undoAutoLog() {
   const sequence = state.lastAutoLog;
   const stillThere = state.livePlan?.fuel_stops.some((stop) => stop.sequence === sequence);
   state.logged = state.logged.filter((item) => item !== sequence);
+  const idx = state.intakeHistory.findIndex((item) => item.sequence === sequence && item.auto);
+  if (idx >= 0) state.intakeHistory.splice(idx, 1);
   state.dueFired.delete(sequence);
   state.headsUp.delete(sequence);
   state.lastAutoLog = null;

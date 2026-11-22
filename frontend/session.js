@@ -40,6 +40,9 @@ export async function persist() {
       fuelPreference: state.fuelPreference,
       logged: state.logged,
       startedAt: state.startedAt,
+      pausedAt: state.pausedAt,
+      pausedTotalMs: state.pausedTotalMs,
+      intakeHistory: state.intakeHistory,
       giRescue: state.giRescue,
       snap: state.snap,
       alerts: state.alerts,
@@ -73,6 +76,9 @@ export function restore(session) {
   state.locker = Array.isArray(session.locker) ? session.locker : [];
   state.fuelPreference = session.fuelPreference || "gels_first";
   state.startedAt = session.startedAt;
+  state.pausedAt = session.pausedAt ?? null;
+  state.pausedTotalMs = Number(session.pausedTotalMs) || 0;
+  state.intakeHistory = Array.isArray(session.intakeHistory) ? session.intakeHistory : [];
   state.giRescue = Boolean(session.giRescue);
   state.snap = session.snap;
   state.alerts = Boolean(session.alerts);

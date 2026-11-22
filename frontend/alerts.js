@@ -16,7 +16,7 @@ export function bindLiveAlerts(log, paint) {
 }
 
 export function raceCoachTick() {
-  if (!state.startedAt || state.sim.active || !state.livePlan || state.catchingUp) {
+  if (!state.startedAt || state.pausedAt || state.raceCountdown || state.sim.active || !state.livePlan || state.catchingUp) {
     return;
   }
   const stop = nextStop();
@@ -123,6 +123,24 @@ export function playChime() {
     osc.start(now + offset);
     osc.stop(now + offset + 0.17);
   });
+}
+
+export function playCountdownBeep(isGo = false) {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = isGo ? 1046 : 660;
+  const dur = isGo ? 0.24 : 0.11;
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.22, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + dur + 0.01);
 }
 
 export const FEMALE_VOICE_NAMES = [
@@ -277,7 +295,7 @@ export async function onAlertsClick() {
   state.alerts = true;
   paintRaceControls();
   persist();
-  setStatus(granted ? "Race alerts on. Lock screen and voice." : alertsBlockedMessage());
+  setStatus(granted ? "Voice & chime on. On iPhone, keep screen awake in Battery Saver (iOS holds offline notifications while locked)." : alertsBlockedMessage());
 }
 
 export async function onTestAlert() {

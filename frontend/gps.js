@@ -1,6 +1,6 @@
 /** GPS watch, quality guard, adaptive polling, recalibration, GI rescue, and desk simulator. */
 
-import { announce, primeAudio, releaseWakeLock, requestWakeLock } from "./alerts.js";
+import { announce, playCountdownBeep, primeAudio, releaseWakeLock, requestWakeLock } from "./alerts.js";
 import {
   recordBackgroundResume,
   recordGpsAccepted,
@@ -10,7 +10,7 @@ import {
 } from "./battery_diag.js";
 import { recalibrate } from "./engine_client.js";
 import { createGpsGuard, haversineMeters, pollingPolicy } from "./gps_guard.js";
-import { paintRaceControls, renderLive, startClock } from "./live.js";
+import { ensureTicker, paintRaceControls, renderLive, startClock } from "./live.js";
 import { BATTERY_SAVER_KEY, readText, writeText } from "./local_store.js";
 import { positionOnCourse } from "./map_controller.js?v=23";
 import { drawMap, moveRunner, showRealDot } from "./map_screen.js";
@@ -28,6 +28,7 @@ const CATCHUP_TIMEOUT_MS = 5_000;
 
 const gpsGuard = createGpsGuard();
 let catchUpTimer = 0;
+let countdownTimer = 0;
 
 export function getGpsGuard() {
   return gpsGuard;
@@ -143,6 +144,65 @@ export function refreshGpsPolling() {
   });
 }
 
+function finishCountdown(resetStart) {
+  window.clearTimeout(countdownTimer);
+  countdownTimer = 0;
+  state.raceCountdown = false;
+  ui.raceCountdownOverlay?.classList.add("hidden");
+  if (resetStart) {
+    state.startedAt = Date.now();
+    state.pausedAt = null;
+    state.pausedTotalMs = 0;
+  }
+  ensureTicker();
+  paintRaceControls();
+  renderLive();
+  persist();
+}
+
+export function skipStartCountdown() {
+  if (!state.raceCountdown) return;
+  playCountdownBeep(true);
+  finishCountdown(true);
+  setStatus("Race Mode live. GPS is tracking.");
+}
+
+function runStartCountdown() {
+  window.clearTimeout(countdownTimer);
+  const overlay = ui.raceCountdownOverlay;
+  const num = ui.raceCountdownNum;
+  if (!overlay || !num) {
+    finishCountdown(true);
+    return;
+  }
+  state.raceCountdown = true;
+  const steps = ["3", "2", "1", "GO!"];
+  let idx = 0;
+  overlay.classList.remove("hidden");
+
+  const tick = () => {
+    if (!state.raceMode || !state.raceCountdown) {
+      overlay.classList.add("hidden");
+      return;
+    }
+    const label = steps[idx];
+    const isGo = label === "GO!";
+    num.textContent = label;
+    num.classList.toggle("is-go", isGo);
+    playCountdownBeep(isGo);
+    idx += 1;
+    if (isGo) {
+      countdownTimer = window.setTimeout(() => {
+        finishCountdown(true);
+        setStatus("Race Mode live. GPS is tracking.");
+      }, 420);
+      return;
+    }
+    countdownTimer = window.setTimeout(tick, 680);
+  };
+  tick();
+}
+
 export function onRaceModeClick() {
   if (state.raceMode) {
     stopRaceMode();
@@ -156,7 +216,12 @@ export function onRaceModeClick() {
     paintGps("GPS Error (0): This browser has no GPS. Check iPhone Settings > Privacy > Location Services > Safari Websites.", "error");
     return;
   }
+  if (state.pausedAt) {
+    resumeRaceMode();
+    return;
+  }
   primeAudio();
+  const freshStart = !state.startedAt;
   state.raceMode = true;
   state.lastRecalAt = 0;
   state.lastRecalPos = null;
@@ -164,8 +229,11 @@ export function onRaceModeClick() {
     stopPlay(false);
   }
   state.sim.active = false;
-  if (!state.startedAt) {
-    startClock();
+  if (freshStart) {
+    state.startedAt = Date.now();
+    state.pausedAt = null;
+    state.pausedTotalMs = 0;
+    state.intakeHistory = [];
   }
   paintGps("Acquiring GPS...", "");
   state.autoGps = true;
@@ -174,22 +242,125 @@ export function onRaceModeClick() {
   if (state.batterySaver) pollOnce();
   requestWakeLock();
   paintRaceControls();
-  setStatus("Race Mode on. GPS is tracking.");
+  renderLive();
+  if (freshStart) {
+    runStartCountdown();
+  } else {
+    ensureTicker();
+    setStatus("Race Mode on. GPS is tracking.");
+  }
+}
+
+export function pauseRaceMode() {
+  if (!state.startedAt || state.pausedAt) return;
+  window.clearTimeout(countdownTimer);
+  countdownTimer = 0;
+  state.raceCountdown = false;
+  ui.raceCountdownOverlay?.classList.add("hidden");
+  state.pausedAt = Date.now();
+  state.pendingAuto = null;
+  state.autoLogAt = 0;
+  clearGpsWatchAndPoll();
+  releaseWakeLock();
+  paintRaceControls();
+  renderLive();
+  persist();
+  setStatus("Race paused. Tap Resume to continue or Restart to reset.");
+}
+
+export function resumeRaceMode() {
+  if (!state.startedAt || !state.pausedAt) return;
+  primeAudio();
+  state.pausedTotalMs = (state.pausedTotalMs || 0) + Math.max(0, Date.now() - state.pausedAt);
+  state.pausedAt = null;
+  state.raceMode = true;
+  state.autoGps = true;
+  applyBatterySaverUi();
+  armGpsWatch();
+  if (state.batterySaver) pollOnce();
+  requestWakeLock();
+  ensureTicker();
+  paintRaceControls();
+  renderLive();
+  persist();
+  setStatus("Race resumed.");
+}
+
+export function togglePauseRace() {
+  if (state.pausedAt) {
+    resumeRaceMode();
+  } else {
+    pauseRaceMode();
+  }
 }
 
 export function stopRaceMode() {
+  window.clearTimeout(countdownTimer);
+  countdownTimer = 0;
+  state.raceCountdown = false;
+  ui.raceCountdownOverlay?.classList.add("hidden");
+  if (state.startedAt && !state.pausedAt) {
+    state.pausedAt = Date.now();
+  }
   state.raceMode = false;
   applyBatterySaverUi();
-  if (!state.autoGps) {
-    clearGpsWatchAndPoll();
-  } else {
-    refreshGpsPolling();
-  }
+  clearGpsWatchAndPoll();
   state.pendingAuto = null;
   state.autoLogAt = 0;
   releaseWakeLock();
   paintRaceControls();
-  setStatus("Race Mode off.");
+  renderLive();
+  persist();
+  setStatus("Race Mode paused. Tap Resume or Restart anytime.");
+}
+
+export function openRestartModal() {
+  ui.restartModal?.classList.remove("hidden");
+}
+
+export function closeRestartModal() {
+  ui.restartModal?.classList.add("hidden");
+}
+
+export async function confirmRestartRace() {
+  closeRestartModal();
+  window.clearTimeout(countdownTimer);
+  countdownTimer = 0;
+  state.raceCountdown = false;
+  ui.raceCountdownOverlay?.classList.add("hidden");
+  state.raceMode = false;
+  state.startedAt = null;
+  state.pausedAt = null;
+  state.pausedTotalMs = 0;
+  state.logged = [];
+  state.intakeHistory = [];
+  state.headsUp.clear();
+  state.dueFired.clear();
+  state.aidPinged.clear();
+  state.pendingAuto = null;
+  state.autoLogAt = 0;
+  state.lastAutoLog = null;
+  state.giRescue = false;
+  state.lastRecalAt = 0;
+  state.lastRecalPos = null;
+  state.snap = null;
+  state.weakGpsAccuracy = null;
+  gpsGuard.reset();
+  if (state.packedPlan) {
+    state.livePlan = structuredClone(state.packedPlan);
+    state.aidStations = Array.isArray(state.packedPlan.aid_stations) ? state.packedPlan.aid_stations : [];
+  }
+  clearGpsWatchAndPoll();
+  releaseWakeLock();
+  if (ui.liveMessage) ui.liveMessage.textContent = "";
+  ui.gpsBanner?.classList.add("hidden");
+  paintOffCourse(0);
+  applyBatterySaverUi();
+  paintRaceControls();
+  drawMap();
+  renderLive();
+  await persist();
+  setStatus("Race restarted to 0:00. Your plan is ready.");
 }
 
 export function armGpsWatch() {

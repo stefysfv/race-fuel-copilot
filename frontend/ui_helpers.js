@@ -45,7 +45,16 @@ export function elapsedMin() {
   if (!state.startedAt) {
     return 0;
   }
-  return (Date.now() - state.startedAt) / 60000;
+  const now = state.pausedAt || Date.now();
+  return Math.max(0, (now - state.startedAt - (state.pausedTotalMs || 0)) / 60000);
+}
+
+export function formatElapsedClock(minutes) {
+  const totalSec = Math.max(0, Math.floor(minutes * 60));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 export function paintMinutes() {
@@ -77,7 +86,8 @@ export function wallElapsedMin() {
   if (!state.startedAt) {
     return 0;
   }
-  return (Date.now() - state.startedAt) / 60000;
+  const now = state.pausedAt || Date.now();
+  return Math.max(0, (now - state.startedAt - (state.pausedTotalMs || 0)) / 60000);
 }
 
 export function listen(selector, event, handler) {
