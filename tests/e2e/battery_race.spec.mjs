@@ -1,4 +1,4 @@
-/** GPS guard, adaptive polling, diagnostics, wake lock, catch-up resume, and >= 48px Live tap targets. */
+/** GPS guard, check-in diagnostics, no background GPS or wake lock, unlock resume, and >= 48px Live tap targets. */
 
 import { expect, test } from "@playwright/test";
 
@@ -13,10 +13,10 @@ test.use({
   serviceWorkers: "allow",
 });
 
-test("filters synthetic noisy GPS tracks and selects adaptive polling thresholds", async ({ page }) => {
+test("filters synthetic noisy GPS tracks", async ({ page }) => {
   await page.goto("/");
   const out = await page.evaluate(async () => {
-    const { createGpsGuard, pollingPolicy } = await import("/gps_guard.js");
+    const { createGpsGuard } = await import("/gps_guard.js");
     const guard = createGpsGuard();
     const t0 = 1_700_000_000_000;
 
@@ -30,10 +30,7 @@ test("filters synthetic noisy GPS tracks and selects adaptive polling thresholds
 
     return {
       r1, r2, r3, r4, r5, r6, r7,
-      steadyStd: pollingPolicy({ batterySaver: false, stopEtaMin: 25, aidDistanceM: 4000, offCourseM: 0 }),
-      approachStd: pollingPolicy({ batterySaver: false, stopEtaMin: 6, aidDistanceM: 4000, offCourseM: 0 }),
-      steadySaver: pollingPolicy({ batterySaver: true, stopEtaMin: 25, aidDistanceM: 4000, offCourseM: 0 }),
-      approachSaver: pollingPolicy({ batterySaver: true, stopEtaMin: 25, aidDistanceM: 600, offCourseM: 0 }),
+      hasPollingPolicy: "pollingPolicy" in (await import("/gps_guard.js")),
     };
   });
 
@@ -49,21 +46,15 @@ test("filters synthetic noisy GPS tracks and selects adaptive polling thresholds
   expect(out.r7.accepted).toBe(true);
   expect(out.r7.reason).toBe("recovered");
 
-  expect(out.steadyStd.state).toBe("steady");
-  expect(out.steadyStd.mode).toBe("watch");
-  expect(out.steadyStd.recalIntervalMs).toBeGreaterThan(out.approachStd.recalIntervalMs);
-  expect(out.approachStd.state).toBe("approach");
-  expect(out.steadySaver.mode).toBe("poll");
-  expect(out.steadySaver.recalIntervalMs).toBeGreaterThan(out.steadyStd.recalIntervalMs);
-  expect(out.approachSaver.state).toBe("approach");
-  expect(out.approachSaver.pollIntervalMs).toBeLessThan(out.steadySaver.pollIntervalMs);
+  // Check-in concept: nothing polls, so there is no adaptive polling policy any more.
+  expect(out.hasPollingPolicy).toBe(false);
 });
 
-test("supports diag telemetry, wake lock, catch-up resume, bad-fix rejection, and 48px targets", async ({ page, context }) => {
+test("checks in only on Sync GPS: no watch, no wake lock, no GPS on unlock, bad fixes rejected, 48px targets", async ({ page, context }) => {
   test.setTimeout(240000);
   await page.addInitScript(() => {
     window.__wakeRequested = 0;
-    window.__wakeReleased = 0;
+    window.__geoCalls = { watch: 0, current: 0 };
     window.__recalCalls = 0;
     const origPost = Worker.prototype.postMessage;
     Worker.prototype.postMessage = function (message, ...args) {
@@ -72,35 +63,38 @@ test("supports diag telemetry, wake lock, catch-up resume, bad-fix rejection, an
       }
       return origPost.call(this, message, ...args);
     };
+    // The app must never ask for a wake lock or watch GPS. Count any attempt.
     Object.defineProperty(navigator, "wakeLock", {
       configurable: true,
       value: {
         async request() {
           window.__wakeRequested += 1;
-          const listeners = [];
-          return {
-            released: false,
-            addEventListener(type, fn) {
-              if (type === "release") listeners.push(fn);
-            },
-            async release() {
-              window.__wakeReleased += 1;
-              this.released = true;
-              listeners.forEach((fn) => fn());
-            },
-          };
+          return { released: false, addEventListener() {}, async release() {} };
         },
       },
     });
+    const geo = navigator.geolocation;
+    const realWatch = geo.watchPosition.bind(geo);
+    const realCurrent = geo.getCurrentPosition.bind(geo);
+    geo.watchPosition = (...args) => {
+      window.__geoCalls.watch += 1;
+      return realWatch(...args);
+    };
+    geo.getCurrentPosition = (...args) => {
+      window.__geoCalls.current += 1;
+      return realCurrent(...args);
+    };
   });
 
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ ...ON_COURSE, accuracy: 8 });
 
   await page.goto("/?diag=1");
-  await expect(page.locator("#diag-list")).toContainText("GPS fix interval");
+  await expect(page.locator("#diag-list")).toContainText("Check-in interval");
   await expect(page.locator("#diag-list")).toContainText("Recalibrations");
-  await expect(page.locator("#diag-list")).toContainText("Wake lock");
+  await expect(page.locator("#diag-list")).toContainText("Battery Saver");
+  await expect(page.locator("#diag-list")).not.toContainText("Wake lock");
+  await expect(page.locator("#diag-list")).not.toContainText("Polling");
 
   await page.goto("/");
   await expect(page.locator("#race-select option[value='salomon-vitosha-12']")).toHaveCount(1, { timeout: 30000 });
@@ -116,7 +110,11 @@ test("supports diag telemetry, wake lock, catch-up resume, bad-fix rejection, an
   await page.getByTestId("start-race-cta").click();
   await page.getByTestId("race-countdown-skip").click();
   await expect(page.getByTestId("race-cockpit")).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.__wakeRequested)).toBeGreaterThanOrEqual(1);
+
+  // Starting the race reads no GPS and holds no wake lock.
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => window.__geoCalls)).toEqual({ watch: 0, current: 0 });
+  expect(await page.evaluate(() => window.__wakeRequested)).toBe(0);
 
   for (const tid of ["log-intake", "sync-gps", "live-crew-btn", "live-menu-btn"]) {
     const box = await page.getByTestId(tid).boundingBox();
@@ -124,8 +122,10 @@ test("supports diag telemetry, wake lock, catch-up resume, bad-fix rejection, an
     expect(box.height, `${tid} height < 48px`).toBeGreaterThanOrEqual(48);
     expect(box.width, `${tid} width < 48px`).toBeGreaterThanOrEqual(48);
   }
+  await page.getByTestId("sync-gps").click();
   await expect(page.locator("#gps-banner")).toContainText("GPS Locked", { timeout: 30000 });
   await expect.poll(() => page.evaluate(() => window.__recalCalls), { timeout: 30000 }).toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => window.__geoCalls)).toEqual({ watch: 0, current: 1 });
 
   const beforeRecals = await page.evaluate(() => window.__recalCalls);
   await page.evaluate(async () => {
@@ -137,21 +137,20 @@ test("supports diag telemetry, wake lock, catch-up resume, bad-fix rejection, an
   const afterBadRecals = await page.evaluate(() => window.__recalCalls);
   expect(afterBadRecals).toBe(beforeRecals);
 
-  const sawCatchUp = await page.evaluate(async () => {
+  // Unlocking the phone refreshes the clock screen and never reads GPS.
+  const geoBeforeUnlock = await page.evaluate(() => ({ ...window.__geoCalls }));
+  await page.evaluate(async () => {
     const { state } = await import("/state.js");
     const { handleVisibilityChange } = await import("/gps.js");
     state.hiddenAt = Date.now() - 25_000;
     handleVisibilityChange();
-    const banner = document.querySelector("#catching-up");
-    return {
-      text: banner?.textContent || "",
-      visible: Boolean(banner && !banner.classList.contains("hidden")),
-    };
   });
-  expect(sawCatchUp.visible).toBe(true);
-  expect(sawCatchUp.text).toContain("Catching up");
+  expect(await page.evaluate(() => window.__geoCalls)).toEqual(geoBeforeUnlock);
+  expect(await page.evaluate(() => window.__recalCalls)).toBe(afterBadRecals);
 
   await page.getByTestId("live-menu-btn").click();
   await page.getByTestId("race-pause").click();
-  await expect.poll(() => page.evaluate(() => window.__wakeReleased)).toBeGreaterThanOrEqual(1);
+  await expect(page.getByTestId("race-live-badge")).toHaveText("PAUSED");
+  expect(await page.evaluate(() => window.__wakeRequested)).toBe(0);
+  expect((await page.evaluate(() => window.__geoCalls)).watch).toBe(0);
 });

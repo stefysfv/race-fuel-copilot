@@ -50,7 +50,6 @@ export async function persist() {
       lastGpsRecalAt: state.lastGpsRecalAt,
       giRescue: state.giRescue,
       snap: state.snap,
-      alerts: state.alerts,
     });
   } catch (error) {
     setStatus("The plan is on screen, but it could not be saved on this phone.");
@@ -91,7 +90,6 @@ export function restore(session) {
   state.lastGpsRecalAt = Number(session.lastGpsRecalAt) || 0;
   state.giRescue = Boolean(session.giRescue);
   state.snap = session.snap;
-  state.alerts = Boolean(session.alerts);
   const savedWeight = Number(session.weight);
   const savedTemp = Number(session.temperature);
   state.weightKg = Number.isFinite(savedWeight) && savedWeight > 30 && savedWeight < 250 ? savedWeight : 70;

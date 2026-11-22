@@ -122,20 +122,6 @@ async function cacheFirst(request) {
   return response;
 }
 
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if ("focus" in client) {
-          return client.focus();
-        }
-      }
-      return self.clients.openWindow("/");
-    }),
-  );
-});
-
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.origin !== self.location.origin) {

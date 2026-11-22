@@ -12,12 +12,11 @@ import { setupDiagnostics, watchReadiness } from "./offline_status.js";
 import { resetOutdatedStorage, restore } from "./session.js";
 import { renderLocker, addCustomItem, renderCustomAids, onAddAidClick, setFuelPreference, renderVestRows, paintDrinkControls, onVestInventoryInput, renderFoods, saveMenu, setFoodCarbs, toggleFood, onFoodEditorClick, onFoodEditorInput, addCustomFood, toggleFoodFlavor, loadStoredPreferences, renderGutPill, openGutModal, markGut, closeGutModal, saveGut, resetGut } from "./food_menu.js";
 import { renderPacking, setupSummaryLine, stepLeg, exportRaceCard, closeCrewModal } from "./packing.js";
-import { renderLive, startClock, ensureTicker, logIntake, undoAutoLog, paintRaceControls, onClockTick, onPaintDesk, markLegCompleted, openRaceMenu, closeRaceMenu, openRecapModal, closeRecapModal, prefillFeedbackFromRecap } from "./live.js";
+import { renderLive, startClock, ensureTicker, logIntake, undoAutoLog, paintRaceControls, onPaintDesk, markLegCompleted, openRaceMenu, closeRaceMenu, openRecapModal, closeRecapModal, prefillFeedbackFromRecap } from "./live.js";
 import { drawMap, mapApi } from "./map_screen.js";
 import { applyTargetDefault, paintAidDrawer, paintRaceOptions, paintUnitInputs, setSource, setCarbs, syncTempFromInput, syncWeightFromInput, loadRaces } from "./plan_request.js";
 import { applyZonePreset, loadZoneProfile, onZoneSlider, scheduleZonePreview } from "./zone_profile.js";
-import { raceCoachTick, preloadEnglishVoices, onAlertsClick, onTestAlert, requestWakeLock, bindLiveAlerts } from "./alerts.js";
-import { onRaceModeClick, togglePauseRace, openRestartModal, closeRestartModal, confirmRestartRace, skipStartCountdown, armGpsWatch, paintAutoGps, onUpdateGpsClick, triggerRescue, paintDesk, loadBatterySaver, setBatterySaver, handleVisibilityChange } from "./gps.js";
+import { onRaceModeClick, togglePauseRace, openRestartModal, closeRestartModal, confirmRestartRace, skipStartCountdown, paintAutoGps, onUpdateGpsClick, triggerRescue, paintDesk, loadBatterySaver, setBatterySaver, handleVisibilityChange } from "./gps.js";
 import { showSetupPane, toggleSetup, showTab } from "./navigation.js";
 import { buildPlan } from "./build_plan.js";
 import { setupFeedback, paintFeedback } from "./feedback.js";
@@ -26,10 +25,6 @@ import { setupInstallBanner } from "./install_prompt.js";
 import { setupVersionUi } from "./version.js";
 import { getUnitSystem, onUnitChange, setUnitSystem } from "./units.js";
 
-bindLiveAlerts(logIntake, paintRaceControls);
-onClockTick(() => {
-  if ((state.raceMode || state.alerts) && !state.pausedAt && !state.raceCountdown) raceCoachTick();
-});
 onPaintDesk(paintDesk);
 
 function wireCriticalControls() {
@@ -130,8 +125,6 @@ function bind() {
   ui.recapToFeedback?.addEventListener("click", () => { prefillFeedbackFromRecap(); closeRecapModal(); showTab("feedback"); });
   ui.batterySaver?.addEventListener("click", () => setBatterySaver(!state.batterySaver));
   ui.undoAuto?.addEventListener("click", () => undoAutoLog());
-  ui.alerts?.addEventListener("click", () => onAlertsClick());
-  ui.testAlert?.addEventListener("click", () => onTestAlert());
   document.addEventListener("visibilitychange", () => {
     handleVisibilityChange();
   });
@@ -264,7 +257,6 @@ async function init() {
     setupFeedback();
     setupDiagnostics();
     watchReadiness();
-    preloadEnglishVoices();
     getUnitSystem();
     loadBatterySaver();
     loadStoredPreferences();
@@ -309,8 +301,6 @@ async function init() {
     renderPacking();
     if (state.packedPlan) {
       showSetupPane("packing");
-      state.autoGps = true;
-      armGpsWatch();
     }
     renderLive();
     paintAutoGps();

@@ -1,15 +1,18 @@
-/** GPS watch, quality guard, adaptive polling, recalibration, GI rescue, and desk simulator. */
+/** Sync GPS check-in, off-course state, GI rescue, race clock, and desk simulator.
+ *
+ * Check-in concept: the phone stays locked and nothing watches or polls GPS.
+ * Location is read only inside a tap (Sync GPS, GI rescue) with one getCurrentPosition call.
+ */
 
-import { announce, playCountdownBeep, primeAudio, releaseWakeLock, requestWakeLock } from "./alerts.js";
 import {
   recordBackgroundResume,
   recordGpsAccepted,
   recordGpsRejected,
   recordRecalibration,
-  setPollingDiag,
+  setBatterySaverDiag,
 } from "./battery_diag.js";
 import { recalibrate } from "./engine_client.js";
-import { createGpsGuard, haversineMeters, pollingPolicy } from "./gps_guard.js";
+import { createGpsGuard } from "./gps_guard.js";
 import { ensureTicker, paintRaceControls, renderLive, sectionForDistanceKm, startClock } from "./live.js";
 import { legKey, renderCrewSheet } from "./crew_sheet.js";
 import { renderPacking } from "./packing.js";
@@ -17,48 +20,20 @@ import { BATTERY_SAVER_KEY, readText, writeText } from "./local_store.js";
 import { positionOnCourse } from "./map_controller.js?v=23";
 import { drawMap, moveRunner, showRealDot } from "./map_screen.js";
 import { snapToSegments } from "./offline_engine.js";
-import { currentSegment, nextAid, nextStop } from "./plan_cursor.js";
+import { currentSegment } from "./plan_cursor.js";
 import { courseBody } from "./plan_request.js";
 import { persist } from "./session.js";
 import { state, ui } from "./state.js";
 import { elapsedMin, formatDuration, formatElapsedClock, setStatus, wallElapsedMin } from "./ui_helpers.js";
-import { formatDistance, formatShortLength } from "./units.js";
+import { formatDistance } from "./units.js";
 
-export const RECAL_EVERY_MS = 30_000;
 const CATCHUP_MIN_HIDDEN_MS = 10_000;
-const CATCHUP_TIMEOUT_MS = 5_000;
 
 const gpsGuard = createGpsGuard();
-let catchUpTimer = 0;
 let countdownTimer = 0;
 
 export function getGpsGuard() {
   return gpsGuard;
-}
-
-export function currentPollingPolicy() {
-  const elapsed = state.startedAt ? wallElapsedMin() : elapsedMin();
-  const stop = nextStop();
-  const stopEtaMin = stop ? Math.max(0, stop.scheduled_minute - elapsed) : Infinity;
-  let aidDistanceM = Infinity;
-  if (state.snap && state.aidStations?.length) {
-    for (const aid of state.aidStations) {
-      const away = aid.distance_km * 1000 - state.snap.distanceM;
-      if (away >= 0 && away < aidDistanceM) aidDistanceM = away;
-    }
-  } else {
-    const aid = nextAid(elapsed);
-    if (aid && aid.etaMin <= 12) aidDistanceM = 900;
-  }
-  const policy = pollingPolicy({
-    batterySaver: state.batterySaver,
-    stopEtaMin,
-    aidDistanceM,
-    offCourseM: state.offTrailM,
-  });
-  state.pollingState = policy.state;
-  setPollingDiag({ state: policy.state, mode: policy.mode, batterySaver: state.batterySaver });
-  return policy;
 }
 
 export function loadBatterySaver() {
@@ -71,80 +46,17 @@ export function applyBatterySaverUi() {
   document.body.classList.toggle("race-active", Boolean(state.raceMode));
   ui.batterySaver?.setAttribute("aria-pressed", state.batterySaver ? "true" : "false");
   ui.launchBatterySaver?.setAttribute("aria-pressed", state.batterySaver ? "true" : "false");
-  setPollingDiag({ state: state.pollingState, mode: state.batterySaver ? "poll" : "watch", batterySaver: state.batterySaver });
+  setBatterySaverDiag(state.batterySaver);
 }
 
 export function setBatterySaver(enabled) {
   state.batterySaver = Boolean(enabled);
   writeText(BATTERY_SAVER_KEY, state.batterySaver ? "1" : "0");
   applyBatterySaverUi();
-  refreshGpsPolling();
   drawMap();
   setStatus(state.batterySaver
-    ? "Battery Saver on: OLED dark mode, slower GPS polling, offline tiles paused."
+    ? "Battery Saver on: OLED dark mode, offline tiles paused."
     : "Battery Saver off.");
-}
-
-function clearGpsWatchAndPoll() {
-  if (state.watchId != null && navigator.geolocation) {
-    navigator.geolocation.clearWatch(state.watchId);
-    state.watchId = null;
-  }
-  if (state.gpsPollTimer != null) {
-    window.clearInterval(state.gpsPollTimer);
-    state.gpsPollTimer = null;
-    state.gpsPollIntervalMs = 0;
-  }
-}
-
-function pollOnce() {
-  if (!navigator.geolocation || document.visibilityState === "hidden") return;
-  navigator.geolocation.getCurrentPosition(onRaceGps, onRaceGpsError, {
-    enableHighAccuracy: true,
-    timeout: 15_000,
-    maximumAge: 10_000,
-  });
-}
-
-export function refreshGpsPolling() {
-  if (!state.autoGps || state.gpsDragging || !state.packedPlan) {
-    return;
-  }
-  if (!navigator.geolocation) {
-    state.autoGpsError = "GPS unavailable · permission denied";
-    paintAutoGps();
-    return;
-  }
-  const policy = currentPollingPolicy();
-  if (policy.mode === "poll") {
-    if (state.watchId != null) {
-      navigator.geolocation.clearWatch(state.watchId);
-      state.watchId = null;
-    }
-    if (state.gpsPollTimer != null && state.gpsPollIntervalMs === policy.pollIntervalMs) {
-      return;
-    }
-    if (state.gpsPollTimer != null) {
-      window.clearInterval(state.gpsPollTimer);
-    }
-    state.gpsPollIntervalMs = policy.pollIntervalMs;
-    state.gpsPollTimer = window.setInterval(pollOnce, policy.pollIntervalMs);
-    return;
-  }
-  if (state.gpsPollTimer != null) {
-    window.clearInterval(state.gpsPollTimer);
-    state.gpsPollTimer = null;
-    state.gpsPollIntervalMs = 0;
-  }
-  if (state.watchId != null) {
-    return;
-  }
-  state.autoGpsError = "";
-  state.watchId = navigator.geolocation.watchPosition(onRaceGps, onRaceGpsError, {
-    enableHighAccuracy: true,
-    timeout: 20_000,
-    maximumAge: 10_000,
-  });
 }
 
 function finishCountdown(resetStart) {
@@ -165,9 +77,8 @@ function finishCountdown(resetStart) {
 
 export function skipStartCountdown() {
   if (!state.raceCountdown) return;
-  playCountdownBeep(true);
   finishCountdown(true);
-  setStatus("Race Mode live. GPS is tracking.");
+  setStatus("Race started. Tap Sync GPS at aid stations to check in.");
 }
 
 function runStartCountdown() {
@@ -192,12 +103,11 @@ function runStartCountdown() {
     const isGo = label === "GO!";
     num.textContent = label;
     num.classList.toggle("is-go", isGo);
-    playCountdownBeep(isGo);
     idx += 1;
     if (isGo) {
       countdownTimer = window.setTimeout(() => {
         finishCountdown(true);
-        setStatus("Race Mode live. GPS is tracking.");
+        setStatus("Race started. Tap Sync GPS at aid stations to check in.");
       }, 420);
       return;
     }
@@ -215,19 +125,12 @@ export function onRaceModeClick() {
     setStatus("Build a plan before Race Mode.");
     return;
   }
-  if (!navigator.geolocation) {
-    paintGps("GPS Error (0): This browser has no GPS. Check iPhone Settings > Privacy > Location Services > Safari Websites.", "error");
-    return;
-  }
   if (state.pausedAt) {
     resumeRaceMode();
     return;
   }
-  primeAudio();
   const freshStart = !state.startedAt;
   state.raceMode = true;
-  state.lastRecalAt = 0;
-  state.lastRecalPos = null;
   if (state.sim.playing) {
     stopPlay(false);
   }
@@ -238,19 +141,14 @@ export function onRaceModeClick() {
     state.pausedTotalMs = 0;
     state.intakeHistory = [];
   }
-  paintGps("Acquiring GPS...", "");
-  state.autoGps = true;
   applyBatterySaverUi();
-  armGpsWatch();
-  if (state.batterySaver) pollOnce();
-  requestWakeLock();
   paintRaceControls();
   renderLive();
   if (freshStart) {
     runStartCountdown();
   } else {
     ensureTicker();
-    setStatus("Race Mode on. GPS is tracking.");
+    setStatus("Race Mode on. Tap Sync GPS to check in.");
   }
 }
 
@@ -263,8 +161,6 @@ export function pauseRaceMode() {
   state.pausedAt = Date.now();
   state.pendingAuto = null;
   state.autoLogAt = 0;
-  clearGpsWatchAndPoll();
-  releaseWakeLock();
   paintRaceControls();
   renderLive();
   persist();
@@ -273,20 +169,15 @@ export function pauseRaceMode() {
 
 export function resumeRaceMode() {
   if (!state.startedAt || !state.pausedAt) return;
-  primeAudio();
   state.pausedTotalMs = (state.pausedTotalMs || 0) + Math.max(0, Date.now() - state.pausedAt);
   state.pausedAt = null;
   state.raceMode = true;
-  state.autoGps = true;
   applyBatterySaverUi();
-  armGpsWatch();
-  if (state.batterySaver) pollOnce();
-  requestWakeLock();
   ensureTicker();
   paintRaceControls();
   renderLive();
   persist();
-  setStatus("Race resumed.");
+  setStatus("Race resumed. Tap Sync GPS to check in.");
 }
 
 export function togglePauseRace() {
@@ -307,10 +198,8 @@ export function stopRaceMode() {
   }
   state.raceMode = false;
   applyBatterySaverUi();
-  clearGpsWatchAndPoll();
   state.pendingAuto = null;
   state.autoLogAt = 0;
-  releaseWakeLock();
   paintRaceControls();
   renderLive();
   persist();
@@ -344,13 +233,10 @@ export async function confirmRestartRace() {
   state.lastGpsRecalAt = 0;
   state.headsUp.clear();
   state.dueFired.clear();
-  state.aidPinged.clear();
   state.pendingAuto = null;
   state.autoLogAt = 0;
   state.lastAutoLog = null;
   state.giRescue = false;
-  state.lastRecalAt = 0;
-  state.lastRecalPos = null;
   state.snap = null;
   state.weakGpsAccuracy = null;
   gpsGuard.reset();
@@ -358,8 +244,6 @@ export async function confirmRestartRace() {
     state.livePlan = structuredClone(state.packedPlan);
     state.aidStations = Array.isArray(state.packedPlan.aid_stations) ? state.packedPlan.aid_stations : [];
   }
-  clearGpsWatchAndPoll();
-  releaseWakeLock();
   if (ui.liveMessage) ui.liveMessage.textContent = "";
   ui.gpsBanner?.classList.add("hidden");
   paintOffCourse(0);
@@ -372,28 +256,6 @@ export async function confirmRestartRace() {
   setStatus("Race restarted to 0:00. Your plan is ready.");
 }
 
-export function armGpsWatch() {
-  if (state.gpsDragging) {
-    return;
-  }
-  if (!navigator.geolocation) {
-    state.autoGpsError = "GPS unavailable · permission denied";
-    paintAutoGps();
-    return;
-  }
-  state.autoGps = true;
-  state.autoGpsError = "";
-  refreshGpsPolling();
-}
-
-function setCatchingUp(active, message = "") {
-  state.catchingUp = Boolean(active);
-  if (ui.catchingUp) {
-    ui.catchingUp.textContent = active ? (message || "Catching up with clock and GPS...") : "";
-    ui.catchingUp.classList.toggle("hidden", !active);
-  }
-}
-
 function quietVeryStaleStops(elapsed) {
   const stops = state.livePlan?.fuel_stops || [];
   for (const stop of stops) {
@@ -404,6 +266,7 @@ function quietVeryStaleStops(elapsed) {
   }
 }
 
+/** On unlock, refresh the clock-based screen. This never reads GPS. */
 export function handleVisibilityChange() {
   if (document.visibilityState === "hidden") {
     state.hiddenAt = Date.now();
@@ -411,140 +274,12 @@ export function handleVisibilityChange() {
   }
   const hiddenMs = state.hiddenAt ? Date.now() - state.hiddenAt : 0;
   state.hiddenAt = null;
-  if (state.raceMode) {
-    requestWakeLock();
-  }
   if (!state.packedPlan || hiddenMs < CATCHUP_MIN_HIDDEN_MS) {
     return;
   }
   recordBackgroundResume();
   quietVeryStaleStops(wallElapsedMin());
-  setCatchingUp(true, "Catching up with clock and GPS...");
   renderLive();
-  window.clearTimeout(catchUpTimer);
-  catchUpTimer = window.setTimeout(() => {
-    setCatchingUp(false);
-    renderLive();
-  }, CATCHUP_TIMEOUT_MS);
-
-  if (navigator.geolocation && (state.raceMode || state.autoGps)) {
-    state.lastRecalAt = 0;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        onRaceGps(pos);
-        window.clearTimeout(catchUpTimer);
-        setCatchingUp(false);
-        renderLive();
-      },
-      () => {
-        window.clearTimeout(catchUpTimer);
-        setCatchingUp(false);
-        renderLive();
-      },
-      { enableHighAccuracy: true, timeout: 8_000, maximumAge: 5_000 },
-    );
-  }
-}
-
-function shouldRecalibrate(lat, lon, now, policy) {
-  if (state.recalBusy) return false;
-  if (!state.lastRecalAt) return true;
-  const elapsedMs = now - state.lastRecalAt;
-  if (elapsedMs >= policy.forceRecalMs) return true;
-  if (elapsedMs < policy.recalIntervalMs) return false;
-  if (!state.lastRecalPos) return true;
-  const movedM = haversineMeters(state.lastRecalPos.latitude, state.lastRecalPos.longitude, lat, lon);
-  return movedM >= policy.minMoveM;
-}
-
-export function onRaceGps(pos) {
-  const now = Number.isFinite(pos?.timestamp) ? pos.timestamp : Date.now();
-  const policy = currentPollingPolicy();
-  if (!state.catchingUp && state.lastFixProcessedAt && now - state.lastFixProcessedAt < policy.processThrottleMs) {
-    return;
-  }
-  state.lastFixProcessedAt = now;
-
-  if (state.gpsDragging || !state.packedPlan) {
-    paintAutoGps();
-    return;
-  }
-  const lat = pos.coords.latitude;
-  const lon = pos.coords.longitude;
-  const accuracy = pos.coords.accuracy;
-
-  const verdict = gpsGuard.evaluate({ latitude: lat, longitude: lon, accuracy, timestamp: now });
-  if (!verdict.accepted) {
-    recordGpsRejected(verdict.reason);
-    if (verdict.reason === "accuracy") {
-      state.weakGpsAccuracy = Number.isFinite(accuracy) ? accuracy : null;
-      paintGps(`Weak GPS (±${Math.round(accuracy)}m) — holding plan`, "");
-    } else if (verdict.reason === "jump") {
-      paintGps("GPS jump ignored — holding plan", "");
-    }
-    paintAutoGps();
-    return;
-  }
-
-  state.weakGpsAccuracy = null;
-  state.lastGpsAt = now;
-  state.autoGpsError = "";
-  recordGpsAccepted(now);
-
-  state.realGps = { latitude: lat, longitude: lon, accuracy };
-  state.gpsAccuracy = accuracy;
-  showRealDot();
-
-  let offCourseM = 0;
-  try {
-    offCourseM = snapToSegments(state.packedPlan.segments, lat, lon).offCourseM;
-  } catch (error) {
-    offCourseM = 0;
-  }
-  paintGps(`GPS Locked (±${Math.round(accuracy)}m)`, "ok");
-  if (offCourseM > 250) {
-    paintOffCourse(offCourseM);
-    refreshGpsPolling();
-    return;
-  }
-  paintOffCourse(0);
-  if (state.sim.playing) {
-    stopPlay(false);
-  }
-  state.sim.active = false;
-  noteAidDistance(lat, lon);
-
-  const updatedPolicy = currentPollingPolicy();
-  refreshGpsPolling();
-
-  if (!shouldRecalibrate(lat, lon, now, updatedPolicy)) {
-    return;
-  }
-  state.lastRecalAt = now;
-  state.lastRecalPos = { latitude: lat, longitude: lon };
-  state.recalBusy = true;
-  if (!state.startedAt) {
-    startClock();
-  }
-  sendFix(lat, lon, false, "gps").catch((error) => {
-    if (error.message !== "No connection to the fueling server.") {
-      setStatus(error.message);
-    }
-  }).finally(() => {
-    state.recalBusy = false;
-  });
-}
-
-export function onRaceGpsError(err) {
-  const now = Date.now();
-  const denied = err && (err.code === 1 || err.code === 2);
-  state.autoGpsError = denied ? "GPS unavailable · permission denied" : "GPS unavailable · waiting for a fix";
-  paintAutoGps();
-  if (now - state.lastGpsErrorAt < 15_000) {
-    return;
-  }
-  state.lastGpsErrorAt = now;
-  onGpsError(err);
 }
 
 export function paintAutoGps() {
@@ -555,11 +290,6 @@ export function paintAutoGps() {
   const acc = Number.isFinite(state.gpsAccuracy) ? ` · ±${Math.round(state.gpsAccuracy)}m` : "";
   if (!state.packedPlan) {
     ui.autoGpsText.textContent = "GPS starts with a plan";
-    return;
-  }
-  if (state.catchingUp) {
-    ui.autoGps.classList.add("warn");
-    ui.autoGpsText.textContent = "Catching up...";
     return;
   }
   if (state.autoGpsError) {
@@ -580,46 +310,12 @@ export function paintAutoGps() {
     return;
   }
   if (!state.lastGpsAt) {
-    ui.autoGpsText.textContent = "Waiting for GPS";
+    ui.autoGpsText.textContent = "No check-in yet";
     return;
   }
   ui.autoGps.classList.add("ok");
   const saver = state.batterySaver ? " · Saver" : "";
   ui.autoGpsText.textContent = `On trail${acc}${saver}`;
-}
-
-export function noteAidDistance(latitude, longitude) {
-  if (!state.alerts || !state.packedPlan || !state.aidStations.length) {
-    return;
-  }
-  let distanceM = state.snap ? state.snap.distanceM : null;
-  try {
-    distanceM = snapToSegments(state.packedPlan.segments, latitude, longitude).distanceM;
-  } catch (error) {
-    if (distanceM == null) {
-      return;
-    }
-  }
-  let nearest = null;
-  for (const aid of state.aidStations) {
-    if (/finish/i.test(aid.name) || state.aidPinged.has(aid.name)) {
-      continue;
-    }
-    const away = aid.distance_km * 1000 - distanceM;
-    if (away > 0 && away < 500 && (!nearest || away < nearest.away)) {
-      nearest = { aid, away };
-    }
-  }
-  if (!nearest) {
-    return;
-  }
-  state.aidPinged.add(nearest.aid.name);
-  announce({
-    title: `Aid · ${nearest.aid.name}`,
-    body: `${formatShortLength(nearest.away)} ahead`,
-    speech: `${nearest.aid.name} in ${formatShortLength(nearest.away)}.`,
-    tag: `aid-${nearest.aid.name}`,
-  });
 }
 
 export function paintGps(message, tone) {
@@ -702,8 +398,6 @@ export function onGpsSuccess(pos) {
     startClock();
   }
   showRealDot();
-  state.lastRecalAt = now;
-  state.lastRecalPos = { latitude: lat, longitude: lon };
   sendFix(lat, lon, false, "gps").catch((error) => {
     if (error.message === "No connection to the fueling server." && state.packedPlan) {
       paintGps(`GPS Locked: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(accuracy)}m). No connection, so the plan was not rebuilt.`, "ok");
@@ -750,11 +444,8 @@ export async function triggerRescue() {
       const position = await readGps();
       latitude = position.coords.latitude;
       longitude = position.coords.longitude;
-      state.realGps = {
-        latitude,
-        longitude,
-        accuracy: position.coords.accuracy,
-      };
+      const accuracy = position.coords.accuracy;
+      state.realGps = { latitude, longitude, accuracy };
       paintGps(`GPS Locked (±${Math.round(accuracy)}m)`, "ok");
       showRealDot();
     } catch (error) {
@@ -878,7 +569,6 @@ export function resetSim() {
     cancelAnimationFrame(state.sim.frame);
   }
   gpsGuard.reset();
-  state.lastRecalPos = null;
   state.weakGpsAccuracy = null;
   state.sim.active = false;
   state.sim.km = 0;
@@ -956,6 +646,7 @@ export function placeSim(km) {
   state.sim.km = Math.min(total, Math.max(0, km));
   state.sim.elapsed = minuteAtKm(segments, state.sim.km) * state.sim.drift;
   state.sim.active = true;
+  if (state.offTrailM) paintOffCourse(0);
   const point = positionOnCourse(segments, state.sim.km * 1000);
   state.snap = {
     latitude: point.latitude,

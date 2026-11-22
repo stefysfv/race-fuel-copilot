@@ -2,10 +2,21 @@
 
 import { readText, writeText } from "./local_store.js";
 
-export const APP_VERSION = "0.9.0-beta";
+export const APP_VERSION = "0.10.0-beta";
 export const SEEN_VERSION_KEY = "fuel-seen-version";
 
 export const CHANGELOG = [
+  {
+    version: "0.10.0-beta",
+    date: "2026-11-22",
+    items: [
+      "New check-in concept for 12+ hour races: keep your phone locked in your vest. At an aid station, or when you slow down, pull it out for about 10 seconds, tap Sync GPS, and the rest of your race is recalculated: arrival times and fueling windows.",
+      "GPS is read only when you tap Sync GPS or GI Rescue. No background tracking, no screen wake lock, and no voice, chime or notification cues. The app will not remind you to eat, so keep your own schedule.",
+      "Off course: more than 2 km from the course, Live shows Off course and hides grade, zone and expected arrival instead of planned values.",
+      "Finished sections clear from Live so you only see what is left ahead. Finish Run shows everything you ate.",
+      "Fixed GI Rescue ignoring your GPS fix. Text and number fields no longer autocorrect or autofill.",
+    ],
+  },
   {
     version: "0.9.0-beta",
     date: "2026-11-21",

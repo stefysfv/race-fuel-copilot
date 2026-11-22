@@ -1,7 +1,9 @@
 {
   "name": "race-fuel-copilot",
   "private": true,
+  "type": "module",
   "scripts": {
+    "test:js": "node --test \"tests/js/*.test.mjs\"",
     "test:offline": "playwright test tests/offline_race.spec.mjs",
     "test:e2e": "playwright test tests/e2e"
   },

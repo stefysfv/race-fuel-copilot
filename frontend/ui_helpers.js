@@ -1,5 +1,6 @@
 /** Small DOM and clock helpers shared by the tabs. */
 
+import { formatTimeOfDay } from "./leg_projection.js";
 import { state, ui } from "./state.js";
 
 export let toastTimer = 0;
@@ -31,12 +32,8 @@ export function formatDuration(minutes) {
   return hours > 0 ? `${hours} h ${mins} min` : `${mins} min`;
 }
 
-export function formatTimeOfDay(ms, roundStepMin = 1) {
-  const stepMs = Math.max(1, roundStepMin) * 60000;
-  const rounded = Math.round(ms / stepMs) * stepMs;
-  const d = new Date(rounded);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
+// formatTimeOfDay lives in leg_projection.js so Node tests can load it. Re-exported for existing imports.
+export { formatTimeOfDay };
 
 export function elapsedMin() {
   if (state.sim.active) {

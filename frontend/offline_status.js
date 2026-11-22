@@ -59,11 +59,9 @@ export function paintDiag(report) {
     ["Bytes cached", first?.bytes == null ? "not yet" : String(first.bytes)],
     ["Cache retry", first ? (first.retry ? "yes" : "no") : "not yet"],
     ["Offline ready", report.offlineReady ? "yes" : `no — ${report.missing.join(", ")}`],
-    ["GPS fix interval", battery.medianFixIntervalMs == null ? "none yet" : `${(battery.medianFixIntervalMs / 1000).toFixed(1)} s median (${battery.gpsFixes} ok, ${battery.gpsRejectedAccuracy} weak, ${battery.gpsRejectedJump} jumps)`],
+    ["Check-in interval", battery.medianFixIntervalMs == null ? "none yet" : `${(battery.medianFixIntervalMs / 60000).toFixed(1)} min median (${battery.gpsFixes} ok, ${battery.gpsRejectedAccuracy} weak, ${battery.gpsRejectedJump} jumps)`],
     ["Recalibrations", String(battery.recalibrations)],
-    ["Speech / notifications", `${battery.speechCount} speech / ${battery.notificationCount} notifications`],
-    ["Wake lock", battery.wakeLockState],
-    ["Polling / Battery saver", `${battery.pollingState} (${battery.pollingMode}) · saver ${battery.batterySaver ? "on" : "off"}`],
+    ["Battery Saver", battery.batterySaver ? "on" : "off"],
     ["Work per hour", battery.workSummary],
     ["User agent", report.userAgent],
   ];

@@ -145,7 +145,7 @@
             <ul id="sanity-warnings" class="sanity-warnings" data-testid="sanity-warnings"></ul>
             <label class="field">
               <span id="distance-override-label" class="kicker">Override declared distance (km)</span>
-              <input id="distance-override" data-testid="distance-override" type="number" inputmode="decimal" min="0.1" max="500" step="0.1" placeholder="Optional">
+              <input id="distance-override" data-testid="distance-override" type="number" inputmode="decimal" min="0.1" max="500" step="0.1" placeholder="Optional" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             </label>
             <p id="sanity-scale" class="micro" data-testid="sanity-scale"></p>
             <label id="track-field" class="field hidden">
@@ -180,19 +180,19 @@
         <div class="setup-grid">
           <label class="field">
             <span id="weight-label" class="kicker">Weight (kg)</span>
-            <input id="weight" type="number" inputmode="decimal" min="31" max="249" step="0.5" value="70" aria-label="Weight" required>
+            <input id="weight" type="number" inputmode="decimal" min="31" max="249" step="0.5" value="70" aria-label="Weight" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </label>
           <label class="field">
             <span class="kicker">Target (h:m)</span>
             <span class="time-pair">
-              <input id="target-hours" type="number" inputmode="numeric" min="0" max="47" step="1" value="5" aria-label="Target hours" required>
+              <input id="target-hours" type="number" inputmode="numeric" min="0" max="47" step="1" value="5" aria-label="Target hours" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
               <span>:</span>
-              <input id="target-minutes" type="text" inputmode="numeric" maxlength="2" value="30" aria-label="Target minutes" required>
+              <input id="target-minutes" type="text" inputmode="numeric" maxlength="2" value="30" aria-label="Target minutes" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             </span>
           </label>
           <label class="field">
             <span id="temp-label" class="kicker">Temp (°C)</span>
-            <input id="temperature" type="number" inputmode="decimal" min="-20" max="45" step="1" value="18" aria-label="Temperature" required>
+            <input id="temperature" type="number" inputmode="decimal" min="-20" max="45" step="1" value="18" aria-label="Temperature" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </label>
         </div>
 
@@ -227,16 +227,16 @@
           <div id="vest-foods" class="vest-inventory"></div>
           <div id="vest-drinks" class="vest-drinks hidden">
             <label class="drink-line">500ml Water Flasks Carried
-              <input id="flask-qty" class="qty-input" type="number" inputmode="numeric" min="0" max="6" step="1" value="2" aria-label="Number of 500ml flasks">
+              <input id="flask-qty" class="qty-input" type="number" inputmode="numeric" min="0" max="6" step="1" value="2" aria-label="Number of 500ml flasks" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             </label>
             <div class="vest-row">
               <button id="drink-toggle" class="vest-toggle" type="button" aria-pressed="true">✓ Carb Drink Mix in Flasks</button>
               <span class="vest-fields">
                 <label class="vest-field">Scoops
-                  <input id="drink-qty" class="qty-input" type="number" inputmode="numeric" min="1" max="30" step="1" value="1" aria-label="Drink mix servings">
+                  <input id="drink-qty" class="qty-input" type="number" inputmode="numeric" min="1" max="30" step="1" value="1" aria-label="Drink mix servings" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                 </label>
                 <label class="vest-field">Carbs / flask
-                  <input id="drink-carbs" class="carbs-input" type="number" inputmode="numeric" min="1" max="120" step="1" value="30" aria-label="Carbs per 500ml flask">
+                  <input id="drink-carbs" class="carbs-input" type="number" inputmode="numeric" min="1" max="120" step="1" value="30" aria-label="Carbs per 500ml flask" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                 </label>
               </span>
             </div>
@@ -244,17 +244,17 @@
               <button id="salt-toggle" class="vest-toggle" type="button" aria-pressed="false">Salt Capsules (optional)</button>
               <span id="salt-fields" class="vest-fields hidden">
                 <label class="vest-field">Qty
-                  <input id="salt-qty" class="qty-input" type="number" inputmode="numeric" min="1" max="40" step="1" value="0" aria-label="Salt capsule quantity">
+                  <input id="salt-qty" class="qty-input" type="number" inputmode="numeric" min="1" max="40" step="1" value="0" aria-label="Salt capsule quantity" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                 </label>
                 <label class="vest-field">mg Na
-                  <input id="salt-mg" class="carbs-input" type="number" inputmode="numeric" min="1" max="2000" step="1" value="200" aria-label="Sodium per salt capsule">
+                  <input id="salt-mg" class="carbs-input" type="number" inputmode="numeric" min="1" max="2000" step="1" value="200" aria-label="Sodium per salt capsule" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                 </label>
               </span>
             </div>
           </div>
           <div id="vest-custom-row" class="custom-food-add">
-            <input id="vest-custom-name" type="text" maxlength="60" placeholder="Custom gel" aria-label="Custom vest food name">
-            <input id="vest-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom vest food carbs in grams">
+            <input id="vest-custom-name" type="text" maxlength="60" placeholder="Custom gel" aria-label="Custom vest food name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input id="vest-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom vest food carbs in grams" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <button id="vest-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
             <button id="vest-custom-add" type="button" aria-label="Add custom vest food">+</button>
           </div>
@@ -268,8 +268,8 @@
             <div id="station-active" class="food-editor"></div>
           </details>
           <div class="custom-food-add">
-            <input id="station-custom-name" type="text" maxlength="60" placeholder="Food name" aria-label="Custom aid station food name">
-            <input id="station-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom aid station food carbs in grams">
+            <input id="station-custom-name" type="text" maxlength="60" placeholder="Food name" aria-label="Custom aid station food name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input id="station-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom aid station food carbs in grams" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <button id="station-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
             <button id="station-custom-add" type="button" aria-label="Add custom aid station food">+</button>
           </div>
@@ -277,10 +277,10 @@
         <details id="aid-drawer" class="drawer hidden">
           <summary>Custom Aid Stations</summary>
           <div class="aid-add">
-            <input id="aid-name" type="text" maxlength="80" placeholder="Station" aria-label="Aid station name">
-            <input id="aid-km" type="number" inputmode="decimal" min="0" max="500" step="0.1" placeholder="Km" aria-label="Aid station kilometers">
+            <input id="aid-name" type="text" maxlength="80" placeholder="Station" aria-label="Aid station name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input id="aid-km" type="number" inputmode="decimal" min="0" max="500" step="0.1" placeholder="Km" aria-label="Aid station kilometers" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <label class="check"><input id="aid-food" type="checkbox"> Food</label>
-            <input id="aid-cutoff" type="number" inputmode="decimal" min="0.1" max="72" step="0.1" placeholder="Cutoff" aria-label="Cutoff hours">
+            <input id="aid-cutoff" type="number" inputmode="decimal" min="0.1" max="72" step="0.1" placeholder="Cutoff" aria-label="Cutoff hours" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <button id="add-aid" type="button" aria-label="Add aid station">+</button>
           </div>
           <ul id="aid-list" class="pill-row"></ul>
@@ -414,7 +414,6 @@
         </div>
 
         <div class="live-body">
-          <p id="catching-up" class="catching-up hidden" role="status" data-testid="catching-up"></p>
           <p id="gps-banner" class="gps-banner hidden" role="status"></p>
           <p id="off-course" class="off-course hidden" role="alert"></p>
 
@@ -423,12 +422,12 @@
               <p id="current-section-title" class="section-title" data-testid="current-section-title">—</p>
               <p id="live-progress-line" class="micro" data-testid="live-progress-line"></p>
             </div>
-            <div class="eta-block">
+            <div id="eta-block" class="eta-block" data-testid="eta-block">
               <p class="kicker">Expected arrival</p>
               <p id="current-eta-clock" class="eta-big" data-testid="current-eta-clock">--:--</p>
               <p id="current-eta-sub" class="eta-sub" data-testid="current-eta-sub"></p>
             </div>
-            <div class="terrain-strip">
+            <div id="terrain-strip" class="terrain-strip" data-testid="terrain-strip">
               <span><strong id="grade-readout">—</strong> grade</span>
               <span id="zone-badge" class="zone-badge idle">—</span>
               <span>Next aid <strong id="next-aid">—</strong></span>
@@ -483,11 +482,11 @@
       <form id="feedback-form" class="feedback-form">
         <label class="field">
           <span class="kicker">Race name</span>
-          <input id="feedback-race" type="text" maxlength="120" data-testid="feedback-race" autocomplete="off">
+          <input id="feedback-race" type="text" maxlength="120" data-testid="feedback-race" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         </label>
         <label class="field">
           <span class="kicker">Finish versus predicted time</span>
-          <input id="feedback-finish" type="text" maxlength="160" data-testid="feedback-finish" placeholder="4:12 vs 4:30 predicted" autocomplete="off">
+          <input id="feedback-finish" type="text" maxlength="160" data-testid="feedback-finish" placeholder="4:12 vs 4:30 predicted" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         </label>
         <fieldset class="feedback-gi">
           <legend class="kicker">GI trouble</legend>

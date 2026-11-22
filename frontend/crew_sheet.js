@@ -1,5 +1,6 @@
 /** Print-friendly, shareable, and GPS-adaptive crew sheet (client-side only). */
 
+import { legKey } from "./leg_projection.js";
 import { state, ui } from "./state.js";
 import { deliveryRateLabel, elapsedMin, escapeHtml, formatDuration, formatTimeOfDay, grouped } from "./ui_helpers.js";
 import { formatDistance, formatPace, formatTemp } from "./units.js";
@@ -11,9 +12,8 @@ export const GI_RESCUE_STEPS = [
   "Once the stomach settles, restart gently with dilute liquid carbs or a small salty bite before resuming normal gels.",
 ];
 
-export function legKey(leg) {
-  return `${leg.from_name}->${leg.to_name}@${Number(leg.to_km || 0).toFixed(2)}`;
-}
+// legKey lives in leg_projection.js so Node tests can load it. Re-exported for existing imports.
+export { legKey };
 
 function eatSummary(leg) {
   if (!leg?.station_meal) return "";

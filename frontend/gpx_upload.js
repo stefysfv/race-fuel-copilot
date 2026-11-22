@@ -15,6 +15,13 @@ import {
   formatElevation,
 } from "./units.js";
 
+const NO_AUTOFILL = { autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false" };
+
+function noAutofill(input) {
+  for (const [name, value] of Object.entries(NO_AUTOFILL)) input.setAttribute(name, value);
+  return input;
+}
+
 const MAX_BYTES = 8_000_000;
 
 function plainError(error) {
@@ -141,6 +148,7 @@ function paintWaypoints(report) {
     name.value = station.name;
     name.dataset.role = "name";
     name.setAttribute("aria-label", "Aid station name");
+    noAutofill(name);
     const km = document.createElement("input");
     km.type = "number";
     km.min = "0";
@@ -149,6 +157,7 @@ function paintWaypoints(report) {
     km.value = distanceToDisplay(Number(station.distance_km) * scale).toFixed(2);
     km.dataset.role = "km";
     km.setAttribute("aria-label", `Aid station distance (${distanceUnit()})`);
+    noAutofill(km);
     const type = document.createElement("select");
     type.dataset.role = "type";
     type.setAttribute("aria-label", "Aid station type");

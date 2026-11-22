@@ -1,4 +1,4 @@
-/** Battery & race-mode telemetry exposed in ?diag=1. */
+/** Check-in telemetry exposed in ?diag=1. A "fix" here is one accepted Sync GPS tap. */
 
 const MAX_INTERVAL_SAMPLES = 60;
 
@@ -11,12 +11,7 @@ const metrics = {
   lastFixAt: null,
   lastIntervalMs: null,
   recalibrations: 0,
-  speechCount: 0,
-  notificationCount: 0,
   backgroundResumes: 0,
-  wakeLockState: typeof navigator !== "undefined" && "wakeLock" in navigator ? "inactive" : "unsupported",
-  pollingState: "steady",
-  pollingMode: "watch",
   batterySaver: false,
 };
 
@@ -42,26 +37,12 @@ export function recordRecalibration() {
   metrics.recalibrations += 1;
 }
 
-export function recordSpeech() {
-  metrics.speechCount += 1;
-}
-
-export function recordNotification() {
-  metrics.notificationCount += 1;
-}
-
 export function recordBackgroundResume() {
   metrics.backgroundResumes += 1;
 }
 
-export function setWakeLockState(nextState) {
-  metrics.wakeLockState = String(nextState || "inactive");
-}
-
-export function setPollingDiag({ state, mode, batterySaver }) {
-  if (state) metrics.pollingState = state;
-  if (mode) metrics.pollingMode = mode;
-  if (typeof batterySaver === "boolean") metrics.batterySaver = batterySaver;
+export function setBatterySaverDiag(enabled) {
+  metrics.batterySaver = Boolean(enabled);
 }
 
 function medianMs(samples) {
@@ -75,12 +56,8 @@ export function batteryDiagSnapshot(now = Date.now()) {
   const elapsedHours = Math.max(1 / 60, (now - metrics.startedAt) / 3_600_000);
   const fixesPerHour = Math.round(metrics.gpsFixes / elapsedHours);
   const recalsPerHour = Math.round(metrics.recalibrations / elapsedHours);
-  const cuesPerHour = Math.round((metrics.speechCount + metrics.notificationCount) / elapsedHours);
-  // Rough weighted work units per hour (1 per fix, 5 per worker recalibration, 2 per voice/notification).
-  const workScorePerHour = Math.round(
-    (metrics.gpsFixes + metrics.recalibrations * 5 + (metrics.speechCount + metrics.notificationCount) * 2)
-      / elapsedHours,
-  );
+  // Rough weighted work units per hour (1 per check-in, 5 per worker recalibration).
+  const workScorePerHour = Math.round((metrics.gpsFixes + metrics.recalibrations * 5) / elapsedHours);
   const loadBand = workScorePerHour < 180 ? "low" : (workScorePerHour < 600 ? "moderate" : "high");
   return {
     uptimeMin: Math.round((now - metrics.startedAt) / 60_000),
@@ -90,18 +67,12 @@ export function batteryDiagSnapshot(now = Date.now()) {
     lastFixIntervalMs: metrics.lastIntervalMs,
     medianFixIntervalMs: medianMs(metrics.fixIntervalsMs),
     recalibrations: metrics.recalibrations,
-    speechCount: metrics.speechCount,
-    notificationCount: metrics.notificationCount,
     backgroundResumes: metrics.backgroundResumes,
-    wakeLockState: metrics.wakeLockState,
-    pollingState: metrics.pollingState,
-    pollingMode: metrics.pollingMode,
     batterySaver: metrics.batterySaver,
     fixesPerHour,
     recalsPerHour,
-    cuesPerHour,
     workScorePerHour,
-    workSummary: `~${workScorePerHour} units/h (${loadBand}: ${fixesPerHour} fixes, ${recalsPerHour} recals, ${cuesPerHour} cues)`,
+    workSummary: `~${workScorePerHour} units/h (${loadBand}: ${fixesPerHour} check-ins, ${recalsPerHour} recals)`,
   };
 }
 
@@ -114,7 +85,5 @@ export function resetBatteryDiag() {
   metrics.lastFixAt = null;
   metrics.lastIntervalMs = null;
   metrics.recalibrations = 0;
-  metrics.speechCount = 0;
-  metrics.notificationCount = 0;
   metrics.backgroundResumes = 0;
 }

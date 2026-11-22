@@ -336,10 +336,10 @@ export function vestInventoryRows() {
     const fields = on
       ? `<span class="vest-fields">
           <label class="vest-field">Qty
-            <input class="qty-input" type="number" inputmode="numeric" min="1" max="30" step="1" value="${shownQty(key)}" data-qty="${escapeAttr(key)}" aria-label="Quantity of ${name}">
+            <input class="qty-input" type="number" inputmode="numeric" min="1" max="30" step="1" value="${shownQty(key)}" data-qty="${escapeAttr(key)}" aria-label="Quantity of ${name}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </label>
           <label class="vest-field">Carbs (g)
-            <input class="carbs-input" type="number" inputmode="numeric" min="1" max="120" step="1" value="${clampCarbs(record.carbs_g)}" data-carbs="${escapeAttr(key)}" aria-label="Carbs in grams for ${name}">
+            <input class="carbs-input" type="number" inputmode="numeric" min="1" max="120" step="1" value="${clampCarbs(record.carbs_g)}" data-carbs="${escapeAttr(key)}" aria-label="Carbs in grams for ${name}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </label>
         </span>`
       : "";
@@ -421,10 +421,10 @@ export function editorRow(which, key) {
   const record = foodRecord(which, key);
   if (!record) return "";
   return `<div class="food-edit" data-edit="${which}" data-key="${escapeAttr(key)}">
-    <input data-name type="text" maxlength="60" value="${escapeAttr(record.name)}" aria-label="Food name">
+    <input data-name type="text" maxlength="60" value="${escapeAttr(record.name)}" aria-label="Food name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <span class="carb-step">
       <button type="button" data-step="-1" aria-label="Fewer carbs">−</button>
-      <input data-carbs type="number" inputmode="decimal" min="1" max="120" step="1" value="${clampCarbs(record.carbs_g)}" aria-label="Carbs in grams">
+      <input data-carbs type="number" inputmode="decimal" min="1" max="120" step="1" value="${clampCarbs(record.carbs_g)}" aria-label="Carbs in grams" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <span>g</span>
       <button type="button" data-step="1" aria-label="More carbs">+</button>
     </span>

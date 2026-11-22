@@ -21,7 +21,7 @@ UI_FILES = (
     "frontend/packing.js",
     "frontend/app.js",
     "frontend/live.js",
-    "frontend/alerts.js",
+    "frontend/leg_projection.js",
     "frontend/reason_strings.js",
     "frontend/fuel_budget.js",
     "frontend/offline_engine.js",

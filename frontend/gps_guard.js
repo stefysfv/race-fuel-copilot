@@ -1,12 +1,9 @@
-/** GPS quality guard and adaptive polling policy for 12+ hour races. */
+/** GPS quality guard: one bad Sync GPS fix must never rewrite a plan. */
 
 export const MAX_ACCURACY_M = 50;
 export const MAX_SPEED_MPS = 8.5;
 export const SHORT_JUMP_M = 300;
 export const SHORT_JUMP_WINDOW_S = 30;
-export const APPROACH_STOP_MIN = 10;
-export const APPROACH_AID_M = 1000;
-export const OFF_COURSE_M = 250;
 
 const EARTH_RADIUS_M = 6371000;
 
@@ -101,41 +98,4 @@ export function createGpsGuard({
   }
 
   return { evaluate, reset, stateSnapshot };
-}
-
-/**
- * Adaptive polling & recalibration schedule.
- * Speeds up within 10 min of a stop, within 1 km of an aid station, or off-course.
- */
-export function pollingPolicy({
-  batterySaver = false,
-  stopEtaMin = Infinity,
-  aidDistanceM = Infinity,
-  offCourseM = 0,
-} = {}) {
-  const nearStop = Number.isFinite(stopEtaMin) && stopEtaMin <= APPROACH_STOP_MIN;
-  const nearAid = Number.isFinite(aidDistanceM) && aidDistanceM <= APPROACH_AID_M;
-  const offCourse = Number.isFinite(offCourseM) && offCourseM > OFF_COURSE_M;
-  const approach = nearStop || nearAid || offCourse;
-
-  if (batterySaver) {
-    return {
-      mode: "poll",
-      state: approach ? "approach" : "steady",
-      pollIntervalMs: approach ? 20_000 : 60_000,
-      processThrottleMs: approach ? 5_000 : 15_000,
-      recalIntervalMs: approach ? 60_000 : 300_000,
-      minMoveM: approach ? 20 : 50,
-      forceRecalMs: 600_000,
-    };
-  }
-  return {
-    mode: "watch",
-    state: approach ? "approach" : "steady",
-    pollIntervalMs: approach ? 3_000 : 10_000,
-    processThrottleMs: approach ? 3_000 : 10_000,
-    recalIntervalMs: approach ? 30_000 : 120_000,
-    minMoveM: approach ? 20 : 50,
-    forceRecalMs: 300_000,
-  };
 }

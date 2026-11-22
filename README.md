@@ -1,6 +1,17 @@
 # Race Fuel Co-Pilot
 
-Topographical and physiological fueling co-pilot for mountain ultras. It turns a GPX into a carb, fluid, and sodium plan that follows the grade, the clock, and a live GPS fix.
+Topographical and physiological fueling co-pilot for mountain ultras. It turns a GPX into a carb, fluid, and sodium plan that follows the grade, the clock, and the GPS check-ins you make during the race.
+
+## Race day: check in, don't track
+
+Built for long mountain races (12+ hours). A live coach that tracks you and sends alerts does not survive a locked iPhone, and keeping the screen on drains the battery. So the phone stays **locked in your vest**.
+
+1. Build the plan at home, check **Ready for offline**, and tap **Start Race**.
+2. At an aid station, or whenever you slow down, pull the phone out for about 10 seconds and tap **Sync GPS**. The app snaps you to the course and recalculates the rest of the race: expected arrival times and the fueling windows for the next section. Tap **I ate** to log food, and **Section done** to check a section off.
+3. Finished trail and meals clear from the screen, so you only see what is left ahead.
+4. At the finish, **Finish Run** gives a full recap of everything you ate, section by section.
+
+GPS is read only inside your tap, one reading per tap. There is no background tracking, no wake lock, and no voice or notification cues, so the app will not remind you to eat. If you are more than 2 km from the course, Live shows **Off course** and hides grade, zone, and expected arrival instead of planned values. Sync again once you are back on the trail.
 
 There is no hosted demo in this repository. Race day is a static site. FastAPI is only the local dev server and the test harness.
 
@@ -10,7 +21,7 @@ Carb, fluid, and sodium figures are estimates and defaults, so test them in trai
 
 ## Privacy
 
-Plans and recalibrations are computed on the phone. The GPX, the athlete profile, and the fueling plan stay in the browser. Nothing is uploaded. There are no analytics and no accounts.
+Plans and recalibrations are computed on the phone. The GPX, the athlete profile, and the fueling plan stay in the browser. Nothing is uploaded. There are no analytics and no accounts. Your location is read only when you tap **Sync GPS** or **GI Rescue**, and it is never sent anywhere.
 
 Notes from "How did it go?" are saved in `localStorage` on that phone. They leave the device only if you press **Send feedback**. That action opens a mail draft or a feedback form you chose to fill in. The draft contains the race name, finish versus predicted time, GI trouble, what you changed, and the note. It does not contain a GPS track.
 
@@ -54,7 +65,7 @@ Custom GPX uploads can include aid stations (`name`, `distance_km`, `has_water`,
 - **Engine.** Python 3.12+, Pydantic v2. Sports math stays in `backend/engine/`. `backend/fuel_engine.py` re-exports it. GPX parsing stays in `backend/gpx_parser.py`. The phone runs that package in Pyodide. FastAPI is the dev server.
 - **UI.** Vanilla HTML, CSS, and ES modules. Leaflet draws the route on OpenTopoMap. Chart.js draws elevation and zone color.
 - **Offline.** IndexedDB stores the active plan. The app shell is one cache, stale-while-revalidate: a cached file is shown immediately and refreshed in the background. Pyodide and `engine.zip` are a second cache, cache-first, and a shell update does not delete it. Map tiles that were already viewed stay in the browser cache.
-- **Hands-free race mode.** `watchPosition` recalibrates about every 45 seconds and auto-logs an intake 30 seconds after `00:00` (with undo). Alerts play a double chime, speak the instruction with the Web Speech API, and post a service-worker notification for the lock screen: 2 minutes out, at `00:00`, and inside 500 m of an aid station. iOS delivers those after the app is on the Home Screen.
+- **Check-in race mode.** Race Start and Stop only run the race clock. There is no `watchPosition`, no polling timer, no wake lock, and no voice, chime, or notification. GPS is one `getCurrentPosition` call inside the **Sync GPS** tap (GI Rescue does the same). A GPS guard in `frontend/gps_guard.js` ignores a weak or jumping fix so one bad reading cannot rewrite the plan.
 
 ## Local setup and tests
 
@@ -80,6 +91,12 @@ macOS or Linux:
 .venv/bin/python -m pytest
 ```
 
+The Live projection has Node unit tests. They need Node 22 or newer and no `npm install`:
+
+```bash
+npm run test:js
+```
+
 Open `http://127.0.0.1:8000` on the computer. `--host 0.0.0.0` lets a phone on the same home Wi-Fi use that computer's address. That path stops working once the phone leaves the house.
 
 The page builds and recalibrates in the browser. `ENGINE_MODE` in `frontend/engine_client.js` is `"worker"`. Set it to `"http"`, or open `?engine=http`, to post plans to this FastAPI process instead. That flag is for local debugging.
@@ -101,7 +118,7 @@ After the first visit the banner reads **Ready for offline**. Add the site to th
 After **Ready for offline**, the phone can do all of this with no signal:
 
 - Generate a plan for a stored race or an uploaded GPX
-- Recalibrate from a GPS fix, including GI Rescue
+- Recalibrate from a Sync GPS check-in, including GI Rescue
 - The saved plan and the packing list
 - Map marker snapping onto the saved course
 - Map tiles that were already viewed
@@ -158,8 +175,8 @@ npx playwright test tests/e2e
 - **Map** — `frontend/map_screen.js`. Leaflet stays in `frontend/map_controller.js`. The elevation chart is `frontend/elevation_chart.js`.
 - **Plan request** — `frontend/plan_request.js`.
 - **Build Plan** — `frontend/build_plan.js`.
-- **Voice and alerts** — `frontend/alerts.js`.
-- **GPS and the desk simulator** — `frontend/gps.js`.
+- **Sync GPS check-in, off-course state, GI Rescue, and the desk simulator** — `frontend/gps.js`. The GPS quality guard is `frontend/gps_guard.js`.
+- **Pace, arrival times, and fueling windows on Live** — `frontend/leg_projection.js`. It has no DOM imports, so `npm run test:js` can load it.
 - **Tabs and setup panes** — `frontend/navigation.js`.
 - **Engine transport** — `frontend/engine_client.js`. Offline snap math is `frontend/offline_engine.js`. Saved sessions sit in `frontend/offline_db.js`.
 
@@ -169,11 +186,11 @@ npx playwright test tests/e2e
 Verify real battery drain before race day so you know your phone will clear 12+ hours.
 
 1. Charge to at least 80% and open the installed app with `?diag=1` (e.g. `https://your-site/?diag=1`), or check diagnostics before and after.
-2. Build a plan for any 12-40 km course, open the **Live** tab, enable **Race Mode** (and **Battery Saver** for a 12+ hour race), and tap **I ate** once to start the clock.
+2. Build a plan for any 12-40 km course, open the **Live** tab, and tap **Start Race**.
 3. Record start time and exact battery `%` (plus `Work per hour` from `?diag=1`).
-4. Walk outdoors for **60 minutes** with GPS active:
-   - **iPhone (Safari / Home Screen PWA):** Keep the app in foreground with Low Power Mode off first (or on if you race with it on), screen at ~40-50% brightness, and lock the phone for two 5-minute stretches to confirm background catch-up on unlock. Note iOS battery `%` at 0 min and 60 min (Settings > Battery also shows Safari/Web App share).
-   - **Android (Chrome / Installed PWA):** Set Location to High Accuracy, disable battery optimization for Chrome/PWA if needed, keep screen at ~40-50% brightness, and lock/unlock twice during the hour. Note Android battery `%` at 0 min and 60 min (Settings > Battery > Battery usage).
+4. Walk outdoors for **60 minutes** with the phone **locked in a pocket or vest**. Pull it out about every 10-15 minutes, tap **Sync GPS**, and lock it again. Tap **I ate** once or twice:
+   - **iPhone (Safari / Home Screen PWA):** Low Power Mode on or off, whichever you race with. Note iOS battery `%` at 0 min and 60 min (Settings > Battery also shows Safari/Web App share).
+   - **Android (Chrome / Installed PWA):** Set Location to High Accuracy and disable battery optimization for Chrome/PWA if needed. Note Android battery `%` at 0 min and 60 min (Settings > Battery > Battery usage).
 5. At 60 minutes, open `?diag=1`, tap **Copy as JSON**, and record:
-   - Battery drain `% / hour` (target **<= 6-7% / hour** with Battery Saver so a full charge clears 12+ hours with margin).
-   - `GPS fix interval`, `Recalibrations`, `Wake lock`, and `Work per hour`.
+   - Battery drain `% / hour` (target **<= 6-7% / hour** so a full charge clears 12+ hours with margin).
+   - `Check-in interval`, `Recalibrations`, and `Work per hour`.

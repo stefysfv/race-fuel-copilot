@@ -10,6 +10,7 @@ test.use({
 test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Menu -> Finish Recap", async ({ page }) => {
   test.setTimeout(180000);
   await page.addInitScript(() => {
+    window.__watchCalls = 0;
     const pos = {
       coords: { latitude: 42.563584, longitude: 23.278586, accuracy: 8 },
       timestamp: Date.now(),
@@ -17,6 +18,7 @@ test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Men
     const geo = {
       getCurrentPosition: (ok) => setTimeout(() => ok({ ...pos, timestamp: Date.now() }), 10),
       watchPosition: (ok) => {
+        window.__watchCalls += 1;
         setTimeout(() => ok({ ...pos, timestamp: Date.now() }), 10);
         return 1;
       },
@@ -43,7 +45,11 @@ test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Men
   await expect(page.getByTestId("current-eta-clock")).toHaveText(/^~\d{2}:\d{2}$/);
   await expect(page.getByTestId("fuel-window").first()).toBeVisible();
 
+  // The phone stays locked: nothing reads GPS until the runner taps Sync GPS.
+  await expect(page.getByTestId("live-progress-line")).not.toContainText("passed");
+  await page.getByTestId("sync-gps").click();
   await expect(page.getByTestId("live-progress-line")).toContainText("passed", { timeout: 30000 });
+  expect(await page.evaluate(() => window.__watchCalls)).toBe(0);
   await page.getByTestId("live-crew-btn").click();
   await expect(page.getByTestId("crew-live-banner")).toContainText("Live GPS updated");
   await page.locator("#close-crew").click();

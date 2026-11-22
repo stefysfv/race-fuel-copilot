@@ -47,7 +47,7 @@ Cloudflare reads `frontend/_headers` for static asset headers:
 
 1. In Cloudflare Dashboard, open **Custom domains > Set up a custom domain**.
 2. Add your domain (e.g. `fuel.yourdomain.com`) and confirm the DNS record.
-3. Wait for TLS to show **Active** (HTTPS is required for Service Workers, GPS, and Wake Lock).
+3. Wait for TLS to show **Active** (HTTPS is required for Service Workers and GPS).
 4. Update `og:url` and `og:image` in `frontend/index.html`, bump `SHELL_CACHE` + `SHELL_FILES_HASH`, and push.
 
 ## 6. Post-deploy smoke check

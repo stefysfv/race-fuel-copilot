@@ -77,18 +77,18 @@ Offline caches: `offlineReady: true`, 0 missing. Shell 45/45, races 5/5, Pyodide
 
 Storage: 22.98 MB (~21.9 MiB) used of 41.23 GB quota. `persisted: false` on a normal Safari tab. Add to Home Screen is recommended so WebKit does not evict the site after 7 days.
 
-## 5. 60-minute outdoor endurance test (v0.9.0-beta)
+## 5. 60-minute outdoor check-in test (v0.10.0-beta)
 
-Run this once outdoors on a real trail or steep walk/run before calling the app v1.0.0.
+Run this once outdoors on a real trail or steep walk/run before calling the app v1.0.0. The app only reads GPS when you tap **Sync GPS**, so the phone should spend most of the hour locked in your pocket or vest.
 
-1. On Wi-Fi, open the installed Home Screen PWA and confirm **Ready for offline** (`race-fuel-v38` or newer).
+1. On Wi-Fi, open the installed Home Screen PWA and confirm **Ready for offline** (`race-fuel-v47` or newer).
 2. Build a plan (your uploaded GPX or a Vitosha course) and tap **Live**.
 3. Turn on **Airplane Mode** (Wi-Fi and cellular off; GPS stays active on iOS/Android).
-4. Tap **Audio**, **Battery Saver**, and **Race Mode** in that order. Tap **Test Voice** once to confirm chime + speech fire cleanly.
-5. Note start time, start battery `%`, and screen brightness (~30–40%).
-6. Run/hike for 60 minutes. Lock the screen for at least one 10-minute stretch, then unlock to confirm the clock catches up without firing stale overdue alarms. Log at least one feed with **I ate** and test **GI trouble** once.
-7. At 60 minutes, open the **?** info sheet, tap **Copy diagnostics**, and paste the battery metrics (`gpsFixes`, `gpsRejectedAccuracy`, `gpsRejectedJump`, `recalibrations`, `speechCount`, `backgroundResumes`, `wakeLockState`) alongside your measured battery drain below.
+4. Tap **Start Race**. Note start time, start battery `%`, and screen brightness (~30–40%).
+5. Run/hike for 60 minutes with the phone locked. About every 10–15 minutes, unlock it, tap **Sync GPS**, confirm the expected arrival and fueling windows update, and lock it again. Log at least one feed with **I ate** and test **GI trouble** once.
+6. After one stretch locked for 10 minutes or more, unlock and confirm the clock is correct and no GPS reading happened until you tapped Sync GPS.
+7. At 60 minutes, open the **?** info sheet, tap **Copy diagnostics**, and paste the check-in metrics (`gpsFixes`, `gpsRejectedAccuracy`, `gpsRejectedJump`, `recalibrations`, `backgroundResumes`) alongside your measured battery drain below.
 
-| Date | Device & OS | Start % | End % | Drain (%/h) | Est. 12h drain | GPS fixes / rejected | Recals | Voice cues OK? | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| | | | | | | | | | |
+| Date | Device & OS | Start % | End % | Drain (%/h) | Est. 12h drain | Check-ins / rejected | Recals | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| | | | | | | | | |

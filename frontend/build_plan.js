@@ -1,7 +1,7 @@
 /** Build Plan: one engine call. The engine scales pace to the typed finish. */
 
 import { engineIsReady, generatePlan, onEngineStatus } from "./engine_client.js";
-import { armGpsWatch, resetSim } from "./gps.js";
+import { resetSim } from "./gps.js";
 import { renderLive } from "./live.js";
 import { drawMap } from "./map_screen.js";
 import { showSetupPane } from "./navigation.js";
@@ -17,7 +17,6 @@ export async function buildPlan(event) {
   event?.preventDefault?.();
   if (buildingPlan) return;
   buildingPlan = true;
-  state.autoGps = true;
   const buildBtn = document.querySelector("#build-plan");
   const starting = !engineIsReady();
   if (buildBtn) {
@@ -31,7 +30,6 @@ export async function buildPlan(event) {
     });
   }
   try {
-    armGpsWatch();
     const targetMin = readTargetMin();
     setStatus(starting ? "Starting engine..." : "Building the plan…");
     const body = courseBody(readAthlete(8));
