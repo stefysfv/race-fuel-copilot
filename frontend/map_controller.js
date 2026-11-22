@@ -3,8 +3,9 @@
 import { ZONE, drawElevationChart } from "./elevation_chart.js";
 import { shortWhy } from "./reason_strings.js";
 
-const TILES = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
-const ATTRIBUTION = "© OpenTopoMap · OSM";
+const TILES = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const FALLBACK_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const ATTRIBUTION = "© OpenStreetMap · CARTO";
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -43,7 +44,13 @@ export function createMapView(mapElement, chartCanvas) {
   });
   map.getContainer().style.touchAction = "none";
   map.attributionControl.setPrefix(false);
-  const tileLayer = L.tileLayer(TILES, { maxZoom: 17, attribution: ATTRIBUTION });
+  const tileLayer = L.tileLayer(TILES, { maxZoom: 19, subdomains: "abcd", attribution: ATTRIBUTION });
+  let usedFallback = false;
+  tileLayer.on("tileerror", () => {
+    if (usedFallback) return;
+    usedFallback = true;
+    tileLayer.setUrl(FALLBACK_TILES);
+  });
   let tilesEnabled = false;
   function setTilesEnabled(enabled) {
     const want = Boolean(enabled);
