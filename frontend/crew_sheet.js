@@ -1,7 +1,7 @@
 /** Print-friendly, shareable, and GPS-adaptive crew sheet (client-side only). */
 
 import { state, ui } from "./state.js";
-import { deliveryRateLabel, escapeHtml, formatDuration, grouped } from "./ui_helpers.js";
+import { deliveryRateLabel, elapsedMin, escapeHtml, formatDuration, formatTimeOfDay, grouped } from "./ui_helpers.js";
 import { formatDistance, formatPace, formatTemp } from "./units.js";
 
 export const GI_RESCUE_STEPS = [
@@ -73,11 +73,12 @@ function formatCarrying(incomingLeg) {
 export function buildCrewRows(plan, aidStations = [], options = {}) {
   if (!plan?.aid_legs?.length) return [];
   const startClock = Number(plan.clock_start_min) || 0;
+  const paceScale = Number(options.paceScale) > 0 ? Number(options.paceScale) : 1;
   const completedKeys = new Set(options.completedLegs || []);
   let cursor = startClock;
   const rows = [];
   plan.aid_legs.forEach((leg, index) => {
-    cursor += Number(leg.predicted_minutes) || 0;
+    cursor += (Number(leg.predicted_minutes) || 0) * paceScale;
     const remainingFromNow = Math.max(0, cursor - startClock);
     const station = aidStations.find((item) => item.name === leg.to_name) || null;
     const cutoff = station?.cutoff_hours ? formatDuration(Number(station.cutoff_hours) * 60) : "—";
@@ -166,11 +167,24 @@ export function renderCrewSheet() {
   );
   const plan = isLiveGps ? state.livePlan : state.packedPlan;
   if (!plan || !ui.crewModal || !ui.raceCard) return;
+  const latestLog = (state.sectionLogs || []).slice(-1)[0] || null;
+  const useLogScale = Boolean(
+    latestLog
+    && (!state.lastGpsRecalAt || latestLog.clockMs > state.lastGpsRecalAt)
+    && latestLog.plannedCumMin > 2
+    && latestLog.actualElapsedMin > 1,
+  );
+  const paceScale = useLogScale
+    ? Math.min(1.85, Math.max(0.7, latestLog.actualElapsedMin / latestLog.plannedCumMin))
+    : 1;
   const options = {
     isLiveGps,
+    paceScale,
     passedDistanceM: state.passedDistanceM || 0,
-    completedLegs: isLiveGps ? (state.completedLegs || []) : [],
+    completedLegs: (isLiveGps || state.startedAt) ? (state.completedLegs || []) : [],
   };
+  const nowMs = state.pausedAt || Date.now();
+  const elapsedNow = state.startedAt ? elapsedMin() : null;
   const rows = buildCrewRows(plan, state.aidStations, options);
   const athlete = plan.athlete || {};
   const preference = String(state.fuelPreference || "gels_first").replaceAll("_", " ");
@@ -183,7 +197,7 @@ export function renderCrewSheet() {
     return `<tr data-testid="crew-row">
       <td class="crew-cell-station" data-label="Station"><span><strong>${escapeHtml(row.name)}</strong>${bag}</span><span class="crew-dist">${escapeHtml(formatDistance(row.distance_km, { digits: 1 }))}</span></td>
       <td class="crew-cell-eta" data-label="Fast (−10%)" data-testid="crew-eta-fast">${escapeHtml(formatDuration(row.eta_fast_min))}</td>
-      <td class="crew-cell-eta crew-cell-eta-plan" data-label="Plan ETA" data-testid="crew-eta-plan"><strong>${escapeHtml(formatDuration(row.eta_plan_min))}</strong></td>
+      <td class="crew-cell-eta crew-cell-eta-plan" data-label="Plan ETA" data-testid="crew-eta-plan"><strong>${escapeHtml(formatDuration(row.eta_plan_min))}</strong>${elapsedNow !== null ? `<span class="crew-clock">~${escapeHtml(formatTimeOfDay(nowMs + Math.max(0, row.eta_plan_min - elapsedNow) * 60000, 5))}</span>` : ""}</td>
       <td class="crew-cell-eta" data-label="Slow (+10%)" data-testid="crew-eta-slow">${escapeHtml(formatDuration(row.eta_slow_min))}</td>
       <td class="crew-cell-cutoff" data-label="Cutoff">${escapeHtml(row.cutoff)}</td>
       <td class="crew-cell-handover" data-label="Hand over">${escapeHtml(row.hand_over)}</td>

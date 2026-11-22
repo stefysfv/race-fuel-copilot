@@ -12,7 +12,7 @@ import { setupDiagnostics, watchReadiness } from "./offline_status.js";
 import { resetOutdatedStorage, restore } from "./session.js";
 import { renderLocker, addCustomItem, renderCustomAids, onAddAidClick, setFuelPreference, renderVestRows, paintDrinkControls, onVestInventoryInput, renderFoods, saveMenu, setFoodCarbs, toggleFood, onFoodEditorClick, onFoodEditorInput, addCustomFood, toggleFoodFlavor, loadStoredPreferences, renderGutPill, openGutModal, markGut, closeGutModal, saveGut, resetGut } from "./food_menu.js";
 import { renderPacking, setupSummaryLine, stepLeg, exportRaceCard, closeCrewModal } from "./packing.js";
-import { renderLive, startClock, ensureTicker, logIntake, undoAutoLog, paintRaceControls, onClockTick, onPaintDesk, markLegCompleted, openRecapModal, closeRecapModal, prefillFeedbackFromRecap } from "./live.js";
+import { renderLive, startClock, ensureTicker, logIntake, undoAutoLog, paintRaceControls, onClockTick, onPaintDesk, markLegCompleted, openRaceMenu, closeRaceMenu, openRecapModal, closeRecapModal, prefillFeedbackFromRecap } from "./live.js";
 import { drawMap, mapApi } from "./map_screen.js";
 import { applyTargetDefault, paintAidDrawer, paintRaceOptions, paintUnitInputs, setSource, setCarbs, syncTempFromInput, syncWeightFromInput, loadRaces } from "./plan_request.js";
 import { applyZonePreset, loadZoneProfile, onZoneSlider, scheduleZonePreview } from "./zone_profile.js";
@@ -96,10 +96,18 @@ function bind() {
       }
     });
   });
-  ui.rescue?.addEventListener("click", () => triggerRescue());
+  ui.rescue?.addEventListener("click", () => { closeRaceMenu(); triggerRescue(); });
   ui.raceMode?.addEventListener("click", onRaceModeClick);
-  ui.racePause?.addEventListener("click", togglePauseRace);
-  ui.raceRestart?.addEventListener("click", openRestartModal);
+  ui.liveMenuBtn?.addEventListener("click", openRaceMenu);
+  ui.closeRaceMenu?.addEventListener("click", closeRaceMenu);
+  ui.closeRaceMenuBottom?.addEventListener("click", closeRaceMenu);
+  ui.raceMenuModal?.addEventListener("click", (event) => { if (event.target === ui.raceMenuModal) closeRaceMenu(); });
+  ui.racePause?.addEventListener("click", () => { closeRaceMenu(); togglePauseRace(); });
+  ui.raceRestart?.addEventListener("click", () => { closeRaceMenu(); openRestartModal(); });
+  ui.sectionDoneCurrent?.addEventListener("click", () => {
+    const btn = ui.sectionDoneCurrent;
+    if (btn?.dataset.legDone) markLegCompleted(btn.dataset.legDone, Number(btn.dataset.legKm || 0), Number(btn.dataset.legPlanMin || 0));
+  });
   ui.confirmRestart?.addEventListener("click", () => confirmRestartRace());
   ui.cancelRestart?.addEventListener("click", closeRestartModal);
   ui.closeRestart?.addEventListener("click", closeRestartModal);

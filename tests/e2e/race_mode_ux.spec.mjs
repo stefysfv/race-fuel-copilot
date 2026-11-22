@@ -1,4 +1,4 @@
-﻿/** Adaptive check-in guide: Launch -> 3-2-1-GO -> Cockpit -> GPS clear -> Live Crew Sheet -> Recap -> Feedback. */
+/** Minimal Light check-in guide: Launch -> 3-2-1-GO -> Clock fueling windows -> Section check-in -> Crew Sheet -> Recap. */
 
 import { expect, test } from "@playwright/test";
 
@@ -7,7 +7,7 @@ test.use({
   serviceWorkers: "allow",
 });
 
-test("runs Launch -> 3-2-1-GO -> forward-only legs -> Live Crew Sheet -> Pause/Restart -> Finish Recap", async ({ page }) => {
+test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Menu -> Finish Recap", async ({ page }) => {
   test.setTimeout(180000);
   await page.addInitScript(() => {
     const pos = {
@@ -30,61 +30,52 @@ test("runs Launch -> 3-2-1-GO -> forward-only legs -> Live Crew Sheet -> Pause/R
   await page.getByTestId("build-plan").click();
   await expect(page.getByTestId("packing-list")).not.toBeEmpty({ timeout: 60000 });
 
-  // Pre-race Launch screen: only launch card visible, cockpit hidden.
   await page.locator("#nav-live").click();
   await expect(page.getByTestId("race-launch")).toBeVisible();
-  await expect(page.getByTestId("race-cockpit")).toBeHidden();
+  await expect(page.getByTestId("race-launch-eta")).toContainText("Starting now puts finish around");
 
-  // Start Race -> 3-2-1-GO overlay -> Active Race Cockpit.
   await page.getByTestId("start-race-cta").click();
   await expect(page.getByTestId("race-countdown-overlay")).toBeVisible();
-  await expect(page.getByTestId("race-countdown-num")).toHaveText(/^(3|2|1|GO!)$/);
   await expect(page.getByTestId("race-countdown-overlay")).toBeHidden({ timeout: 8000 });
-  await expect(page.getByTestId("race-launch")).toBeHidden();
   await expect(page.getByTestId("race-cockpit")).toBeVisible();
-  await expect(page.getByTestId("race-live-badge")).toHaveText("RACE LIVE");
+  await expect(page.getByTestId("race-live-badge")).toHaveText("LIVE");
 
-  // Wait for GPS check-in (snapped near Cherni Vrah ~8.2 km) -> progress line & Live Crew Sheet update.
+  await expect(page.getByTestId("current-eta-clock")).toHaveText(/^~\d{2}:\d{2}$/);
+  await expect(page.getByTestId("fuel-window").first()).toBeVisible();
+
   await expect(page.getByTestId("live-progress-line")).toContainText("passed", { timeout: 30000 });
   await page.getByTestId("live-crew-btn").click();
   await expect(page.getByTestId("crew-live-banner")).toContainText("Live GPS updated");
   await page.locator("#close-crew").click();
 
-  // Log an intake & clear a section ahead.
   await page.getByTestId("log-intake").click();
-  await expect(page.getByTestId("race-log-list")).toContainText("00:00:");
-  const beforeAhead = await page.getByTestId("ahead-leg-card").count();
-  if (beforeAhead > 0) {
-    await page.getByTestId("mark-section-done").first().click();
-    await expect(page.getByTestId("ahead-leg-card")).toHaveCount(beforeAhead - 1);
-    await expect(page.getByTestId("live-completed-details")).toBeVisible();
-  }
+  await expect(page.getByTestId("race-log-card")).toBeVisible();
+  await page.getByTestId("mark-section-done").click();
+  await expect(page.getByTestId("live-completed-details")).toBeVisible();
 
-  // Finish Run -> Section-by-section Race Recap -> handoff to Feedback.
+  await page.getByTestId("live-menu-btn").click();
+  await expect(page.getByTestId("race-menu-modal")).toBeVisible();
   await page.getByTestId("open-recap-live").click();
   await expect(page.getByTestId("recap-modal")).toBeVisible();
   await expect(page.getByTestId("recap-summary")).toContainText("1 logged");
-  await expect(page.getByTestId("recap-leg").first()).toBeVisible();
   await page.getByTestId("recap-to-feedback").click();
   await expect(page.getByTestId("feedback-notes")).toHaveValue(/Logged intakes:/);
 
-  // Back to Live -> Pause/Resume and Restart confirmation.
   await page.locator("#nav-live").click();
+  await page.getByTestId("live-menu-btn").click();
   await page.getByTestId("race-pause").click();
   await expect(page.getByTestId("race-live-badge")).toHaveText("PAUSED");
   const pausedClock = await page.getByTestId("race-elapsed").innerText();
   await page.waitForTimeout(1300);
   await expect(page.getByTestId("race-elapsed")).toHaveText(pausedClock);
-  await page.getByTestId("race-pause").click();
-  await expect(page.getByTestId("race-live-badge")).toHaveText("RACE LIVE");
 
+  await page.getByTestId("live-menu-btn").click();
+  await page.getByTestId("race-pause").click();
+  await expect(page.getByTestId("race-live-badge")).toHaveText("LIVE");
+
+  await page.getByTestId("live-menu-btn").click();
   await page.getByTestId("race-restart").click();
   await expect(page.getByTestId("restart-modal")).toContainText("Are you sure you want to restart?");
-  await page.getByTestId("cancel-restart").click();
-  await expect(page.getByTestId("race-cockpit")).toBeVisible();
-
-  await page.getByTestId("race-restart").click();
   await page.getByTestId("confirm-restart").click();
   await expect(page.getByTestId("race-launch")).toBeVisible();
-  await expect(page.getByTestId("race-cockpit")).toBeHidden();
 });

@@ -340,6 +340,8 @@ export async function confirmRestartRace() {
   state.completedLegs = [];
   state.giRescueEvents = [];
   state.passedDistanceM = 0;
+  state.sectionLogs = [];
+  state.lastGpsRecalAt = 0;
   state.headsUp.clear();
   state.dueFired.clear();
   state.aidPinged.clear();
@@ -835,7 +837,11 @@ export async function sendFix(latitude, longitude, giRescue, source = "sim") {
         sectionName: sec.name,
       });
     }
-    ui.liveMessage.textContent = result.message;
+    state.lastGpsRecalAt = Date.now();
+    const cleanMsg = (result.snap?.off_course_m > 500 && !giRescue)
+      ? "Off course — sync GPS again when back on trail."
+      : result.message;
+    ui.liveMessage.textContent = cleanMsg;
     setStatus(result.message);
   } catch (error) {
     if (error.message !== "No connection to the fueling server.") {

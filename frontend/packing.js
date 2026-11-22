@@ -64,9 +64,10 @@ export function renderPacking() {
     ui.vestUsage.classList.toggle("hidden", !vestLine);
   }
   for (const warning of plan.warnings) {
-    if (String(warning).startsWith("Short Race Protocol")) continue;
+    const text = String(warning);
+    if (text.startsWith("Short Race Protocol") || /track jumps/i.test(text)) continue;
     const item = document.createElement("li");
-    item.textContent = warning;
+    item.textContent = text;
     ui.warnings.append(item);
   }
   const legs = plan.aid_legs;
@@ -200,7 +201,8 @@ export function carryLine(item) {
       .replace("Soft flask 500 ml", "500ml Flask")
       .replace("Salt capsule", "Salt cap"),
   );
-  const detail = item.detail ? `<span class="carry-detail">${escapeHtml(item.detail)}</span>` : "";
+  const cleanDetail = item.detail && !/^from the packed/i.test(String(item.detail).trim()) ? item.detail : "";
+  const detail = cleanDetail ? `<span class="carry-detail">${escapeHtml(cleanDetail)}</span>` : "";
   return `<li><span class="qty">${item.quantity}×</span> ${name}${detail}</li>`;
 }
 

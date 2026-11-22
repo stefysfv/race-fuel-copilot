@@ -7,18 +7,11 @@ export let toastTimer = 0;
 export function setStatus(message, hold = false) {
   const text = message || "";
   if (ui.status) ui.status.textContent = hold ? text : "";
-  if (!ui.toast) return;
-  window.clearTimeout(toastTimer);
-  if (!text) {
+  if (ui.toast) {
+    window.clearTimeout(toastTimer);
     ui.toast.textContent = "";
     ui.toast.classList.add("hidden");
-    return;
   }
-  ui.toast.textContent = text;
-  ui.toast.classList.remove("hidden");
-  toastTimer = window.setTimeout(() => {
-    ui.toast.classList.add("hidden");
-  }, hold ? 12000 : 3000);
 }
 
 export function formatClock(minutes) {
@@ -36,6 +29,13 @@ export function formatDuration(minutes) {
   const hours = Math.floor(total / 60);
   const mins = total % 60;
   return hours > 0 ? `${hours} h ${mins} min` : `${mins} min`;
+}
+
+export function formatTimeOfDay(ms, roundStepMin = 1) {
+  const stepMs = Math.max(1, roundStepMin) * 60000;
+  const rounded = Math.round(ms / stepMs) * stepMs;
+  const d = new Date(rounded);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 export function elapsedMin() {

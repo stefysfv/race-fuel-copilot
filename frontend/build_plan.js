@@ -48,6 +48,8 @@ export async function buildPlan(event) {
     state.completedLegs = [];
     state.giRescueEvents = [];
     state.passedDistanceM = 0;
+    state.sectionLogs = [];
+    state.lastGpsRecalAt = 0;
     state.giRescue = false;
     state.snap = null;
     resetSim();

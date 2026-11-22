@@ -46,6 +46,8 @@ export async function persist() {
       completedLegs: state.completedLegs,
       giRescueEvents: state.giRescueEvents,
       passedDistanceM: state.passedDistanceM,
+      sectionLogs: state.sectionLogs,
+      lastGpsRecalAt: state.lastGpsRecalAt,
       giRescue: state.giRescue,
       snap: state.snap,
       alerts: state.alerts,
@@ -85,6 +87,8 @@ export function restore(session) {
   state.completedLegs = Array.isArray(session.completedLegs) ? session.completedLegs : [];
   state.giRescueEvents = Array.isArray(session.giRescueEvents) ? session.giRescueEvents : [];
   state.passedDistanceM = Number(session.passedDistanceM) || 0;
+  state.sectionLogs = Array.isArray(session.sectionLogs) ? session.sectionLogs : [];
+  state.lastGpsRecalAt = Number(session.lastGpsRecalAt) || 0;
   state.giRescue = Boolean(session.giRescue);
   state.snap = session.snap;
   state.alerts = Boolean(session.alerts);

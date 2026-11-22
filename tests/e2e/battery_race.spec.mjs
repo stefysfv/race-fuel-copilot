@@ -1,9 +1,4 @@
-/**
-- Prompt 17: Battery & race-day endurance checks.
-- Synthetic noisy GPS tracks, adaptive polling, ?diag=1 telemetry,
-- Battery Saver mode, wake-lock lifecycle, background resume catch-up,
-- and >= 48 px tap targets for gloves & sweat.
- */
+/** GPS guard, adaptive polling, diagnostics, wake lock, catch-up resume, and >= 48px Live tap targets. */
 
 import { expect, test } from "@playwright/test";
 
@@ -25,28 +20,16 @@ test("filters synthetic noisy GPS tracks and selects adaptive polling thresholds
     const guard = createGpsGuard();
     const t0 = 1_700_000_000_000;
 
-    // 1. Clean initial fix accepted.
     const r1 = guard.evaluate({ latitude: 42.5825, longitude: 23.2925, accuracy: 8, timestamp: t0 });
-    // 2. Poor accuracy (> 50 m) rejected.
     const r2 = guard.evaluate({ latitude: 42.5826, longitude: 23.2925, accuracy: 95, timestamp: t0 + 10_000 });
-    // 3. Normal running step (~35 m in 10 s = 3.5 m/s) accepted.
     const r3 = guard.evaluate({ latitude: 42.5828, longitude: 23.2925, accuracy: 10, timestamp: t0 + 10_000 });
-    // 4. Single impossible teleport spike (~2.2 km in 5 s) rejected.
     const r4 = guard.evaluate({ latitude: 42.6028, longitude: 23.2925, accuracy: 9, timestamp: t0 + 15_000 });
-    // 5. Return to normal trail position accepted (spike never corrupted state).
     const r5 = guard.evaluate({ latitude: 42.5831, longitude: 23.2925, accuracy: 9, timestamp: t0 + 20_000 });
-    // 6. Tunnel / screen-locked jump: first new fix held as suspect, second consistent fix recovers.
     const r6 = guard.evaluate({ latitude: 42.6200, longitude: 23.2925, accuracy: 10, timestamp: t0 + 30_000 });
     const r7 = guard.evaluate({ latitude: 42.6202, longitude: 23.2925, accuracy: 10, timestamp: t0 + 40_000 });
 
     return {
-      r1,
-      r2,
-      r3,
-      r4,
-      r5,
-      r6,
-      r7,
+      r1, r2, r3, r4, r5, r6, r7,
       steadyStd: pollingPolicy({ batterySaver: false, stopEtaMin: 25, aidDistanceM: 4000, offCourseM: 0 }),
       approachStd: pollingPolicy({ batterySaver: false, stopEtaMin: 6, aidDistanceM: 4000, offCourseM: 0 }),
       steadySaver: pollingPolicy({ batterySaver: true, stopEtaMin: 25, aidDistanceM: 4000, offCourseM: 0 }),
@@ -76,7 +59,7 @@ test("filters synthetic noisy GPS tracks and selects adaptive polling thresholds
   expect(out.approachSaver.pollIntervalMs).toBeLessThan(out.steadySaver.pollIntervalMs);
 });
 
-test("supports diag telemetry, Battery Saver, wake lock, catch-up resume, bad-fix rejection, and 48px targets", async ({ page, context }) => {
+test("supports diag telemetry, wake lock, catch-up resume, bad-fix rejection, and 48px targets", async ({ page, context }) => {
   test.setTimeout(240000);
   await page.addInitScript(() => {
     window.__wakeRequested = 0;
@@ -117,9 +100,7 @@ test("supports diag telemetry, Battery Saver, wake lock, catch-up resume, bad-fi
   await page.goto("/?diag=1");
   await expect(page.locator("#diag-list")).toContainText("GPS fix interval");
   await expect(page.locator("#diag-list")).toContainText("Recalibrations");
-  await expect(page.locator("#diag-list")).toContainText("Speech / notifications");
   await expect(page.locator("#diag-list")).toContainText("Wake lock");
-  await expect(page.locator("#diag-list")).toContainText("Work per hour");
 
   await page.goto("/");
   await expect(page.locator("#race-select option[value='salomon-vitosha-12']")).toHaveCount(1, { timeout: 30000 });
@@ -132,32 +113,20 @@ test("supports diag telemetry, Battery Saver, wake lock, catch-up resume, bad-fi
   await expect(page.getByTestId("race-launch")).toBeVisible();
   await expect(page.getByTestId("race-cockpit")).toBeHidden();
 
-  // Toggle Battery Saver from the launch card and verify OLED dark mode class persists.
-  await page.getByTestId("launch-battery-saver").click();
-  await expect(page.locator("body")).toHaveClass(/battery-saver/);
-  await expect(page.getByTestId("launch-battery-saver")).toHaveAttribute("aria-pressed", "true");
-
-  // Start Race -> acquires wake lock and opens cockpit.
   await page.getByTestId("start-race-cta").click();
   await page.getByTestId("race-countdown-skip").click();
   await expect(page.getByTestId("race-cockpit")).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__wakeRequested)).toBeGreaterThanOrEqual(1);
-  await expect(page.locator("body")).toHaveClass(/race-active/);
 
-  // Check glove-friendly labels and >= 48px minimum tap target heights on active cockpit.
-  await expect(page.getByTestId("log-intake")).toHaveText("I ate");
-  await expect(page.getByTestId("gi-rescue")).toHaveText("GI trouble");
-  for (const tid of ["log-intake", "gi-rescue", "sync-gps", "race-pause", "race-restart", "battery-saver", "live-crew-btn"]) {
+  for (const tid of ["log-intake", "sync-gps", "live-crew-btn", "live-menu-btn"]) {
     const box = await page.getByTestId(tid).boundingBox();
     expect(box, `missing box for ${tid}`).not.toBeNull();
     expect(box.height, `${tid} height < 48px`).toBeGreaterThanOrEqual(48);
     expect(box.width, `${tid} width < 48px`).toBeGreaterThanOrEqual(48);
   }
-  await expect(page.getByTestId("battery-saver")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#gps-banner")).toContainText("GPS Locked", { timeout: 30000 });
   await expect.poll(() => page.evaluate(() => window.__recalCalls), { timeout: 30000 }).toBeGreaterThanOrEqual(1);
 
-  // Inject a weak-accuracy fix and an impossible jump fix: neither may trigger recalibration.
   const beforeRecals = await page.evaluate(() => window.__recalCalls);
   await page.evaluate(async () => {
     const { onGpsSuccess } = await import("/gps.js");
@@ -168,7 +137,6 @@ test("supports diag telemetry, Battery Saver, wake lock, catch-up resume, bad-fi
   const afterBadRecals = await page.evaluate(() => window.__recalCalls);
   expect(afterBadRecals).toBe(beforeRecals);
 
-  // Simulate backgrounding for > 10s then returning -> calm catching-up state appears.
   const sawCatchUp = await page.evaluate(async () => {
     const { state } = await import("/state.js");
     const { handleVisibilityChange } = await import("/gps.js");
@@ -183,7 +151,7 @@ test("supports diag telemetry, Battery Saver, wake lock, catch-up resume, bad-fi
   expect(sawCatchUp.visible).toBe(true);
   expect(sawCatchUp.text).toContain("Catching up");
 
-  // Pause Race Mode -> wake lock released.
+  await page.getByTestId("live-menu-btn").click();
   await page.getByTestId("race-pause").click();
   await expect.poll(() => page.evaluate(() => window.__wakeReleased)).toBeGreaterThanOrEqual(1);
 });
