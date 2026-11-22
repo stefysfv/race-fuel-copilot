@@ -10,7 +10,9 @@ import {
 } from "./battery_diag.js";
 import { recalibrate } from "./engine_client.js";
 import { createGpsGuard, haversineMeters, pollingPolicy } from "./gps_guard.js";
-import { ensureTicker, paintRaceControls, renderLive, startClock } from "./live.js";
+import { ensureTicker, paintRaceControls, renderLive, sectionForDistanceKm, startClock } from "./live.js";
+import { legKey, renderCrewSheet } from "./crew_sheet.js";
+import { renderPacking } from "./packing.js";
 import { BATTERY_SAVER_KEY, readText, writeText } from "./local_store.js";
 import { positionOnCourse } from "./map_controller.js?v=23";
 import { drawMap, moveRunner, showRealDot } from "./map_screen.js";
@@ -19,7 +21,7 @@ import { currentSegment, nextAid, nextStop } from "./plan_cursor.js";
 import { courseBody } from "./plan_request.js";
 import { persist } from "./session.js";
 import { state, ui } from "./state.js";
-import { elapsedMin, formatDuration, setStatus, wallElapsedMin } from "./ui_helpers.js";
+import { elapsedMin, formatDuration, formatElapsedClock, setStatus, wallElapsedMin } from "./ui_helpers.js";
 import { formatDistance, formatShortLength } from "./units.js";
 
 export const RECAL_EVERY_MS = 30_000;
@@ -68,6 +70,7 @@ export function applyBatterySaverUi() {
   document.body.classList.toggle("battery-saver", Boolean(state.batterySaver));
   document.body.classList.toggle("race-active", Boolean(state.raceMode));
   ui.batterySaver?.setAttribute("aria-pressed", state.batterySaver ? "true" : "false");
+  ui.launchBatterySaver?.setAttribute("aria-pressed", state.batterySaver ? "true" : "false");
   setPollingDiag({ state: state.pollingState, mode: state.batterySaver ? "poll" : "watch", batterySaver: state.batterySaver });
 }
 
@@ -334,6 +337,9 @@ export async function confirmRestartRace() {
   state.pausedTotalMs = 0;
   state.logged = [];
   state.intakeHistory = [];
+  state.completedLegs = [];
+  state.giRescueEvents = [];
+  state.passedDistanceM = 0;
   state.headsUp.clear();
   state.dueFired.clear();
   state.aidPinged.clear();
@@ -357,6 +363,7 @@ export async function confirmRestartRace() {
   paintOffCourse(0);
   applyBatterySaverUi();
   paintRaceControls();
+  renderPacking();
   drawMap();
   renderLive();
   await persist();
@@ -807,6 +814,26 @@ export async function sendFix(latitude, longitude, giRescue, source = "sim") {
     }
     if (source === "gps") {
       paintOffCourse(result.snap.off_course_m);
+      if (result.snap.off_course_m <= 250 && Number.isFinite(result.snap.distance_along_m)) {
+        state.passedDistanceM = Math.max(state.passedDistanceM || 0, result.snap.distance_along_m);
+        const passedKm = state.passedDistanceM / 1000;
+        for (const leg of state.packedPlan?.aid_legs || []) {
+          if (Number(leg.to_km) <= passedKm - 0.05) {
+            const key = legKey(leg);
+            if (!state.completedLegs.includes(key)) state.completedLegs.push(key);
+          }
+        }
+      }
+    }
+    if (giRescue) {
+      const distKm = (result.snap.distance_along_m || 0) / 1000;
+      const sec = sectionForDistanceKm(distKm);
+      state.giRescueEvents.push({
+        clockText: formatElapsedClock(elapsed),
+        distanceKm: distKm,
+        sectionIndex: sec.index,
+        sectionName: sec.name,
+      });
     }
     ui.liveMessage.textContent = result.message;
     setStatus(result.message);
@@ -823,6 +850,10 @@ export async function sendFix(latitude, longitude, giRescue, source = "sim") {
       ? "Offline. Snapped to the saved course. The fuel plan was not rebuilt."
       : `Offline and ${Math.round(snapped.offCourseM)} m off the saved course. The fuel plan was not rebuilt.`;
     setStatus(ui.liveMessage.textContent);
+  }
+  renderPacking();
+  if (!ui.crewModal?.classList.contains("hidden")) {
+    renderCrewSheet();
   }
   drawMap();
   renderLive();

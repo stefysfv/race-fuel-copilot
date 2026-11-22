@@ -374,67 +374,97 @@
       </div>
     </section>
 
-    <section id="tab-live" class="live-view hidden" aria-label="Live race co-pilot">
-      <div class="live-top">
-        <p id="auto-gps" class="liquid-pill status-pill" role="status">
-          <span class="status-dot"></span>
-          <span id="auto-gps-text">GPS starts with a plan</span>
-        </p>
-        <div class="live-chips">
-          <button id="race-mode" class="liquid-pill chip-toggle" type="button" aria-pressed="false" data-testid="race-mode">Race Mode</button>
-          <button id="battery-saver" class="liquid-pill chip-toggle" type="button" aria-pressed="false" data-testid="battery-saver">Battery Saver</button>
-          <button id="enable-alerts" class="liquid-pill chip-toggle" type="button" aria-pressed="false" data-testid="enable-alerts">Audio</button>
-        </div>
+    <section id="tab-live" class="live-view hidden" aria-label="Live race check-in guide">
+      <div id="live-empty" class="race-launch liquid-glass" data-testid="live-empty">
+        <p class="kicker">Live check-in guide</p>
+        <h2 class="ready-title">No plan loaded yet</h2>
+        <p class="micro">Build a fueling plan on Setup first. Then start your race here for on-demand GPS check-ins and a live-updating Crew Sheet.</p>
+        <button id="live-go-setup" class="thumb-btn primary liquid-pill mt-3" type="button">Go to Setup</button>
       </div>
-      <div class="live-body">
-        <div id="race-hud" class="race-hud liquid-glass hidden" data-testid="race-hud">
-          <span id="race-live-badge" class="race-live-badge" data-testid="race-live-badge">RACE LIVE</span>
-          <span class="race-elapsed-wrap"><span class="kicker">Elapsed</span><strong id="race-elapsed" class="race-elapsed" data-testid="race-elapsed">00:00:00</strong></span>
-        </div>
-        <p id="catching-up" class="catching-up hidden" role="status" data-testid="catching-up"></p>
-        <p id="gps-banner" class="gps-banner hidden" role="status"></p>
-        <p id="off-course" class="off-course hidden" role="alert"></p>
-        <div class="hero liquid-glass">
-          <p class="kicker">Next intake in</p>
-          <button id="countdown" class="countdown" type="button">--:--</button>
-          <p id="intake-detail" class="intake"></p>
-          <p id="clock-caption" class="flavor"></p>
-          <div class="telemetry">
-            <div>
-              <span class="kicker">Grade</span>
-              <p id="grade-readout" class="num">—</p>
-            </div>
-            <div>
-              <span class="kicker">Zone</span>
-              <span id="zone-badge" class="zone-badge idle">—</span>
-            </div>
-            <div>
-              <span class="kicker">Next aid</span>
-              <p id="next-aid" class="num">—</p>
-            </div>
-          </div>
-          <p id="caffeine-readout" class="hero-caffeine"></p>
-        </div>
-        <p id="live-message" class="micro" data-testid="live-message"></p>
-        <section id="race-log-card" class="race-log-card liquid-glass hidden" aria-label="Race intake log" data-testid="race-log-card">
-          <p class="kicker">Intake log</p>
-          <ul id="race-log-list" class="race-log-list" data-testid="race-log-list"></ul>
-        </section>
-      </div>
-      <div class="action-bar">
-        <button id="log-intake" class="thumb-btn primary liquid-pill" type="button" data-testid="log-intake" disabled>I ate</button>
+
+      <div id="race-launch" class="race-launch liquid-glass hidden" data-testid="race-launch">
+        <p class="kicker">Ready on the start line</p>
+        <h2 id="race-launch-title" class="ready-title" data-testid="race-launch-title"></h2>
+        <p id="race-launch-meta" class="micro" data-testid="race-launch-meta"></p>
+        <p class="launch-desc">Offline check-in guide for long trail races. Keep your phone locked in Airplane Mode between stations to save battery. Pull it out anytime to check in with GPS, recalculate your Crew Sheet ETAs, and clear passed sections.</p>
+        <button id="start-race-cta" class="thumb-btn primary liquid-pill" type="button" data-testid="start-race-cta">Start Race</button>
         <div class="action-row">
-          <button id="update-gps" class="liquid-pill action-pill" type="button" data-testid="sync-gps" disabled>Sync GPS</button>
-          <button id="gi-rescue" class="liquid-pill action-pill" type="button" data-testid="gi-rescue" disabled>GI trouble</button>
+          <button id="launch-battery-saver" class="liquid-pill action-pill" type="button" aria-pressed="false" data-testid="launch-battery-saver">Battery Saver</button>
+          <button id="launch-crew-btn" class="liquid-pill action-pill" type="button" data-testid="launch-crew-btn">Crew Sheet</button>
         </div>
-        <div id="race-session-controls" class="action-row hidden" data-testid="race-session-controls">
-          <button id="race-pause" class="liquid-pill action-pill" type="button" aria-pressed="false" data-testid="race-pause">Pause</button>
-          <button id="race-restart" class="liquid-pill action-pill danger-pill" type="button" data-testid="race-restart">Restart</button>
+      </div>
+
+      <div id="race-cockpit" class="race-cockpit hidden" data-testid="race-cockpit">
+        <div class="live-top">
+          <p id="auto-gps" class="liquid-pill status-pill" role="status">
+            <span class="status-dot"></span>
+            <span id="auto-gps-text">GPS starts with a plan</span>
+          </p>
+          <div class="live-chips">
+            <button id="battery-saver" class="liquid-pill chip-toggle" type="button" aria-pressed="false" data-testid="battery-saver">Battery Saver</button>
+            <button id="live-crew-btn" class="liquid-pill chip-toggle" type="button" data-testid="live-crew-btn">Crew Sheet</button>
+          </div>
         </div>
-        <div class="finish-row">
-          <button id="test-alert" class="finish-link" type="button">Test Voice</button>
-          <button id="undo-autolog" class="finish-link hidden" type="button">Undo last auto-log</button>
-          <button id="open-gut-live" class="finish-link" type="button">Finish Run · Post-Race Gut Check</button>
+        <div class="live-body">
+          <div id="race-hud" class="race-hud liquid-glass hidden" data-testid="race-hud">
+            <div class="race-hud-top">
+              <span id="race-live-badge" class="race-live-badge" data-testid="race-live-badge">RACE LIVE</span>
+              <span class="race-elapsed-wrap"><span class="kicker">Elapsed</span><strong id="race-elapsed" class="race-elapsed" data-testid="race-elapsed">00:00:00</strong></span>
+            </div>
+            <p id="live-progress-line" class="micro" data-testid="live-progress-line"></p>
+          </div>
+          <p id="catching-up" class="catching-up hidden" role="status" data-testid="catching-up"></p>
+          <p id="gps-banner" class="gps-banner hidden" role="status"></p>
+          <p id="off-course" class="off-course hidden" role="alert"></p>
+          <div class="hero liquid-glass">
+            <p class="kicker">Next intake in</p>
+            <button id="countdown" class="countdown" type="button">--:--</button>
+            <p id="intake-detail" class="intake"></p>
+            <p id="clock-caption" class="flavor"></p>
+            <div class="telemetry">
+              <div>
+                <span class="kicker">Grade</span>
+                <p id="grade-readout" class="num">—</p>
+              </div>
+              <div>
+                <span class="kicker">Zone</span>
+                <span id="zone-badge" class="zone-badge idle">—</span>
+              </div>
+              <div>
+                <span class="kicker">Next aid</span>
+                <p id="next-aid" class="num">—</p>
+              </div>
+            </div>
+            <p id="caffeine-readout" class="hero-caffeine"></p>
+          </div>
+          <p id="live-message" class="micro" data-testid="live-message"></p>
+          <section id="live-ahead-section" class="live-ahead hidden" aria-label="Remaining sections ahead" data-testid="live-ahead-section">
+            <p class="kicker">Ahead on your plan</p>
+            <div id="live-ahead-list" class="live-ahead-list" data-testid="live-ahead-list"></div>
+            <details id="live-completed-details" class="drawer liquid-glass hidden" data-testid="live-completed-details">
+              <summary id="live-completed-summary">Passed &amp; cleared sections (0)</summary>
+              <ul id="live-completed-list" class="completed-leg-list" data-testid="live-completed-list"></ul>
+            </details>
+          </section>
+          <section id="race-log-card" class="race-log-card liquid-glass hidden" aria-label="Recent intake log" data-testid="race-log-card">
+            <p class="kicker">Logged so far</p>
+            <ul id="race-log-list" class="race-log-list" data-testid="race-log-list"></ul>
+          </section>
+        </div>
+        <div class="action-bar">
+          <button id="log-intake" class="thumb-btn primary liquid-pill" type="button" data-testid="log-intake" disabled>I ate</button>
+          <div class="action-row">
+            <button id="update-gps" class="liquid-pill action-pill" type="button" data-testid="sync-gps" disabled>Sync GPS</button>
+            <button id="gi-rescue" class="liquid-pill action-pill" type="button" data-testid="gi-rescue" disabled>GI trouble</button>
+          </div>
+          <div id="race-session-controls" class="action-row hidden" data-testid="race-session-controls">
+            <button id="race-pause" class="liquid-pill action-pill" type="button" aria-pressed="false" data-testid="race-pause">Pause</button>
+            <button id="race-restart" class="liquid-pill action-pill danger-pill" type="button" data-testid="race-restart">Restart</button>
+          </div>
+          <div class="finish-row">
+            <button id="undo-autolog" class="finish-link hidden" type="button">Undo last auto-log</button>
+            <button id="open-recap-live" class="finish-link" type="button" data-testid="open-recap-live">Finish Run · Race Recap</button>
+          </div>
         </div>
       </div>
     </section>
@@ -555,6 +585,21 @@
       <p class="countdown-kicker">GET READY</p>
       <p id="race-countdown-num" class="countdown-num" data-testid="race-countdown-num">3</p>
       <button id="race-countdown-skip" class="liquid-pill countdown-skip" type="button" data-testid="race-countdown-skip">Start now</button>
+    </div>
+  </div>
+
+  <div id="recap-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Race recap" data-testid="recap-modal">
+    <div class="modal-sheet liquid-glass">
+      <div class="modal-top">
+        <strong>Finish Run · Race Recap</strong>
+        <button id="close-recap" class="modal-x" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div id="recap-body" class="recap-body" data-testid="recap-body"></div>
+      <div class="action-row mt-3">
+        <button id="recap-to-gut" class="thumb-btn liquid-pill" type="button" data-testid="recap-to-gut">Gut Check</button>
+        <button id="recap-to-feedback" class="thumb-btn primary liquid-pill" type="button" data-testid="recap-to-feedback">Save Feedback</button>
+      </div>
+      <button id="close-recap-bottom" class="thumb-btn" type="button">Close</button>
     </div>
   </div>
 

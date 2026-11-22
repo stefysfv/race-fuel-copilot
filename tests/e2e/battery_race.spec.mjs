@@ -129,26 +129,31 @@ test("supports diag telemetry, Battery Saver, wake lock, catch-up resume, bad-fi
   await expect(page.getByTestId("summary")).toContainText("Salomon Vitosha Trail 12 km", { timeout: 180000 });
 
   await page.locator("#nav-live").click();
+  await expect(page.getByTestId("race-launch")).toBeVisible();
+  await expect(page.getByTestId("race-cockpit")).toBeHidden();
 
-  // Check glove-friendly labels and >= 48px minimum tap target heights.
+  // Toggle Battery Saver from the launch card and verify OLED dark mode class persists.
+  await page.getByTestId("launch-battery-saver").click();
+  await expect(page.locator("body")).toHaveClass(/battery-saver/);
+  await expect(page.getByTestId("launch-battery-saver")).toHaveAttribute("aria-pressed", "true");
+
+  // Start Race -> acquires wake lock and opens cockpit.
+  await page.getByTestId("start-race-cta").click();
+  await page.getByTestId("race-countdown-skip").click();
+  await expect(page.getByTestId("race-cockpit")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__wakeRequested)).toBeGreaterThanOrEqual(1);
+  await expect(page.locator("body")).toHaveClass(/race-active/);
+
+  // Check glove-friendly labels and >= 48px minimum tap target heights on active cockpit.
   await expect(page.getByTestId("log-intake")).toHaveText("I ate");
   await expect(page.getByTestId("gi-rescue")).toHaveText("GI trouble");
-  for (const tid of ["log-intake", "gi-rescue", "sync-gps", "race-mode", "battery-saver", "enable-alerts"]) {
+  for (const tid of ["log-intake", "gi-rescue", "sync-gps", "race-pause", "race-restart", "battery-saver", "live-crew-btn"]) {
     const box = await page.getByTestId(tid).boundingBox();
     expect(box, `missing box for ${tid}`).not.toBeNull();
     expect(box.height, `${tid} height < 48px`).toBeGreaterThanOrEqual(48);
     expect(box.width, `${tid} width < 48px`).toBeGreaterThanOrEqual(48);
   }
-
-  // Toggle Battery Saver and verify OLED dark mode class persists.
-  await page.getByTestId("battery-saver").click();
-  await expect(page.locator("body")).toHaveClass(/battery-saver/);
   await expect(page.getByTestId("battery-saver")).toHaveAttribute("aria-pressed", "true");
-
-  // Start Race Mode -> acquires wake lock; wait for initial good GPS fix to settle.
-  await page.getByTestId("race-mode").click();
-  await expect.poll(() => page.evaluate(() => window.__wakeRequested)).toBeGreaterThanOrEqual(1);
-  await expect(page.locator("body")).toHaveClass(/race-active/);
   await expect(page.locator("#gps-banner")).toContainText("GPS Locked", { timeout: 30000 });
   await expect.poll(() => page.evaluate(() => window.__recalCalls), { timeout: 30000 }).toBeGreaterThanOrEqual(1);
 
@@ -178,7 +183,7 @@ test("supports diag telemetry, Battery Saver, wake lock, catch-up resume, bad-fi
   expect(sawCatchUp.visible).toBe(true);
   expect(sawCatchUp.text).toContain("Catching up");
 
-  // End Race Mode -> wake lock released.
-  await page.getByTestId("race-mode").click();
+  // Pause Race Mode -> wake lock released.
+  await page.getByTestId("race-pause").click();
   await expect.poll(() => page.evaluate(() => window.__wakeReleased)).toBeGreaterThanOrEqual(1);
 });

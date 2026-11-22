@@ -1909,7 +1909,8 @@ body[data-tab="live"] #tab-live {
   padding-bottom: 12px;
 }
 body[data-tab="feedback"] #tab-feedback {
-  padding-bottom: 20px;
+  padding-bottom: 96px !important;
+  scroll-padding-bottom: 96px;
 }
 .stop-list {
   padding-bottom: 12px;
@@ -2284,4 +2285,171 @@ body.battery-saver .off-course {
 body.battery-saver .danger-pill {
   color: #fca5a5 !important;
   border-color: #ef4444 !important;
+}
+
+/* v41 Adaptive Check-In Guide: Launch card, Cockpit, Forward-only legs, Recap */
+.race-launch {
+  margin: auto 0;
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.launch-desc {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.race-cockpit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+.race-hud {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.race-hud-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.live-ahead {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.live-ahead-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ahead-leg-card {
+  padding: 12px 14px;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ahead-leg-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.ahead-leg-meta {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.ahead-leg-table {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ahead-done-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.14);
+  color: #065f46;
+}
+.completed-leg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.completed-leg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.crew-live-banner {
+  margin: 6px 0 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 700;
+}
+.recap-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.recap-summary h3 {
+  font-size: 17px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.recap-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.recap-leg {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+.recap-leg-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.recap-items {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.recap-gi-flag {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b45309;
+}
+#tab-live #start-race-cta {
+  min-height: 54px;
+  font-size: 17px;
+  font-weight: 800;
+}
+body.battery-saver .ahead-leg-card,
+body.battery-saver .race-launch,
+body.battery-saver .recap-leg {
+  background: #0b0f17 !important;
+  border-color: #475569 !important;
+  color: #ffffff !important;
+}
+body.battery-saver .ahead-leg-meta,
+body.battery-saver .ahead-leg-table,
+body.battery-saver .launch-desc {
+  color: #e2e8f0 !important;
+}
+body.battery-saver .ahead-done-btn,
+body.battery-saver .crew-live-banner {
+  background: #064e3b !important;
+  color: #ecfdf5 !important;
 }

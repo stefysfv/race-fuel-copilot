@@ -1,4 +1,4 @@
-/** Print-friendly and shareable crew sheet (client-side only). */
+/** Print-friendly, shareable, and GPS-adaptive crew sheet (client-side only). */
 
 import { state, ui } from "./state.js";
 import { deliveryRateLabel, escapeHtml, formatDuration, grouped } from "./ui_helpers.js";
@@ -10,6 +10,10 @@ export const GI_RESCUE_STEPS = [
   "Slow the effort for 15-20 minutes until nausea eases. In warm weather, cool the neck, wrists, and head.",
   "Once the stomach settles, restart gently with dilute liquid carbs or a small salty bite before resuming normal gels.",
 ];
+
+export function legKey(leg) {
+  return `${leg.from_name}->${leg.to_name}@${Number(leg.to_km || 0).toFixed(2)}`;
+}
 
 function eatSummary(leg) {
   if (!leg?.station_meal) return "";
@@ -66,33 +70,44 @@ function formatCarrying(incomingLeg) {
   return `From ${incomingLeg.from_name}: ${items.join(", ")}`;
 }
 
-export function buildCrewRows(plan, aidStations = []) {
+export function buildCrewRows(plan, aidStations = [], options = {}) {
   if (!plan?.aid_legs?.length) return [];
-  let cursor = Number(plan.clock_start_min) || 0;
-  return plan.aid_legs.map((leg, index) => {
+  const startClock = Number(plan.clock_start_min) || 0;
+  const completedKeys = new Set(options.completedLegs || []);
+  let cursor = startClock;
+  const rows = [];
+  plan.aid_legs.forEach((leg, index) => {
     cursor += Number(leg.predicted_minutes) || 0;
+    const remainingFromNow = Math.max(0, cursor - startClock);
     const station = aidStations.find((item) => item.name === leg.to_name) || null;
     const cutoff = station?.cutoff_hours ? formatDuration(Number(station.cutoff_hours) * 60) : "—";
     const nextLeg = plan.aid_legs[index + 1] || null;
-    return {
+    if (completedKeys.has(legKey(leg)) && nextLeg) {
+      return;
+    }
+    rows.push({
       name: leg.to_name,
       distance_km: Number(leg.to_km) || 0,
       drop_bag: Boolean(station?.drop_bag),
-      eta_fast_min: cursor * 0.9,
+      eta_fast_min: startClock + remainingFromNow * 0.9,
       eta_plan_min: cursor,
-      eta_slow_min: cursor * 1.1,
+      eta_slow_min: startClock + remainingFromNow * 1.1,
       cutoff,
       hand_over: formatHandOver(leg, nextLeg, plan),
       carrying: formatCarrying(leg),
-    };
+    });
   });
+  return rows;
 }
 
-export function crewSheetText(plan, aidStations = []) {
-  const rows = buildCrewRows(plan, aidStations);
+export function crewSheetText(plan, aidStations = [], options = {}) {
+  const rows = buildCrewRows(plan, aidStations, options);
   const athlete = plan.athlete || {};
+  const liveTag = options.isLiveGps
+    ? ` [LIVE GPS UPDATED · ${formatDistance((options.passedDistanceM || 0) / 1000, { digits: 1 })} passed]`
+    : "";
   const lines = [
-    `CREW SHEET: ${plan.race_name}`,
+    `CREW SHEET: ${plan.race_name}${liveTag}`,
     `Distance: ${formatDistance(plan.distance_km, { digits: 1 })} | Plan time: ${formatDuration(plan.predicted_duration_min)} | Pace: ${formatPace(athlete.flat_pace_min_per_km || 0)}`,
     `Targets: ${deliveryRateLabel(plan)} | Fluid up to ${grouped(athlete.fluid_ml_per_hour || 0)} ml/h | Sodium ~${grouped(athlete.sodium_mg_per_hour || 0)} mg/h | Temp ${formatTemp(athlete.temperature_c || 0)}`,
     `Caffeine: ${Math.round(plan.totals?.caffeine_mg || 0)} / ${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`,
@@ -113,8 +128,8 @@ export function crewSheetText(plan, aidStations = []) {
   return lines.join("\n");
 }
 
-async function shareCrewSheet(plan, aidStations) {
-  const text = crewSheetText(plan, aidStations);
+async function shareCrewSheet(plan, aidStations, options) {
+  const text = crewSheetText(plan, aidStations, options);
   const title = `Crew Sheet - ${plan.race_name}`;
   const status = ui.raceCard?.querySelector("#crew-share-status");
   const plainWrap = ui.raceCard?.querySelector("#crew-plain-wrap");
@@ -144,11 +159,25 @@ async function shareCrewSheet(plan, aidStations) {
 }
 
 export function renderCrewSheet() {
-  const plan = state.packedPlan;
+  const isLiveGps = Boolean(
+    state.livePlan
+    && state.snap
+    && (state.livePlan !== state.packedPlan || (state.passedDistanceM || 0) > 50),
+  );
+  const plan = isLiveGps ? state.livePlan : state.packedPlan;
   if (!plan || !ui.crewModal || !ui.raceCard) return;
-  const rows = buildCrewRows(plan, state.aidStations);
+  const options = {
+    isLiveGps,
+    passedDistanceM: state.passedDistanceM || 0,
+    completedLegs: isLiveGps ? (state.completedLegs || []) : [],
+  };
+  const rows = buildCrewRows(plan, state.aidStations, options);
   const athlete = plan.athlete || {};
   const preference = String(state.fuelPreference || "gels_first").replaceAll("_", " ");
+  const totalFinishMin = (Number(plan.clock_start_min) || 0) + Number(plan.predicted_duration_min || 0);
+  const liveBanner = isLiveGps
+    ? `<p class="crew-live-banner" data-testid="crew-live-banner">Live GPS updated · ${escapeHtml(formatDistance((state.passedDistanceM || 0) / 1000, { digits: 1 }))} passed · Showing remaining stations &amp; updated ETAs</p>`
+    : "";
   const bodyRows = rows.map((row) => {
     const bag = row.drop_bag ? ' <span class="crew-bag">Drop bag</span>' : "";
     return `<tr data-testid="crew-row">
@@ -167,7 +196,8 @@ export function renderCrewSheet() {
   ui.raceCard.innerHTML = `
     <div class="crew-header" data-testid="crew-sheet">
       <h2>${escapeHtml(plan.race_name)} — Crew Sheet</h2>
-      <p class="crew-meta">${escapeHtml(formatDistance(plan.distance_km, { digits: 1 }))} · Plan ${escapeHtml(formatDuration(plan.predicted_duration_min))} · ${escapeHtml(formatPace(athlete.flat_pace_min_per_km || 0))} · ${escapeHtml(preference)}</p>
+      ${liveBanner}
+      <p class="crew-meta">${escapeHtml(formatDistance(state.packedPlan?.distance_km || plan.distance_km, { digits: 1 }))} · ${isLiveGps ? "Updated finish" : "Plan"} ${escapeHtml(formatDuration(isLiveGps ? totalFinishMin : plan.predicted_duration_min))} · ${escapeHtml(formatPace(athlete.flat_pace_min_per_km || 0))} · ${escapeHtml(preference)}</p>
       <p class="crew-meta">Carbs ${escapeHtml(deliveryRateLabel(plan))} · Fluid up to ${escapeHtml(grouped(athlete.fluid_ml_per_hour || 0))} ml/h · Sodium ~${escapeHtml(grouped(athlete.sodium_mg_per_hour || 0))} mg/h · Caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg</p>
     </div>
     <div class="crew-table-wrap">
@@ -202,6 +232,6 @@ export function renderCrewSheet() {
   `;
   ui.raceCard.querySelector("#print-card")?.addEventListener("click", () => window.print());
   ui.raceCard.querySelector("#share-card")?.addEventListener("click", () => {
-    shareCrewSheet(plan, state.aidStations);
+    shareCrewSheet(plan, state.aidStations, options);
   });
 }

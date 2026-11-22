@@ -41,6 +41,13 @@ export async function buildPlan(event) {
     state.livePlan = plan;
     state.logged = [];
     state.startedAt = null;
+    state.pausedAt = null;
+    state.pausedTotalMs = 0;
+    state.raceMode = false;
+    state.intakeHistory = [];
+    state.completedLegs = [];
+    state.giRescueEvents = [];
+    state.passedDistanceM = 0;
     state.giRescue = false;
     state.snap = null;
     resetSim();

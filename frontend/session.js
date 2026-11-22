@@ -43,6 +43,9 @@ export async function persist() {
       pausedAt: state.pausedAt,
       pausedTotalMs: state.pausedTotalMs,
       intakeHistory: state.intakeHistory,
+      completedLegs: state.completedLegs,
+      giRescueEvents: state.giRescueEvents,
+      passedDistanceM: state.passedDistanceM,
       giRescue: state.giRescue,
       snap: state.snap,
       alerts: state.alerts,
@@ -79,6 +82,9 @@ export function restore(session) {
   state.pausedAt = session.pausedAt ?? null;
   state.pausedTotalMs = Number(session.pausedTotalMs) || 0;
   state.intakeHistory = Array.isArray(session.intakeHistory) ? session.intakeHistory : [];
+  state.completedLegs = Array.isArray(session.completedLegs) ? session.completedLegs : [];
+  state.giRescueEvents = Array.isArray(session.giRescueEvents) ? session.giRescueEvents : [];
+  state.passedDistanceM = Number(session.passedDistanceM) || 0;
   state.giRescue = Boolean(session.giRescue);
   state.snap = session.snap;
   state.alerts = Boolean(session.alerts);

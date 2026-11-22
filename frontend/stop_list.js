@@ -10,13 +10,18 @@ function stopTitle(stop) {
   return `${when} · ${name} · ${grams} g`;
 }
 
-/** Fills `#stop-list` from the plan currently on screen. */
-export function renderStopList(plan) {
+/** Fills `#stop-list` from the remaining stops ahead. */
+export function renderStopList(plan, options = {}) {
   const list = document.querySelector("#stop-list");
   if (!list) return;
   list.replaceChildren();
   if (!plan?.fuel_stops?.length) return;
-  for (const stop of plan.fuel_stops) {
+  const logged = new Set(options.logged || []);
+  const completedM = Number(options.completedDistanceM) || 0;
+  const upcoming = plan.fuel_stops.filter(
+    (stop) => !logged.has(stop.sequence) && (stop.distance_km * 1000 >= completedM - 50),
+  );
+  for (const stop of upcoming) {
     const item = document.createElement("li");
     item.className = "stop-row";
     const title = document.createElement("p");

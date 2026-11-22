@@ -34,7 +34,12 @@ export function setupSummaryLine() {
 }
 
 export function renderPacking() {
-  const plan = state.packedPlan;
+  const isLiveGps = Boolean(
+    state.livePlan
+    && state.snap
+    && (state.livePlan !== state.packedPlan || (state.passedDistanceM || 0) > 50),
+  );
+  const plan = isLiveGps ? state.livePlan : state.packedPlan;
   ui.packing.replaceChildren();
   ui.warnings.replaceChildren();
   renderFuelBudget(plan);
@@ -71,6 +76,12 @@ export function renderPacking() {
   renderLegStepper(legs);
   const shown = state.legView === "all" ? legs : (legs[state.legView] ? [legs[state.legView]] : []);
   ui.packing.classList.toggle("is-all", state.legView === "all");
+  if (isLiveGps) {
+    const liveNote = document.createElement("p");
+    liveNote.className = "crew-live-banner";
+    liveNote.textContent = `Live GPS active · ${formatDistance((state.passedDistanceM || 0) / 1000, { digits: 1 })} passed · Showing updated legs ahead.`;
+    ui.packing.append(liveNote);
+  }
   if (shown.length) ui.packing.append(hydrationNote());
   for (const leg of shown) {
     ui.packing.append(packCard(leg));

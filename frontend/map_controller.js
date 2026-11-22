@@ -63,7 +63,28 @@ export function createMapView(mapElement, chartCanvas) {
   let chart = null;
   let lastBounds = null;
 
-  function setCourse({ segments, aidStations, fuelStops, forfeited }) {
+  function trimSegmentsAhead(segments, completedDistanceM) {
+    if (!segments?.length || !(completedDistanceM > 15)) return segments || [];
+    const remaining = [];
+    for (const seg of segments) {
+      if (seg.end_distance_m <= completedDistanceM) continue;
+      if (seg.start_distance_m < completedDistanceM) {
+        const span = seg.end_distance_m - seg.start_distance_m;
+        const f = span > 0 ? Math.min(1, Math.max(0, (completedDistanceM - seg.start_distance_m) / span)) : 0;
+        remaining.push({
+          ...seg,
+          start_lat: seg.start_lat + (seg.end_lat - seg.start_lat) * f,
+          start_lon: seg.start_lon + (seg.end_lon - seg.start_lon) * f,
+          start_distance_m: completedDistanceM,
+        });
+      } else {
+        remaining.push(seg);
+      }
+    }
+    return remaining.length ? remaining : [segments[segments.length - 1]];
+  }
+
+  function setCourse({ segments, aidStations, fuelStops, forfeited, completedDistanceM = 0 }) {
     routeLayer.clearLayers();
     aidLayer.clearLayers();
     fuelLayer.clearLayers();
@@ -71,8 +92,9 @@ export function createMapView(mapElement, chartCanvas) {
       return;
     }
 
+    const activeSegments = trimSegmentsAhead(segments, completedDistanceM);
     const bounds = [];
-    for (const segment of segments) {
+    for (const segment of activeSegments) {
       const latLngs = [
         [segment.start_lat, segment.start_lon],
         [segment.end_lat, segment.end_lon],
@@ -114,7 +136,7 @@ export function createMapView(mapElement, chartCanvas) {
       lastBounds = bounds;
       map.fitBounds(bounds, { padding: [24, 24] });
     }
-    chart = drawElevationChart(chartCanvas, chart, segments, fuelStops || [], forfeited || []);
+    chart = drawElevationChart(chartCanvas, chart, activeSegments, fuelStops || [], forfeited || []);
   }
 
   function setRunner(latitude, longitude, pan = true) {

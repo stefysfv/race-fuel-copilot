@@ -134,6 +134,10 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await context.grantPermissions(["geolocation"]);
     await context.setGeolocation(ON_COURSE);
     await page.locator("#nav-live").click();
+    if (await page.getByTestId("start-race-cta").isVisible()) {
+      await page.getByTestId("start-race-cta").click();
+      await page.getByTestId("race-countdown-skip").click();
+    }
     await page.getByTestId("sync-gps").click();
     await expect(page.locator("#gps-banner")).toContainText("GPS Locked");
     await expect(page.getByTestId("live-message")).not.toHaveText("", { timeout: PLAN_MS });

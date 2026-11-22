@@ -30,15 +30,23 @@ export function drawMap() {
   ui.mapBlock.classList.remove("hidden");
   try {
     const plan = state.livePlan || state.packedPlan;
-    renderStopList(plan);
+    const completedDistanceM = state.passedDistanceM || 0;
+    const upcomingStops = (plan.fuel_stops || []).filter(
+      (stop) => !state.logged.includes(stop.sequence) && (stop.distance_km * 1000 >= completedDistanceM - 50),
+    );
+    const upcomingAids = (state.aidStations || []).filter(
+      (station) => (station.distance_km * 1000 >= completedDistanceM - 50) || /finish/i.test(station.name),
+    );
+    renderStopList(plan, { logged: state.logged, completedDistanceM });
     const view = mapApi();
     const allowTiles = navigator.onLine !== false && !state.batterySaver;
     view.setTilesEnabled?.(allowTiles);
     view.setCourse({
       segments: state.packedPlan.segments,
-      aidStations: state.aidStations,
-      fuelStops: plan.fuel_stops,
+      aidStations: upcomingAids,
+      fuelStops: upcomingStops,
       forfeited: plan.forfeited || [],
+      completedDistanceM,
     });
     const farOff = Boolean(state.realGps && state.snap && state.snap.offCourseM > 250);
     if (state.snap) {
