@@ -60,6 +60,7 @@ export async function buildPlan(event) {
       : "Plan ready. Packing splits are below.");
     renderPacking();
     showSetupPane("packing");
+    document.querySelector("#packing-pane")?.scrollTo({ top: 0 });
     renderLive();
     drawMap();
     await persist();

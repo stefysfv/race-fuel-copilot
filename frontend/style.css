@@ -2907,3 +2907,43 @@ body.battery-saver #toast {
   color: #ffffff !important;
   border: 1px solid #475569 !important;
 }
+
+/* v43 video-audit polish */
+
+/* 1. Keep Start now button legible on the dark 3-2-1-GO overlay */
+#race-countdown-skip.countdown-skip {
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+}
+
+/* 2. Lift toast above the docked I ate / Sync GPS bar on Live */
+body[data-tab="live"] #toast {
+  bottom: calc(126px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* 3. Stop Km / Cutoff inputs from overflowing Custom Aid Stations on iOS Safari */
+.aid-add {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  overflow: hidden;
+}
+.aid-add > * {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.aid-add input {
+  width: 100% !important;
+}
+
+/* 4. Remove duplicate OFF-COURSE WARNING bar (top pill already shows distance off trail) */
+.off-course {
+  display: none !important;
+}
+
+/* 5. Make modal close button clearly visible in Battery Saver dark mode */
+body.battery-saver .modal-x {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  border: 1px solid #64748b !important;
+}
