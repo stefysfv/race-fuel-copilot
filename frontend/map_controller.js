@@ -62,6 +62,26 @@ export function createMapView(mapElement, chartCanvas) {
   let runner = null;
   let chart = null;
   let lastBounds = null;
+  let wasZero = true;
+  let needsFit = false;
+
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect || rect.width < 10 || rect.height < 10) {
+        wasZero = true;
+        return;
+      }
+      map.invalidateSize();
+      if ((wasZero || needsFit) && lastBounds) {
+        map.fitBounds(lastBounds, { padding: [24, 24] });
+        needsFit = false;
+      }
+      wasZero = false;
+      chart?.resize();
+    });
+    ro.observe(mapElement);
+  }
 
   function trimSegmentsAhead(segments, completedDistanceM) {
     if (!segments?.length || !(completedDistanceM > 15)) return segments || [];
@@ -134,7 +154,13 @@ export function createMapView(mapElement, chartCanvas) {
 
     if (bounds.length) {
       lastBounds = bounds;
-      map.fitBounds(bounds, { padding: [24, 24] });
+      const size = map.getSize();
+      if (size.x > 10 && size.y > 10) {
+        map.fitBounds(bounds, { padding: [24, 24] });
+        needsFit = false;
+      } else {
+        needsFit = true;
+      }
     }
     chart = drawElevationChart(chartCanvas, chart, activeSegments, fuelStops || [], forfeited || []);
   }

@@ -21,6 +21,9 @@ import { drawMap } from "./map_screen.js";
 let clockTimer = null;
 let clockTick = () => {};
 let paintDeskHook = () => {};
+let showAllWindows = false;
+let lastWindowLegKey = "";
+let windowsClickBound = false;
 
 export function onClockTick(fn) {
   clockTick = fn;
@@ -322,13 +325,33 @@ export function renderLive() {
       ui.sectionDoneCurrent.dataset.legPlanMin = String(currentEntry.plannedCumMin || 0);
     }
     if (ui.sectionWindows) {
+      if (lastWindowLegKey !== currentEntry.key) {
+        lastWindowLegKey = currentEntry.key;
+        showAllWindows = false;
+      }
+      if (!windowsClickBound) {
+        windowsClickBound = true;
+        ui.sectionWindows.addEventListener("click", (event) => {
+          if (event.target.closest?.("[data-toggle-windows]")) {
+            showAllWindows = !showAllWindows;
+            renderLive();
+          }
+        });
+      }
       const windows = buildConsumptionWindows(state.livePlan, currentEntry, elapsed, pace);
-      ui.sectionWindows.innerHTML = windows.map((row) => `
+      const limit = 3;
+      const visible = showAllWindows || windows.length <= limit ? windows : windows.slice(0, limit);
+      const hiddenCount = windows.length - visible.length;
+      const rowsHtml = visible.map((row) => `
         <li class="window-row ${row.kind === "station" ? "is-station" : ""}" data-testid="fuel-window">
           <span class="window-time">${escapeHtml(row.time)}</span>
           <span class="window-items">${escapeHtml(row.text)}</span>
         </li>
       `).join("");
+      const toggleHtml = windows.length > limit
+        ? `<li class="window-toggle-row"><button type="button" class="text-btn windows-toggle" data-toggle-windows="1">${showAllWindows ? "Show fewer windows" : `Show all ${windows.length} windows (+${hiddenCount} more)`}</button></li>`
+        : "";
+      ui.sectionWindows.innerHTML = rowsHtml + toggleHtml;
     }
   } else {
     if (ui.currentSectionTitle) ui.currentSectionTitle.textContent = "All sections cleared";

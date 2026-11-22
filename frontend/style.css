@@ -541,3 +541,39 @@ input[type="radio"] { width: 18px; height: 18px; min-width: 18px; min-height: 18
   #crew-modal { position: static !important; display: block !important; background: #fff !important; padding: 0 !important; }
   #crew-modal .modal-sheet { width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; }
 }
+
+/* v45 polish: full-width Packing summary, Map height guard, compact fueling windows toggle */
+.pack-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.pack-head #plan-summary {
+  grid-column: 1 / -1;
+}
+.pack-head .text-btn {
+  width: 100%;
+  min-height: 36px;
+}
+.map-canvas {
+  min-height: 220px;
+}
+#map {
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+}
+.window-toggle-row {
+  list-style: none;
+  padding-top: 2px;
+}
+.windows-toggle {
+  width: 100%;
+  min-height: 34px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 12.5px;
+}

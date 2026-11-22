@@ -201,7 +201,9 @@ export function carryLine(item) {
       .replace("Soft flask 500 ml", "500ml Flask")
       .replace("Salt capsule", "Salt cap"),
   );
-  const cleanDetail = item.detail && !/^from the packed/i.test(String(item.detail).trim()) ? item.detail : "";
+  const cleanDetail = item.detail
+    ? String(item.detail).replace(/\s*[·•-]?\s*from the packed[^·]*$/i, "").trim()
+    : "";
   const detail = cleanDetail ? `<span class="carry-detail">${escapeHtml(cleanDetail)}</span>` : "";
   return `<li><span class="qty">${item.quantity}×</span> ${name}${detail}</li>`;
 }
