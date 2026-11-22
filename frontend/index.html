@@ -106,7 +106,6 @@
 
       <div id="configure-pane" class="configure-view">
         <section class="landing-intro" data-testid="landing-intro">
-          <p class="landing-lead"><strong>Grade-aware fueling for mountain ultras.</strong> Upload any GPX or pick a course to get a packing list, crew sheet, and live GPS fuel coach—computed 100% on your phone with zero signal required.</p>
           <details class="how-it-works" data-testid="how-it-works">
             <summary>How it works: Green, Yellow &amp; Red fueling zones</summary>
             <p>Steep climbs pull blood away from your stomach and steep descents slosh it. The planner slices your GPX into 500 m segments and shifts feeds within &plusmn;6 minutes onto safer ground:</p>
@@ -328,15 +327,15 @@
           <button id="export-card" class="text-btn liquid-pill" type="button" data-testid="crew-sheet-btn" disabled>Crew Sheet</button>
           <button id="open-feedback" class="text-btn liquid-pill" type="button" data-testid="open-feedback">How did it go?</button>
         </div>
-        <section id="fuel-budget" class="fuel-budget liquid-glass hidden" aria-label="Fuel budget"></section>
         <div id="leg-switch" class="leg-stepper" role="group" aria-label="Aid legs">
           <button id="leg-prev" class="liquid-pill" type="button">‹ Prev</button>
           <select id="leg-select" class="leg-select leg-selector-select" aria-label="Choose a leg"></select>
           <button id="leg-next" class="liquid-pill" type="button">Next ›</button>
         </div>
+        <div id="packing-list" data-testid="packing-list"></div>
+        <section id="fuel-budget" class="fuel-budget liquid-glass hidden" aria-label="Fuel budget"></section>
         <ul id="warnings"></ul>
         <p id="vest-usage" class="vest-usage hidden"></p>
-        <div id="packing-list" data-testid="packing-list"></div>
       </div>
       <div id="ready-pane" class="configure-view hidden">
         <h2 class="ready-title">Offline readiness</h2>
@@ -378,7 +377,7 @@
       <div id="live-empty" class="race-launch liquid-glass" data-testid="live-empty">
         <p class="kicker">Live check-in guide</p>
         <h2 class="ready-title">No plan loaded yet</h2>
-        <p class="micro">Build a fueling plan on Setup first. Then start your race here for on-demand GPS check-ins and a live-updating Crew Sheet.</p>
+        <p class="micro">Build a fueling plan on Setup first, then start your race here for on-demand GPS check-ins and a live-updating Crew Sheet.</p>
         <button id="live-go-setup" class="thumb-btn primary liquid-pill mt-3" type="button">Go to Setup</button>
       </div>
 
@@ -386,7 +385,7 @@
         <p class="kicker">Ready on the start line</p>
         <h2 id="race-launch-title" class="ready-title" data-testid="race-launch-title"></h2>
         <p id="race-launch-meta" class="micro" data-testid="race-launch-meta"></p>
-        <p class="launch-desc">Offline check-in guide for long trail races. Keep your phone locked in Airplane Mode between stations to save battery. Pull it out anytime to check in with GPS, recalculate your Crew Sheet ETAs, and clear passed sections.</p>
+        <p class="launch-desc">Keep your phone locked in Airplane Mode between stations. Pull it out anytime to check in with GPS, update Crew Sheet ETAs, and clear passed sections.</p>
         <button id="start-race-cta" class="thumb-btn primary liquid-pill" type="button" data-testid="start-race-cta">Start Race</button>
         <div class="action-row">
           <button id="launch-battery-saver" class="liquid-pill action-pill" type="button" aria-pressed="false" data-testid="launch-battery-saver">Battery Saver</button>
@@ -450,21 +449,21 @@
             <p class="kicker">Logged so far</p>
             <ul id="race-log-list" class="race-log-list" data-testid="race-log-list"></ul>
           </section>
-        </div>
-        <div class="action-bar">
-          <button id="log-intake" class="thumb-btn primary liquid-pill" type="button" data-testid="log-intake" disabled>I ate</button>
-          <div class="action-row">
-            <button id="update-gps" class="liquid-pill action-pill" type="button" data-testid="sync-gps" disabled>Sync GPS</button>
+          <div class="live-secondary">
             <button id="gi-rescue" class="liquid-pill action-pill" type="button" data-testid="gi-rescue" disabled>GI trouble</button>
+            <div id="race-session-controls" class="action-row hidden" data-testid="race-session-controls">
+              <button id="race-pause" class="liquid-pill action-pill" type="button" aria-pressed="false" data-testid="race-pause">Pause</button>
+              <button id="race-restart" class="liquid-pill action-pill danger-pill" type="button" data-testid="race-restart">Restart</button>
+            </div>
+            <div class="finish-row">
+              <button id="undo-autolog" class="finish-link hidden" type="button">Undo last auto-log</button>
+              <button id="open-recap-live" class="finish-link" type="button" data-testid="open-recap-live">Finish Run · Race Recap</button>
+            </div>
           </div>
-          <div id="race-session-controls" class="action-row hidden" data-testid="race-session-controls">
-            <button id="race-pause" class="liquid-pill action-pill" type="button" aria-pressed="false" data-testid="race-pause">Pause</button>
-            <button id="race-restart" class="liquid-pill action-pill danger-pill" type="button" data-testid="race-restart">Restart</button>
-          </div>
-          <div class="finish-row">
-            <button id="undo-autolog" class="finish-link hidden" type="button">Undo last auto-log</button>
-            <button id="open-recap-live" class="finish-link" type="button" data-testid="open-recap-live">Finish Run · Race Recap</button>
-          </div>
+        </div>
+        <div class="action-bar action-bar-compact">
+          <button id="log-intake" class="thumb-btn primary liquid-pill" type="button" data-testid="log-intake" disabled>I ate</button>
+          <button id="update-gps" class="liquid-pill action-pill" type="button" data-testid="sync-gps" disabled>Sync GPS</button>
         </div>
       </div>
     </section>

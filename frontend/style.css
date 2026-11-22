@@ -2453,3 +2453,457 @@ body.battery-saver .crew-live-banner {
   background: #064e3b !important;
   color: #ecfdf5 !important;
 }
+
+/* ==========================================================================
+   v42 Flat Minimalist Utility Theme + Layout & Dark-Mode Fixes
+   ========================================================================== */
+
+:root {
+  --paper: #f6f7f9;
+  --bg-color: #f6f7f9;
+  --surface: #ffffff;
+  --border: #dfe4ec;
+  --border-strong: #cbd5e1;
+  --ink: #111827;
+  --muted: #526071;
+  --accent: #ea580c;
+  --glass-radius: 14px;
+}
+
+body,
+.app-shell {
+  background: var(--paper) !important;
+  color: var(--ink);
+}
+
+.liquid-glass,
+.liquid-pill,
+input,
+select,
+textarea,
+.drawer,
+.pack-card,
+.hero,
+.modal-sheet,
+.chart-pane,
+.map-desk,
+.setup-panel,
+.race-launch,
+.race-hud,
+.race-log-card,
+.ahead-leg-card,
+.fuel-budget {
+  background: var(--surface) !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+
+.liquid-glass,
+.drawer,
+.pack-card,
+.leg-card,
+.hero,
+.modal-sheet,
+.chart-pane,
+.setup-panel,
+.race-launch,
+.race-hud,
+.race-log-card,
+.ahead-leg-card,
+.fuel-budget {
+  border-radius: 14px !important;
+}
+
+.liquid-pill,
+.chip-toggle,
+.action-pill,
+.thumb-btn,
+.pane-switch button,
+.seg button,
+.unit-btn,
+.zone-preset {
+  border-radius: 10px !important;
+}
+
+.brand-dot,
+.thumb-btn.primary::before,
+.pane-switch button[aria-selected="true"]::before,
+.tab-bar button[aria-current="page"]::before,
+.leg-pills button[aria-selected="true"]::before,
+.chip-toggle[aria-pressed="true"]::before {
+  display: none !important;
+  content: none !important;
+}
+
+.carbon,
+.thumb-btn.primary,
+.pane-switch button[aria-selected="true"],
+.leg-pills button[aria-selected="true"],
+.seg button[aria-checked="true"],
+.choice[aria-checked="true"],
+.pill[aria-checked="true"],
+.chip-toggle[aria-pressed="true"],
+.icon-btn[aria-checked="true"],
+.zone-preset[aria-checked="true"],
+.vest-tab[aria-selected="true"],
+.vest-toggle[aria-pressed="true"],
+.food-grid button[aria-pressed="true"] {
+  background: #111827 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  border-color: #111827 !important;
+  box-shadow: none !important;
+}
+
+.brand {
+  margin: 0 0 6px !important;
+  padding: 0 14px !important;
+}
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  box-shadow: none !important;
+}
+.brand-mark svg {
+  width: 34px;
+  height: 34px;
+}
+.brand-title {
+  font-size: 16px;
+}
+.brand-sub {
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+}
+.offline-prep {
+  margin-top: 4px !important;
+  font-size: 12px !important;
+}
+
+.tab-bar,
+.bottom-nav,
+.tab-bar.bottom-nav {
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 6px 10px max(6px, env(safe-area-inset-bottom, 0px)) !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--border) !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+.tab-bar button {
+  border-radius: 8px !important;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.tab-bar button[aria-current="page"] {
+  background: #111827 !important;
+  color: #ffffff !important;
+}
+#app-main {
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+#toast {
+  top: auto !important;
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+  background: #111827 !important;
+  color: #ffffff !important;
+  border: 0 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18) !important;
+  border-radius: 10px !important;
+  padding: 8px 14px !important;
+}
+
+.landing-intro {
+  margin-bottom: 8px !important;
+  padding: 8px 12px !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+}
+.setup-panel {
+  padding: 14px !important;
+  gap: 10px !important;
+}
+.setup-grid .field {
+  background: #f8fafc !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+}
+.setup-grid .field input {
+  background: transparent !important;
+  border: 0 !important;
+}
+.gpx-drop {
+  border: 1.5px dashed var(--border-strong) !important;
+  background: #f8fafc !important;
+  border-radius: 12px !important;
+  padding: 12px !important;
+}
+#build-plan {
+  position: static !important;
+  bottom: auto !important;
+  box-shadow: none !important;
+  margin-top: 4px;
+}
+.aid-add {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+.aid-add .check {
+  grid-column: 1 / 2;
+  justify-self: start;
+}
+#aid-cutoff {
+  grid-column: 2 / 3;
+}
+#add-aid {
+  grid-column: 1 / -1;
+  width: 100% !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+}
+.zone-presets {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+.zone-preset {
+  font-size: 12px !important;
+  padding: 6px 4px !important;
+}
+
+.pane-switch {
+  padding: 0 14px !important;
+  margin-bottom: 8px !important;
+  gap: 6px !important;
+}
+.packing-plan-view,
+.setup-view > .configure-view,
+.live-view {
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+.pack-card,
+.leg-card {
+  margin-bottom: 8px !important;
+}
+.macros {
+  background: #f8fafc !important;
+  border: 1px solid var(--border);
+  border-radius: 10px !important;
+}
+.hydration-note {
+  margin: 4px 0 8px !important;
+  font-size: 11.5px !important;
+  line-height: 1.4;
+}
+#warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #92400e;
+}
+
+body[data-tab="live"] #tab-live {
+  overflow: hidden !important;
+  padding-top: 4px;
+  padding-bottom: 6px !important;
+}
+.race-launch {
+  margin: 8px 0 auto !important;
+  padding: 18px 16px !important;
+}
+.race-cockpit {
+  gap: 6px !important;
+}
+.live-top {
+  gap: 6px !important;
+}
+.status-pill {
+  height: 36px !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+}
+.status-dot {
+  box-shadow: none !important;
+}
+.live-body {
+  gap: 8px !important;
+  padding-bottom: 10px;
+}
+.race-hud {
+  padding: 8px 12px !important;
+  gap: 3px !important;
+}
+.race-live-badge {
+  border-radius: 6px !important;
+  padding: 3px 8px !important;
+  font-size: 10.5px !important;
+}
+.race-live-badge::before {
+  box-shadow: none !important;
+}
+.race-elapsed {
+  font-size: 18px !important;
+}
+.gps-banner,
+.off-course {
+  padding: 5px 10px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-align: left !important;
+}
+.gps-banner {
+  background: #ffffff !important;
+  border: 1px solid var(--border);
+  color: var(--muted) !important;
+}
+.gps-banner.ok {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0;
+  color: #166534 !important;
+}
+.gps-banner.error {
+  background: #fef2f2 !important;
+  border-color: #fecaca;
+  color: #991b1b !important;
+}
+.off-course {
+  background: #fff7ed !important;
+  border: 1px solid #fed7aa !important;
+  color: #9a3412 !important;
+}
+.hero {
+  padding: 16px 14px !important;
+  gap: 10px !important;
+}
+.countdown {
+  font-size: 48px !important;
+}
+.telemetry {
+  padding-top: 10px !important;
+  border-top: 1px solid var(--border) !important;
+}
+body.race-active #tab-live .hero {
+  border: 1.5px solid #111827 !important;
+}
+.live-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+.action-bar-compact {
+  display: grid !important;
+  grid-template-columns: 1.35fr 1fr !important;
+  gap: 8px !important;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  background: var(--paper);
+}
+#tab-live #log-intake,
+#tab-live #update-gps {
+  min-height: 52px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+#tab-live .chip-toggle,
+#tab-live .action-pill,
+#tab-live .finish-link {
+  min-height: 48px !important;
+  min-width: 48px !important;
+}
+
+.feedback-form textarea {
+  min-height: 88px;
+  padding: 10px 12px;
+  border-radius: 10px !important;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+body.battery-saver,
+body.battery-saver .app-shell,
+body.battery-saver .action-bar-compact {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+body.battery-saver .liquid-glass,
+body.battery-saver .liquid-pill,
+body.battery-saver .hero,
+body.battery-saver .setup-panel,
+body.battery-saver .pack-card,
+body.battery-saver .modal-sheet,
+body.battery-saver .drawer,
+body.battery-saver .landing-intro,
+body.battery-saver .race-hud,
+body.battery-saver .race-log-card,
+body.battery-saver .ahead-leg-card,
+body.battery-saver .fuel-budget,
+body.battery-saver .tab-bar,
+body.battery-saver .bottom-nav {
+  background: #090d14 !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
+}
+body.battery-saver input,
+body.battery-saver select,
+body.battery-saver textarea,
+body.battery-saver .setup-grid .field,
+body.battery-saver .macros,
+body.battery-saver .gpx-drop {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  border: 1px solid #475569 !important;
+}
+body.battery-saver textarea::placeholder,
+body.battery-saver input::placeholder {
+  color: #94a3b8 !important;
+}
+body.battery-saver .crew-meta,
+body.battery-saver .crew-dist,
+body.battery-saver .micro,
+body.battery-saver .kicker,
+body.battery-saver .time-badge,
+body.battery-saver .macros span,
+body.battery-saver .completed-leg-row,
+body.battery-saver .tab-bar button {
+  color: #cbd5e1 !important;
+}
+body.battery-saver .macros strong,
+body.battery-saver .pack-top h2,
+body.battery-saver .carry-list li,
+body.battery-saver .eat-note,
+body.battery-saver .table-where {
+  color: #ffffff !important;
+}
+body.battery-saver .tab-bar button[aria-current="page"],
+body.battery-saver .primary,
+body.battery-saver [aria-pressed="true"],
+body.battery-saver [aria-checked="true"],
+body.battery-saver [aria-selected="true"] {
+  background: #ea580c !important;
+  color: #000000 !important;
+  border-color: #ea580c !important;
+}
+body.battery-saver #toast {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  border: 1px solid #475569 !important;
+}

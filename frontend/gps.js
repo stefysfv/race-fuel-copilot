@@ -499,7 +499,7 @@ export function onRaceGps(pos) {
   } catch (error) {
     offCourseM = 0;
   }
-  paintGps(`GPS Locked: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(accuracy)}m)`, "ok");
+  paintGps(`GPS Locked (±${Math.round(accuracy)}m)`, "ok");
   if (offCourseM > 250) {
     paintOffCourse(offCourseM);
     refreshGpsPolling();
@@ -691,7 +691,7 @@ export function onGpsSuccess(pos) {
   state.realGps = { latitude: lat, longitude: lon, accuracy };
   state.gpsAccuracy = accuracy;
   state.autoGpsError = "";
-  paintGps(`GPS Locked: ${lat.toFixed(5)}, ${lon.toFixed(5)} (±${Math.round(accuracy)}m)`, "ok");
+  paintGps(`GPS Locked (±${Math.round(accuracy)}m)`, "ok");
   if (state.sim.playing) {
     stopPlay(false);
   }
@@ -753,7 +753,7 @@ export async function triggerRescue() {
         longitude,
         accuracy: position.coords.accuracy,
       };
-      paintGps(`GPS Locked: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} (±${Math.round(position.coords.accuracy)}m)`, "ok");
+      paintGps(`GPS Locked (±${Math.round(accuracy)}m)`, "ok");
       showRealDot();
     } catch (error) {
       onGpsError(error);

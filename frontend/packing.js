@@ -82,14 +82,15 @@ export function renderPacking() {
     liveNote.textContent = `Live GPS active · ${formatDistance((state.passedDistanceM || 0) / 1000, { digits: 1 })} passed · Showing updated legs ahead.`;
     ui.packing.append(liveNote);
   }
-  if (shown.length) ui.packing.append(hydrationNote());
   for (const leg of shown) {
     ui.packing.append(packCard(leg));
   }
+  if (shown.length) ui.packing.append(hydrationNote());
   ui.exportCard.disabled = false;
 }
 
 export function renderLegStepper(legs) {
+  ui.legSwitch?.classList.toggle("hidden", legs.length <= 1);
   const select = document.querySelector("#leg-select");
   const prev = document.querySelector("#leg-prev");
   const next = document.querySelector("#leg-next");
