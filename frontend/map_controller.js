@@ -3,9 +3,9 @@
 import { ZONE, drawElevationChart } from "./elevation_chart.js";
 import { shortWhy } from "./reason_strings.js";
 
-const TILES = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}";
 const FALLBACK_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-const ATTRIBUTION = "© OpenStreetMap · CARTO";
+const ATTRIBUTION = "© Esri · OpenStreetMap";
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -44,7 +44,7 @@ export function createMapView(mapElement, chartCanvas) {
   });
   map.getContainer().style.touchAction = "none";
   map.attributionControl.setPrefix(false);
-  const tileLayer = L.tileLayer(TILES, { maxZoom: 19, subdomains: "abcd", attribution: ATTRIBUTION });
+  const tileLayer = L.tileLayer(TILES, { maxZoom: 18, attribution: ATTRIBUTION });
   let usedFallback = false;
   tileLayer.on("tileerror", () => {
     if (usedFallback) return;
