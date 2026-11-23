@@ -1,4 +1,4 @@
-"""Vest depletion and the aid-leg packing list."""
+﻿"""Vest depletion and the aid-leg packing list."""
 
 from __future__ import annotations
 
@@ -56,6 +56,7 @@ from backend.engine.constants import (
 )
 
 from backend.engine.doses_menu import (
+    STATION_MENU,
     VEST_MENU,
     _MenuItem,
     _gels_selected,
@@ -297,7 +298,97 @@ def _inventory_summary(stocks: list[_VestStock]) -> str:
         for stock in stocks
     ]
     left = sum(stock.remaining for stock in stocks)
-    return f"Vest Inventory Used: {' · '.join(parts)} ({left} left at finish)"
+    return f"Vest Inventory Used: {' Â· '.join(parts)} ({left} left at finish)"
+
+
+def _boost_aid_stations(
+    stops: list[FuelStop],
+    legs: list[AidLeg],
+    athlete: AthleteInput,
+    extra_g: float,
+) -> float:
+    """Use selected aid-station foods (up to 90 g/stop) to cover a vest shortfall."""
+
+    if extra_g < 10.0:
+        return extra_g
+    station_stops = [stop for stop in stops if stop.at_aid_station and stop.carbs_g > 0]
+    if not station_stops:
+        return extra_g
+
+    chosen = _resolved_foods(athlete.station_foods, STATION_MENU, athlete.custom_station_items)
+    if not chosen:
+        chosen = list(STATION_MENU.values())
+    ranked = sorted(
+        (item for item in chosen if item.carbs_g >= 5),
+        key=lambda item: (-item.carbs_g, item.name),
+    )
+    if not ranked:
+        ranked = sorted(chosen, key=lambda item: (-item.carbs_g, item.name))
+
+    remaining = extra_g
+    for idx, stop in enumerate(station_stops):
+        if remaining < 10.0:
+            break
+        leg = next(
+            (item for item in legs if abs(item.to_km - stop.distance_km) < 0.05 and item.station_carbs_g > 0),
+            None,
+        )
+        leg_room = (leg.carbs_g - leg.station_carbs_g) if leg is not None else 90.0
+        max_boost = min(90.0 - stop.carbs_g, remaining, leg_room)
+        if max_boost < 10.0:
+            continue
+
+        target = stop.carbs_g + max_boost
+        picks: dict[str, tuple[str, float, float, int]] = {}
+        total_carbs = 0.0
+        total_sodium = 0.0
+        servings = 0
+
+        # Pass 1: distinct high-carb items from the selected station menu
+        for item in ranked:
+            if servings >= 4 or total_carbs >= target - 5.0:
+                break
+            if total_carbs + item.carbs_g <= target + 1e-6:
+                picks[item.key] = (item.name, item.carbs_g, item.sodium_mg, 1)
+                total_carbs += item.carbs_g
+                total_sodium += item.sodium_mg
+                servings += 1
+
+        # Pass 2: allow a second serving of the top item(s) if still short
+        for item in ranked:
+            if servings >= 4 or total_carbs >= target - 5.0:
+                break
+            if total_carbs + item.carbs_g <= target + 1e-6:
+                if item.key in picks:
+                    name, c, s, qty = picks[item.key]
+                    picks[item.key] = (name, c, s, qty + 1)
+                else:
+                    picks[item.key] = (item.name, item.carbs_g, item.sodium_mg, 1)
+                total_carbs += item.carbs_g
+                total_sodium += item.sodium_mg
+                servings += 1
+
+        if total_carbs <= stop.carbs_g + 1.0:
+            continue
+
+        parts = [
+            f"{qty}Ã— {name}" if qty > 1 else name
+            for name, _c, _s, qty in picks.values()
+        ]
+        label = f"{' + '.join(parts)} ({total_carbs:.0f}g)"
+        gained = total_carbs - stop.carbs_g
+        stop.carbs_g = total_carbs
+        stop.sodium_mg = total_sodium
+        stop.reason = f"{label} â€” extra station food to cover vest shortfall"
+        stop.reasons = [make_reason(ReasonCode.AID_RESTOCK, plate_carbs_g=total_carbs)]
+        if leg is not None:
+            leg.station_carbs_g = total_carbs
+            leg.station_meal = label
+            if leg.station_carbs_g + leg.carryover_carbs_g > leg.carbs_g:
+                leg.carryover_carbs_g = max(0.0, leg.carbs_g - leg.station_carbs_g)
+            leg.vest_carbs_g = max(0.0, leg.carbs_g - leg.station_carbs_g - leg.carryover_carbs_g)
+        remaining = max(0.0, remaining - gained)
+    return remaining
 
 
 def _consume_packed_vest(
@@ -474,16 +565,19 @@ def _consume_packed_vest(
                 PackItem(
                     item=item.name,
                     quantity=quantity,
-                    detail=f"{item.carbs_g:.0f} g carbs each · from the packed vest",
+                    detail=f"{item.carbs_g:.0f} g carbs each Â· from the packed vest",
                 )
             )
         leg.pack = kept
 
+    if extra_g >= 10.0 and all(stock.remaining <= 0 for stock in stocks):
+        extra_g = _boost_aid_stations(stops, legs, athlete, extra_g)
+
     note = ""
     if extra_g >= 1 and all(stock.remaining <= 0 for stock in stocks):
         note = (
-            f"Packed vest 100% scheduled ({int(round(placed_g))} g) · "
-            f"+{int(round(extra_g))} g short of target — pack more food or add aid stations"
+            f"Packed vest 100% scheduled ({int(round(placed_g))} g) Â· "
+            f"+{int(round(extra_g))} g short of target â€” pack more food or add aid stations"
         )
     return _inventory_summary(stocks), note
 
@@ -648,8 +742,8 @@ def _flask_item(
     if needed > carry:
         refills = needed - carry
         note = (
-            f"Refill {refills}× at mid-leg fountain/stream if you need water"
-            f" — up to {round(fluid_ml):,} ml on this leg (drink to thirst)."
+            f"Refill {refills}Ã— at mid-leg fountain/stream if you need water"
+            f" â€” up to {round(fluid_ml):,} ml on this leg (drink to thirst)."
         )
     else:
         note = "Water/Electrolytes."
@@ -764,7 +858,7 @@ def _pack_named_portions(
     mix_note = ""
     if drink is not None and remaining >= drink.carbs_g:
         remaining -= drink.carbs_g
-        mix_note = f"1× {drink.name} ({drink.carbs_g:.0f}g) in one flask."
+        mix_note = f"1Ã— {drink.name} ({drink.carbs_g:.0f}g) in one flask."
 
     gel = None
     if allow_gels and ("gel_25" in by_key or "iso_gel_22" in by_key):

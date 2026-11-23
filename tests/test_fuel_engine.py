@@ -1084,3 +1084,49 @@ def test_packed_vest_never_exceeds_inventory_or_invents_liquid() -> None:
     assert plan.totals.carbs_g <= 215.0 + 1e-6
     assert plan.totals.caffeine_mg == pytest.approx(200.0)
     assert not any(stop.product == "" and stop.carbs_g > 0 for stop in plan.fuel_stops)
+
+
+def test_short_vest_boosts_aid_station_food_without_phantom_gels() -> None:
+    """When the vest runs out and food stations exist, station meals scale up instead of spawning gels."""
+
+    points = course_points([(60_000, 0.0)])
+    course = prepare_course(points)
+    stations = []
+    for name, km in (("Aid 1", 20.0), ("Aid 2", 40.0)):
+        pin = location_at_distance(course, int(km * 1000))
+        stations.append(
+            AidStation(
+                name=name,
+                distance_km=km,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        )
+    plan = generate_plan(
+        race_id="aid-cover",
+        race_name="Aid Cover Test",
+        declared_distance_km=60.0,
+        aid_stations=stations,
+        profile=points,
+        athlete=AthleteInput(
+            weight_kg=70,
+            flat_pace_min_per_km=8.0,
+            carbs_g_per_hour=90,
+            vest_foods=["caffeine_gel"],
+            station_foods=["sandwich", "banana", "dates", "cola_broth"],
+        ),
+        packed_vest_items=[
+            PackedVestItem(id="caffeine_gel", name="Caffeine Gel", carbs_g=25, caffeine_mg=100, qty=2, flavor="sweet", form="gel"),
+        ],
+    )
+    trail_carbs = [stop for stop in plan.fuel_stops if not stop.at_aid_station and stop.carbs_g > 0]
+    assert len(trail_carbs) == 2
+    assert all(stop.product == "Caffeine Gel" and stop.reason.startswith("Packed vest:") for stop in trail_carbs)
+
+    aid_stops = [stop for stop in plan.fuel_stops if stop.at_aid_station and stop.carbs_g > 0]
+    assert len(aid_stops) == 2
+    assert all(stop.carbs_g >= 70.0 for stop in aid_stops)
+    assert all(leg.station_carbs_g >= 70.0 for leg in plan.aid_legs[:2])
