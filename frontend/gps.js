@@ -37,7 +37,8 @@ export function getGpsGuard() {
 }
 
 export function loadBatterySaver() {
-  state.batterySaver = readText(BATTERY_SAVER_KEY) === "1";
+  state.batterySaver = false;
+  writeText(BATTERY_SAVER_KEY, "0");
   applyBatterySaverUi();
 }
 

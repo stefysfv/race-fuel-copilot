@@ -39,7 +39,7 @@ export function drawMap() {
     );
     renderStopList(plan, { logged: state.logged, completedDistanceM });
     const view = mapApi();
-    const allowTiles = navigator.onLine !== false && !state.batterySaver;
+    const allowTiles = navigator.onLine !== false;
     view.setTilesEnabled?.(allowTiles);
     view.setCourse({
       segments: state.packedPlan.segments,
