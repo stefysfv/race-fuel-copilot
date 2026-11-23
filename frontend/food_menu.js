@@ -92,6 +92,8 @@ export function renderCustomAids() {
     chip.append(label, remove);
     ui.aidList.append(chip);
   }
+  const hasAny = state.customAids.length > 0 || (state.waypointAids || []).some((w) => w.included);
+  document.querySelector("#aid-empty-hint")?.classList.toggle("hidden", hasAny);
 }
 
 export function addCustomAid({ name, distanceKm, hasFood, cutoffHours }) {

@@ -1171,3 +1171,31 @@ def test_midnight_start_unlocks_overnight_caffeine_and_counts_salt_caps() -> Non
     assert plan.totals.caffeine_mg == pytest.approx(200.0)
     assert plan.totals.salt_caps_sodium_mg == pytest.approx(1500.0)
     assert plan.totals.calories_kcal > 400.0
+
+
+def test_packed_caffeine_gels_keep_90_minute_gap() -> None:
+    """Two packed caffeinated gels never stack 30 minutes apart."""
+
+    points = course_points([(60_000, 0.0)])
+    plan = generate_plan(
+        race_id="caf-gap",
+        race_name="Caffeine Gap Test",
+        declared_distance_km=60.0,
+        aid_stations=[],
+        profile=points,
+        athlete=AthleteInput(
+            weight_kg=70,
+            flat_pace_min_per_km=10.0,
+            carbs_g_per_hour=90,
+            start_time_minutes=360,
+            vest_foods=["caffeine_gel", "banana", "dates"],
+        ),
+        packed_vest_items=[
+            PackedVestItem(id="caffeine_gel", name="Caffeine Gel", carbs_g=25, caffeine_mg=100, qty=2, flavor="sweet", form="gel"),
+            PackedVestItem(id="banana", name="Banana", carbs_g=22, qty=1, flavor="sweet", form="solid"),
+            PackedVestItem(id="dates", name="Medjool Dates", carbs_g=25, qty=3, flavor="sweet", form="solid"),
+        ],
+    )
+    caf_stops = [stop for stop in plan.fuel_stops if stop.caffeine_mg > 0]
+    assert len(caf_stops) == 2
+    assert caf_stops[1].scheduled_minute - caf_stops[0].scheduled_minute >= 90.0 - 0.05

@@ -24,6 +24,7 @@ RED_MICRO_DOSE_G = 15.0
 # A caffeinated gel is placed before a steep climb, or once the clock is
 # past halfway, and the running total stops at 5 mg per kg of body weight.
 CAFFEINE_MG_PER_KG = 5.0
+CAFFEINE_GAP_MIN = 90.0
 CLIMB_LOOKAHEAD_MIN = 20.0
 MAJOR_CLIMB_GRADE = 8.0
 # After 3.5 hours, green feeds in the second half leave the sweet gels behind.

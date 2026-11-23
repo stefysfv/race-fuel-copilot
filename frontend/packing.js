@@ -187,6 +187,12 @@ export function renderPacking() {
     liveNote.textContent = `Live GPS active · ${formatDistance((state.passedDistanceM || 0) / 1000, { digits: 1 })} passed · Showing updated legs ahead.`;
     ui.packing.append(liveNote);
   }
+  if (legs.length === 1 && Number(plan.distance_km) >= 20) {
+    const aidNote = document.createElement("p");
+    aidNote.className = "micro aid-missing-note";
+    aidNote.textContent = "No aid stations in this plan — add them in Setup to include station food and refills.";
+    ui.packing.append(aidNote);
+  }
   for (const leg of shown) {
     ui.packing.append(packCard(leg, plan));
   }

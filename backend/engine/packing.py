@@ -33,6 +33,7 @@ from backend.engine.coach_text import (
 
 from backend.engine.constants import (
     AID_LEG_MIN_MINUTES,
+    CAFFEINE_GAP_MIN,
     CAFFEINE_MG_PER_KG,
     CAPSULE_SODIUM_MG,
     CARRYOVER_WINDOW_MIN,
@@ -555,6 +556,11 @@ def _consume_packed_vest(
     savoury_at = _savoury_minute(athlete, finish_min)
     caffeine_cap = athlete.weight_kg * CAFFEINE_MG_PER_KG
     caffeine_used = sum(stop.caffeine_mg for stop in stops if not _is_vest_slot(stop))
+    caffeine_minutes: list[float] = [
+        stop.scheduled_minute
+        for stop in stops
+        if not _is_vest_slot(stop) and stop.caffeine_mg > 0
+    ]
     solid_minutes: list[float] = []
     stamped_ids: set[int] = set()
     unbacked_after_empty: list[FuelStop] = []
@@ -576,6 +582,11 @@ def _consume_packed_vest(
             blocked |= {stock.item.id for stock in stocks if stock.item.caffeine_mg > 0}
             if blocked and all(stock.remaining <= 0 or stock.item.id in blocked for stock in stocks):
                 blocked = set()
+        if any(
+            abs(minute - stop.scheduled_minute) < CAFFEINE_GAP_MIN - 0.05
+            for minute in caffeine_minutes
+        ):
+            blocked |= {stock.item.id for stock in stocks if stock.item.caffeine_mg > 0}
         if stop.zone is DigestiveZone.red:
             blocked |= {stock.item.id for stock in stocks if stock.item.form == "solid"}
             if later_non_red:
@@ -599,6 +610,8 @@ def _consume_packed_vest(
         delivered, form, caffeine = _packed_dose(stop, choice.item, room)
         _stamp_packed(stop, choice.item, carbs_g=delivered, caffeine_mg=caffeine, form=form)
         caffeine_used += caffeine
+        if caffeine > 0:
+            caffeine_minutes.append(stop.scheduled_minute)
         choice.remaining -= 1
         placed_g += delivered
         used_in_leg[leg_index][choice.item.id] = used_in_leg[leg_index].get(choice.item.id, 0) + 1
