@@ -1123,10 +1123,51 @@ def test_short_vest_boosts_aid_station_food_without_phantom_gels() -> None:
         ],
     )
     trail_carbs = [stop for stop in plan.fuel_stops if not stop.at_aid_station and stop.carbs_g > 0]
-    assert len(trail_carbs) == 2
-    assert all(stop.product == "Caffeine Gel" and stop.reason.startswith("Packed vest:") for stop in trail_carbs)
+    gel_stops = [stop for stop in trail_carbs if stop.form is FuelForm.gel]
+    restock_stops = [stop for stop in trail_carbs if stop.reason.startswith("Aid restock")]
+    assert len(gel_stops) == 2
+    assert all(stop.product == "Caffeine Gel" and stop.reason.startswith("Packed vest:") for stop in gel_stops)
+    assert len(restock_stops) >= 2
+    assert all(stop.form is not FuelForm.gel for stop in restock_stops)
 
     aid_stops = [stop for stop in plan.fuel_stops if stop.at_aid_station and stop.carbs_g > 0]
     assert len(aid_stops) == 2
     assert all(stop.carbs_g >= 70.0 for stop in aid_stops)
     assert all(leg.station_carbs_g >= 70.0 for leg in plan.aid_legs[:2])
+    assert plan.totals.calories_kcal > plan.totals.carbs_g * 4.0
+
+
+def test_midnight_start_unlocks_overnight_caffeine_and_counts_salt_caps() -> None:
+    """A 00:00 start unlocks caffeinated gels during the 01:00-05:30 circadian dip."""
+
+    points = course_points([(60_000, 0.0)])
+    plan = generate_plan(
+        race_id="night-ultra",
+        race_name="Midnight 60k",
+        declared_distance_km=60.0,
+        aid_stations=[],
+        profile=points,
+        athlete=AthleteInput(
+            weight_kg=70,
+            temperature_c=25,
+            flat_pace_min_per_km=10.0,
+            carbs_g_per_hour=75,
+            start_time_minutes=0,
+            has_salt_caps=True,
+            salt_caps_qty=6,
+            salt_cap_mg=250,
+            vest_foods=["caffeine_gel", "banana", "sandwich"],
+        ),
+        packed_vest_items=[
+            PackedVestItem(id="caffeine_gel", name="Caffeine Gel", carbs_g=25, caffeine_mg=100, qty=2, flavor="sweet", form="gel"),
+            PackedVestItem(id="banana", name="Banana", carbs_g=22, qty=2, flavor="sweet", form="solid"),
+            PackedVestItem(id="sandwich", name="Half Sandwich", carbs_g=25, qty=2, flavor="savoury", form="solid"),
+        ],
+    )
+    caf_stops = [stop for stop in plan.fuel_stops if stop.caffeine_mg > 0]
+    assert len(caf_stops) == 2
+    # At least one caffeine gel lands before 45% (270 min) during the 01:30-04:30 night dip
+    assert any(90.0 <= stop.scheduled_minute < 270.0 for stop in caf_stops)
+    assert plan.totals.caffeine_mg == pytest.approx(200.0)
+    assert plan.totals.salt_caps_sodium_mg == pytest.approx(1500.0)
+    assert plan.totals.calories_kcal > 400.0

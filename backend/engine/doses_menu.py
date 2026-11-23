@@ -68,6 +68,7 @@ VEST_MENU: dict[str, _MenuItem] = {
     "sandwich": _MenuItem("sandwich", "Half Sandwich", 25, 140, "Savoury/Salty", "solid"),
     "bar": _MenuItem("bar", "Oat Bar", 30, 100, "Sweet", "solid"),
     "dates": _MenuItem("dates", "Medjool Dates", 25, 10, "Sweet", "solid"),
+    "banana": _MenuItem("banana", "Banana", 22, 1, "Sweet", "solid"),
     "chocolate": _MenuItem("chocolate", "Chocolate", 20, 20, "Sweet", "solid"),
     "chips": _MenuItem("chips", "Salted Chips", 20, 320, "Savoury/Salty", "solid"),
 }
@@ -627,18 +628,28 @@ def _climb_without_gel(
     return soft.name, soft.flavor
 
 
-def _wants_caffeine(segments: list[Segment], when: float, race_start: float, finish_min: float) -> bool:
-    """True before a steep climb, and for every feed in the second half.
+def _wants_caffeine(
+    segments: list[Segment],
+    when: float,
+    race_start: float,
+    finish_min: float,
+    *,
+    start_time_minutes: int | None = None,
+) -> bool:
+    """True during overnight circadian lows, before a steep climb, or past 45% of the race.
 
     The race clock runs from the start, so halfway is half of the finish
-    minute. A plan that only covers the road ahead still uses that clock:
-    once the runner is already past halfway, later gels may carry caffeine.
+    minute. When a race start time is known and the runner is moving through
+    the overnight dip (01:00 to 05:30) after the opening 90 minutes, caffeine
+    is unlocked earlier to counter drowsiness.
     """
 
-    # Caffeine stays in the vest until 45% of the race, then it is aimed
-    # about half an hour before a climb so the peak lands on the slope.
     span = max(1.0, finish_min - race_start)
-    if when < race_start + 0.45 * span and race_start < finish_min * 0.45:
+    overnight_low = False
+    if start_time_minutes is not None and when >= race_start + 90.0:
+        clock_min = (start_time_minutes + when) % 1440.0
+        overnight_low = 60.0 <= clock_min <= 330.0
+    if not overnight_low and when < race_start + 0.45 * span and race_start < finish_min * 0.45:
         return False
     for segment in segments:
         if segment.end_minute < when:
@@ -674,7 +685,7 @@ def _apply_locker(
     caffeinated = next((item for item in locker if item.kind == "gel" and item.caffeine_mg > 0), None)
     plain = next((item for item in locker if item.caffeine_mg <= 0), None)
     cap = athlete.weight_kg * CAFFEINE_MG_PER_KG
-    wants = _wants_caffeine(segments, when, race_start, finish_min)
+    wants = _wants_caffeine(segments, when, race_start, finish_min, start_time_minutes=athlete.start_time_minutes)
     if wants and caffeinated is not None and caffeine_used + caffeinated.caffeine_mg <= cap + 1e-6:
         used = caffeinated.caffeine_mg
         reason = (

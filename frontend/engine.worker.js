@@ -6,7 +6,7 @@
  */
 
 const INDEX_URL = new URL("vendor/pyodide/", self.location.href).href;
-const ENGINE_ZIP = new URL("engine.zip?v=31", self.location.href);
+const ENGINE_ZIP = new URL("engine.zip?v=2a5ff996", self.location.href);
 
 let pyodide = null;
 let bootError = null;

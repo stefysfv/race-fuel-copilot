@@ -29,6 +29,7 @@ export async function persist() {
       carbs: state.carbs,
       weight: String(state.weightKg),
       temperature: String(state.temperatureC),
+      startTime: state.startTime || "06:00",
       hours: ui.hours.value,
       minutes: ui.minutes.value,
       targetEdited: state.targetEdited,
@@ -96,6 +97,8 @@ export function restore(session) {
   state.temperatureC = Number.isFinite(savedTemp) && savedTemp >= -20 && savedTemp <= 45 ? savedTemp : 18;
   ui.weight.value = String(state.weightKg);
   ui.temperature.value = String(state.temperatureC);
+  state.startTime = /^\d{2}:\d{2}$/.test(String(session.startTime || "")) ? session.startTime : "06:00";
+  if (ui.startTime) ui.startTime.value = state.startTime;
   ui.hours.value = session.hours ?? "5";
   ui.minutes.value = session.minutes ?? "30";
   return true;

@@ -379,7 +379,7 @@ def _boost_aid_stations(
         gained = total_carbs - stop.carbs_g
         stop.carbs_g = total_carbs
         stop.sodium_mg = total_sodium
-        stop.reason = f"{label} — extra station food to cover vest shortfall"
+        stop.reason = f"{label} — real food meal at aid station"
         stop.reasons = [make_reason(ReasonCode.AID_RESTOCK, plate_carbs_g=total_carbs)]
         if leg is not None:
             leg.station_carbs_g = total_carbs
@@ -389,6 +389,130 @@ def _boost_aid_stations(
             leg.vest_carbs_g = max(0.0, leg.carbs_g - leg.station_carbs_g - leg.carryover_carbs_g)
         remaining = max(0.0, remaining - gained)
     return remaining
+
+
+def _restock_from_aid_stations(
+    candidate_slots: list[FuelStop],
+    stops: list[FuelStop],
+    legs: list[AidLeg],
+    athlete: AthleteInput,
+    solid_minutes: list[float],
+    savoury_at: float,
+    quiet_limit: float,
+) -> tuple[float, dict[int, list[tuple[str, float, int]]]]:
+    """After a food aid station, grab portable station food for the next leg instead of inventing gels.
+
+    Every restocked trail bite respects terrain zones, the 90-minute solid gap,
+    the savoury clock, and window carb caps. GI rescue slots are never touched.
+    """
+
+    if not candidate_slots or len(legs) < 2:
+        return 0.0, {}
+
+    chosen = _resolved_foods(athlete.station_foods, STATION_MENU, athlete.custom_station_items)
+    if not chosen:
+        chosen = list(STATION_MENU.values())
+    solids = [item for item in chosen if item.kind == "solid" and item.carbs_g >= 10]
+    liquids = [item for item in chosen if item.kind == "liquid" and item.carbs_g >= 8]
+
+    food_legs = {
+        idx + 1
+        for idx, leg in enumerate(legs[:-1])
+        if leg.station_carbs_g > 0
+    }
+    if not food_legs or (not solids and not liquids):
+        return 0.0, {}
+
+    window_g = athlete.carbs_g_per_hour * (athlete.feed_interval_min / 60.0)
+    covered = 0.0
+    per_leg_counts: dict[int, dict[str, tuple[str, float, int]]] = {}
+    solid_pick_i = 0
+    liquid_pick_i = 0
+
+    for slot in candidate_slots:
+        if slot.scheduled_minute < quiet_limit - 1e-6:
+            continue
+        if "GI Rescue" in slot.reason or slot.form is FuelForm.rescue_sip:
+            continue
+        leg_idx = _leg_index_for_km(legs, slot.distance_km)
+        if leg_idx not in food_legs:
+            continue
+        dep_name = legs[leg_idx].from_name
+
+        picked = None
+        form = FuelForm.liquid
+        carbs = 0.0
+
+        if slot.zone is DigestiveZone.green:
+            can_solid = bool(solids) and all(
+                abs(minute - slot.scheduled_minute) >= SOLID_EVERY_MIN - 0.05
+                for minute in solid_minutes
+            )
+            if can_solid:
+                eligible = [
+                    item
+                    for item in solids
+                    if slot.scheduled_minute + 1e-6 >= savoury_at
+                    or item.flavor != "Savoury/Salty"
+                ]
+                if eligible:
+                    if slot.scheduled_minute + 1e-6 >= savoury_at:
+                        savoury_pool = [i for i in eligible if i.flavor == "Savoury/Salty"]
+                        pool = savoury_pool or eligible
+                    else:
+                        pool = eligible
+                    picked = pool[solid_pick_i % len(pool)]
+                    solid_pick_i += 1
+                    form = FuelForm.real_food
+                    carbs = min(float(picked.carbs_g), window_g)
+            if picked is None and liquids:
+                picked = liquids[liquid_pick_i % len(liquids)]
+                liquid_pick_i += 1
+                form = FuelForm.liquid
+                carbs = min(float(picked.carbs_g), window_g)
+        elif slot.zone is DigestiveZone.yellow and liquids:
+            picked = liquids[liquid_pick_i % len(liquids)]
+            liquid_pick_i += 1
+            form = FuelForm.liquid
+            carbs = min(float(picked.carbs_g), window_g * 0.5)
+        elif slot.zone is DigestiveZone.red and liquids:
+            picked = liquids[liquid_pick_i % len(liquids)]
+            liquid_pick_i += 1
+            form = FuelForm.micro_dose
+            carbs = min(float(picked.carbs_g), RED_MICRO_DOSE_G, window_g)
+
+        if picked is None or carbs < 5.0:
+            continue
+
+        kept = [
+            entry
+            for entry in slot.reasons
+            if entry.code in {ReasonCode.SHIFTED_EARLIER, ReasonCode.SHIFTED_LATER}
+        ]
+        slot.product = picked.name
+        slot.carbs_g = carbs
+        slot.sodium_mg = float(picked.sodium_mg)
+        slot.caffeine_mg = 0.0
+        slot.form = form
+        slot.flavor = "Savoury/Salty" if picked.flavor == "Savoury/Salty" else "Sweet"
+        slot.reason = f"Aid restock ({dep_name}): {picked.name}"
+        slot.reasons = kept + [make_reason(ReasonCode.AID_RESTOCK, plate_carbs_g=carbs)]
+        stops.append(slot)
+        if form is FuelForm.real_food:
+            solid_minutes.append(slot.scheduled_minute)
+        covered += carbs
+        bucket = per_leg_counts.setdefault(leg_idx, {})
+        if picked.key in bucket:
+            n, c, q = bucket[picked.key]
+            bucket[picked.key] = (n, c, q + 1)
+        else:
+            bucket[picked.key] = (picked.name, carbs, 1)
+
+    summary = {
+        leg_idx: list(bucket.values())
+        for leg_idx, bucket in per_leg_counts.items()
+    }
+    return covered, summary
 
 
 def _consume_packed_vest(
@@ -402,11 +526,10 @@ def _consume_packed_vest(
 ) -> tuple[str, str]:
     """Spend the packed vest across the race as a hard inventory cap.
 
-    Never schedules trail carbs beyond what is packed in the vest. Aid station
-    plates and 0 g hydration sips stay put; unbacked trail slots are removed.
-    Solids stay off red climbs, 90 minutes apart, and savoury solids wait for
-    the palate switch. Caffeinated gels wait for green/yellow ground whenever
-    non-red slots remain ahead, and total caffeine stops at 5 mg/kg.
+    Never invents trail gels beyond what is packed in the vest. Aid station
+    plates and 0 g hydration sips stay put. When the vest runs out and food
+    aid stations exist, stations scale up table meals and supply portable
+    station real food for the trail legs ahead.
     """
 
     stocks = [
@@ -426,22 +549,30 @@ def _consume_packed_vest(
     used_in_leg: list[dict[str, int]] = [{} for _ in legs]
     by_id = {stock.item.id: stock.item for stock in stocks}
     finish_min = segments[-1].end_minute if segments else 0.0
-    caf_start = (
-        segments[0].start_minute + 0.45 * (segments[-1].end_minute - segments[0].start_minute)
-        if segments
-        else 0.0
-    )
+    race_start = segments[0].start_minute if segments else 0.0
+    quiet_limit = race_start + PRE_RACE_QUIET_MIN
+    caf_start = race_start + 0.45 * (finish_min - race_start) if segments else 0.0
     savoury_at = _savoury_minute(athlete, finish_min)
     caffeine_cap = athlete.weight_kg * CAFFEINE_MG_PER_KG
     caffeine_used = sum(stop.caffeine_mg for stop in stops if not _is_vest_slot(stop))
     solid_minutes: list[float] = []
     stamped_ids: set[int] = set()
+    unbacked_after_empty: list[FuelStop] = []
+
+    def caffeine_unlocked(when: float) -> bool:
+        if when >= caf_start:
+            return True
+        if athlete.start_time_minutes is not None and when >= race_start + 90.0:
+            clock_min = (athlete.start_time_minutes + when) % 1440.0
+            if 60.0 <= clock_min <= 330.0:
+                return True
+        return False
 
     def take(stop: FuelStop, *, later_non_red: bool = False) -> bool:
         nonlocal placed_g, last_id, caffeine_used
         leg_index = _leg_index_for_km(legs, stop.distance_km)
         blocked: set[str] = set()
-        if segments and stop.scheduled_minute < caf_start:
+        if segments and not caffeine_unlocked(stop.scheduled_minute):
             blocked |= {stock.item.id for stock in stocks if stock.item.caffeine_mg > 0}
             if blocked and all(stock.remaining <= 0 or stock.item.id in blocked for stock in stocks):
                 blocked = set()
@@ -482,6 +613,7 @@ def _consume_packed_vest(
             continue
         if all(stock.remaining <= 0 for stock in stocks):
             extra_g += stop.carbs_g
+            unbacked_after_empty.append(stop)
             continue
         later_non_red = any(
             _is_vest_slot(later) and later.zone is not DigestiveZone.red
@@ -490,7 +622,7 @@ def _consume_packed_vest(
         if not take(stop, later_non_red=later_non_red):
             extra_g += stop.carbs_g
 
-    # Remove every unbacked trail vest slot so the schedule never invents food.
+    # Remove every unbacked trail vest slot so the schedule never invents gels.
     stops[:] = [
         stop
         for stop in stops
@@ -498,7 +630,6 @@ def _consume_packed_vest(
     ]
 
     if consume_all and segments and any(stock.remaining > 0 for stock in stocks):
-        quiet_limit = segments[0].start_minute + PRE_RACE_QUIET_MIN
         minute = float(feed_interval_min)
         while minute <= finish_min - 10 and any(stock.remaining > 0 for stock in stocks):
             placed = None
@@ -543,17 +674,35 @@ def _consume_packed_vest(
                         extra_g = max(0.0, extra_g - extra_stop.carbs_g)
             minute += feed_interval_min
 
+    # If the starting vest ran out, use food aid stations first:
+    # 1) Scale up real-food table meals at food aid stations
+    # 2) Grab portable station food for trail legs after food aid stations
+    restock_pack: dict[int, list[tuple[str, float, int]]] = {}
+    if extra_g >= 10.0 and all(stock.remaining <= 0 for stock in stocks):
+        extra_g = _boost_aid_stations(stops, legs, athlete, extra_g)
+        if unbacked_after_empty:
+            restocked_g, restock_pack = _restock_from_aid_stations(
+                unbacked_after_empty,
+                stops,
+                legs,
+                athlete,
+                solid_minutes,
+                savoury_at,
+                quiet_limit,
+            )
+            extra_g = max(0.0, extra_g - restocked_g)
+
     stops.sort(key=lambda stop: (stop.scheduled_minute, stop.sequence))
     for index, stop in enumerate(stops, start=1):
         stop.sequence = index
 
-    for leg in legs:
+    for leg_idx, leg in enumerate(legs):
         kept = [line for line in leg.pack if _keep_pack_line(line)]
         counts: dict[str, int] = {}
         for stop in stops:
             if not stop.reason.startswith("Packed vest:"):
                 continue
-            if _leg_index_for_km(legs, stop.distance_km) != legs.index(leg):
+            if _leg_index_for_km(legs, stop.distance_km) != leg_idx:
                 continue
             item = next((stock.item for stock in stocks if stock.item.name == stop.product), None)
             if item is None:
@@ -568,17 +717,29 @@ def _consume_packed_vest(
                     detail=f"{item.carbs_g:.0f} g carbs each · from the packed vest",
                 )
             )
+        for name, carbs_each, quantity in restock_pack.get(leg_idx, []):
+            kept.append(
+                PackItem(
+                    item=name,
+                    quantity=quantity,
+                    detail=f"{carbs_each:.0f} g carbs each · grab from {leg.from_name} aid station",
+                )
+            )
         leg.pack = kept
-
-    if extra_g >= 10.0 and all(stock.remaining <= 0 for stock in stocks):
-        extra_g = _boost_aid_stations(stops, legs, athlete, extra_g)
 
     note = ""
     if extra_g >= 1 and all(stock.remaining <= 0 for stock in stocks):
-        note = (
-            f"Packed vest 100% scheduled ({int(round(placed_g))} g) · "
-            f"+{int(round(extra_g))} g short of target — pack more food or add aid stations"
-        )
+        has_food_stations = any(leg.station_carbs_g > 0 for leg in legs)
+        if has_food_stations:
+            note = (
+                f"Packed vest 100% scheduled ({int(round(placed_g))} g) · "
+                f"+{int(round(extra_g))} g still short after aid station food — pack extra carbs or drink mix"
+            )
+        else:
+            note = (
+                f"Packed vest 100% scheduled ({int(round(placed_g))} g) · "
+                f"no food aid stations added (+{int(round(extra_g))} g short) — add aid stations in Setup or pack more food"
+            )
     return _inventory_summary(stocks), note
 
 

@@ -33,6 +33,109 @@ export function setupSummaryLine() {
   ui.setupSummaryText.replaceChildren(name, meta);
 }
 
+function formatClockFromStart(startMin, offsetMin) {
+  if (!Number.isFinite(startMin)) return "";
+  const total = ((Math.round(startMin + offsetMin) % 1440) + 1440) % 1440;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function legClockSpan(plan, leg) {
+  const startMin = plan?.athlete?.start_time_minutes;
+  if (!Number.isFinite(startMin)) return "";
+  const legs = Array.isArray(plan?.aid_legs) ? plan.aid_legs : [];
+  const idx = legs.indexOf(leg);
+  if (idx < 0) return "";
+  let offset = Number(plan.clock_start_min) || 0;
+  for (let i = 0; i < idx; i += 1) {
+    offset += Number(legs[i].predicted_minutes) || 0;
+  }
+  const fromClock = formatClockFromStart(startMin, offset);
+  const toClock = formatClockFromStart(startMin, offset + (Number(leg.predicted_minutes) || 0));
+  return `${fromClock}–${toClock}`;
+}
+
+function renderNutritionOverview(plan) {
+  const root = ui.nutritionOverview;
+  if (!root) return;
+  if (!plan?.totals) {
+    root.replaceChildren();
+    root.classList.add("hidden");
+    return;
+  }
+  root.classList.remove("hidden");
+  const totals = plan.totals;
+  const hours = Math.max(0.25, (Number(plan.predicted_duration_min) || 0) / 60);
+  const kcal = Math.round(Number(totals.calories_kcal) || (Number(totals.carbs_g) || 0) * 4);
+  const kcalHr = Math.round(kcal / hours);
+
+  const stops = Array.isArray(plan.fuel_stops) ? plan.fuel_stops : [];
+  const stationCarbs = stops
+    .filter((s) => s.at_aid_station || String(s.reason || "").startsWith("Aid restock"))
+    .reduce((sum, s) => sum + (Number(s.carbs_g) || 0), 0);
+  const vestCarbs = Math.max(0, (Number(totals.carbs_g) || 0) - stationCarbs);
+  const carbSplit = stationCarbs > 0
+    ? `Vest ${grouped(vestCarbs)}g · Stations ${grouped(stationCarbs)}g`
+    : `${Math.round(totals.carbs_g_per_hour_delivered || 0)} / ${Math.round(plan.athlete?.carbs_g_per_hour || 60)} g/h`;
+
+  const foodNa = Math.round(Number(totals.sodium_mg) || 0);
+  const saltCapsNa = Math.round(Number(totals.salt_caps_sodium_mg) || 0);
+  const plannedNa = foodNa + saltCapsNa;
+  const targetNa = Math.round((Number(plan.athlete?.sodium_mg_per_hour) || 0) * hours);
+  const capMg = Math.max(50, Number(plan.athlete?.salt_cap_mg) || 200);
+  const naGap = Math.max(0, targetNa - plannedNa);
+  const extraCaps = naGap >= capMg ? Math.round(naGap / capMg) : 0;
+  const naSub = extraCaps > 0
+    ? `Est. sweat ~${grouped(targetNa)} mg (~${extraCaps} extra salt caps)`
+    : `Est. sweat ~${grouped(targetNa)} mg · covered`;
+
+  const cafMg = Math.round(Number(totals.caffeine_mg) || 0);
+  const cafCap = Math.round(Number(totals.caffeine_cap_mg) || 0);
+  const startMin = plan.athlete?.start_time_minutes;
+  const cafStops = stops.filter((s) => (Number(s.caffeine_mg) || 0) > 0);
+  const cafTimes = cafStops.slice(0, 4).map((s) => (
+    Number.isFinite(startMin)
+      ? formatClockFromStart(startMin, Number(s.scheduled_minute) || 0)
+      : compactHours(s.scheduled_minute)
+  ));
+  const cafSub = cafTimes.length
+    ? `Timed at ${cafTimes.join(", ")}`
+    : "No caffeinated gels packed";
+
+  const clockLine = Number.isFinite(startMin)
+    ? `${formatClockFromStart(startMin, Number(plan.clock_start_min) || 0)} → ${formatClockFromStart(startMin, (Number(plan.clock_start_min) || 0) + (Number(plan.predicted_duration_min) || 0))}`
+    : compactHours(plan.predicted_duration_min);
+
+  root.innerHTML = `
+    <div class="nutrition-overview-head">
+      <h3>Race Nutrition Summary</h3>
+      <span class="nutrition-overview-clock">${escapeHtml(clockLine)}</span>
+    </div>
+    <div class="nutrition-grid">
+      <div class="nutrition-stat">
+        <span class="stat-kicker">Calories</span>
+        <strong>${grouped(kcal)} kcal</strong>
+        <span class="stat-sub">~${grouped(kcalHr)} kcal/h scheduled</span>
+      </div>
+      <div class="nutrition-stat">
+        <span class="stat-kicker">Carbs</span>
+        <strong>${grouped(totals.carbs_g)}g</strong>
+        <span class="stat-sub">${escapeHtml(carbSplit)}</span>
+      </div>
+      <div class="nutrition-stat">
+        <span class="stat-kicker">Sodium / Salt</span>
+        <strong>${grouped(plannedNa)} mg</strong>
+        <span class="stat-sub">${escapeHtml(naSub)}</span>
+      </div>
+      <div class="nutrition-stat">
+        <span class="stat-kicker">Caffeine</span>
+        <strong>${cafMg} / ${cafCap} mg</strong>
+        <span class="stat-sub">${escapeHtml(cafSub)}</span>
+      </div>
+    </div>`;
+}
+
 export function renderPacking() {
   const isLiveGps = Boolean(
     state.livePlan
@@ -42,6 +145,7 @@ export function renderPacking() {
   const plan = isLiveGps ? state.livePlan : state.packedPlan;
   ui.packing.replaceChildren();
   ui.warnings.replaceChildren();
+  renderNutritionOverview(plan);
   renderFuelBudget(plan);
   if (!plan) {
     ui.summary.classList.add("hidden");
@@ -190,7 +294,7 @@ export function packCard(leg, plan = state.packedPlan) {
     <div class="leg-card-header">
       <div class="pack-top">
         <h2>${escapeHtml(leg.from_name)} → ${station} <span class="km">(${escapeHtml(formatDistance(leg.distance_km, { digits: 1 }))})</span></h2>
-        <span class="time-badge">${compactHours(leg.predicted_minutes)} · ${escapeHtml(formatElevation(legGain(leg), { signed: true, compact: true }))}</span>
+        <span class="time-badge">${legClockSpan(plan, leg) ? `${escapeHtml(legClockSpan(plan, leg))} · ` : ""}${compactHours(leg.predicted_minutes)} · ${escapeHtml(formatElevation(legGain(leg), { signed: true, compact: true }))}</span>
       </div>
       ${coach}
       <div class="macros">

@@ -6,7 +6,10 @@
     "green_min_grade",
     "green_max_grade",
     "red_descent_grade",
-    "red_climb_grade"
+    "red_climb_grade",
+    "start_time_minutes",
+    "calories_kcal",
+    "salt_caps_sodium_mg"
   ],
   "cases": [
     {

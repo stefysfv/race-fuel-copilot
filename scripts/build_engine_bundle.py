@@ -1,39 +1,34 @@
-"""Zip the pure engine for the browser worker.
+"""Zip the pure engine for the browser worker and sync its cache-busting tag.
 
-Writes ``frontend/engine.zip``. The archive contains ``backend/engine`` plus
-the modules that package imports and that do not touch the disk:
-``backend/__init__.py``, ``backend/gpx_parser.py``, and ``backend/models.py``.
-Adapters, FastAPI, and the self-check are not included.
-
-Member order is sorted, text is stored with LF newlines, and zip metadata is
-fixed so two builds of the same sources match.
+Writes ``frontend/engine.zip`` and updates the ``?v=<hash8>`` tag in
+``frontend/runtime_manifest.js``, ``frontend/engine.worker.js``, and
+``frontend/engine_client.js`` so phones never keep executing a stale engine.
 """
 
 from __future__ import annotations
 
+import hashlib
+import re
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ZIP_PATH = ROOT / "frontend" / "engine.zip"
 
-# Pages under backend/ that the engine imports. They stay out of backend/engine
-# because the server adapters live beside them, and they do no file I/O.
 ENGINE_NEIGHBORS = ("__init__.py", "gpx_parser.py", "models.py")
-
-# ZIP epoch. A moving timestamp would change the archive when the code did not.
 _ZIP_DATE = (1980, 1, 1, 0, 0, 0)
+_VERSION_FILES = (
+    "frontend/runtime_manifest.js",
+    "frontend/engine.worker.js",
+    "frontend/engine_client.js",
+)
 
 
 def _lf(data: bytes) -> bytes:
-    """Store text with LF newlines. The engine archive is Python source only."""
-
     return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
 def engine_members(root: Path | None = None) -> list[tuple[str, bytes]]:
-    """Archive paths and LF-normalized bytes, in the order written to the zip."""
-
     base = root or ROOT
     engine_dir = base / "backend" / "engine"
     paths = [
@@ -52,8 +47,6 @@ def engine_members(root: Path | None = None) -> list[tuple[str, bytes]]:
 
 
 def write_engine_zip(destination: Path | None = None, root: Path | None = None) -> Path:
-    """Write the deterministic engine archive and return its path."""
-
     target = destination or ZIP_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -65,9 +58,26 @@ def write_engine_zip(destination: Path | None = None, root: Path | None = None) 
     return target
 
 
+def engine_version_tag(zip_path: Path | None = None) -> str:
+    data = (zip_path or ZIP_PATH).read_bytes()
+    return hashlib.sha256(data).hexdigest()[:8]
+
+
+def sync_engine_version(tag: str, root: Path | None = None) -> None:
+    base = root or ROOT
+    pattern = re.compile(r"(engine\.(?:zip|worker\.js)\?v=)[0-9A-Za-z._-]+")
+    for rel in _VERSION_FILES:
+        path = base / rel
+        text = path.read_text(encoding="utf-8-sig").replace("\r\n", "\n")
+        updated = pattern.sub(rf"\g<1>{tag}", text)
+        path.write_bytes(updated.encode("utf-8"))
+
+
 def main() -> None:
     path = write_engine_zip()
-    print(f"Wrote {path.relative_to(ROOT)} ({path.stat().st_size} bytes)")
+    tag = engine_version_tag(path)
+    sync_engine_version(tag)
+    print(f"Wrote {path.relative_to(ROOT)} ({path.stat().st_size} bytes, ?v={tag})")
 
 
 if __name__ == "__main__":

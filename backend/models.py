@@ -375,6 +375,12 @@ class AthleteInput(APIModel):
         le=40,
         description="How many salt capsules are in the vest. Zero means none are packed.",
     )
+    start_time_minutes: int | None = Field(
+        default=None,
+        ge=0,
+        lt=1440,
+        description="Planned race start time as minutes after midnight (0..1439).",
+    )
     salt_cap_mg: float = Field(default=200, ge=0, le=2000)
     flask_count: int = Field(
         default=2,
@@ -711,6 +717,8 @@ class PlanTotals(APIModel):
     stops_shifted: int = Field(ge=0)
     stops_deferred: int = Field(ge=0)
     caffeine_mg: float = Field(default=0, ge=0)
+    calories_kcal: float = Field(default=0, ge=0)
+    salt_caps_sodium_mg: float = Field(default=0, ge=0)
     caffeine_cap_mg: float = Field(
         default=0,
         ge=0,

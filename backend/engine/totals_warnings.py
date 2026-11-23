@@ -129,6 +129,20 @@ def _delivery_warnings(
     return notes
 
 
+def _stop_calories(stop: FuelStop) -> float:
+    """Estimate kilocalories for one scheduled stop.
+
+    Pure gels and drink mixes are essentially 4 kcal/g carbs. Real food
+    (sandwiches, bars, chips, chocolate, station plates) carries fat and
+    protein alongside carbs (~5.2 kcal/g of carbs).
+    """
+
+    if stop.carbs_g <= 0:
+        return 0.0
+    factor = 5.2 if stop.form is FuelForm.real_food else 4.0
+    return stop.carbs_g * factor
+
+
 def _totals(
     stops: list[FuelStop],
     athlete: AthleteInput,
@@ -161,6 +175,8 @@ def _totals(
         stops_shifted=shifted,
         stops_deferred=deferred,
         caffeine_mg=sum(stop.caffeine_mg for stop in stops),
+        calories_kcal=sum(_stop_calories(stop) for stop in stops),
+        salt_caps_sodium_mg=(float(athlete.salt_caps_qty * athlete.salt_cap_mg) if athlete.has_salt_caps else 0.0),
         caffeine_cap_mg=athlete.weight_kg * CAFFEINE_MG_PER_KG,
     )
 

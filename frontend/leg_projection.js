@@ -30,6 +30,9 @@ export function isFarOffCourse(offCourseM) {
 }
 
 function clockNow(run) {
+  if (!run.startedAt && Number.isFinite(run.plannedStartMs)) {
+    return run.plannedStartMs;
+  }
   return run.pausedAt || run.now || Date.now();
 }
 

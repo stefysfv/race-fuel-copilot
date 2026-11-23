@@ -84,3 +84,24 @@ def test_committed_engine_zip_matches_sources() -> None:
             continue
         arc = "backend/engine/" + path.relative_to(engine_dir).as_posix()
         assert arc in expected_names
+
+
+def test_engine_cache_tag_matches_zip() -> None:
+    """Every frontend reference to engine.zip / engine.worker.js carries the zip's hash tag."""
+
+    import hashlib
+    import re
+
+    tag = hashlib.sha256(ZIP_PATH.read_bytes()).hexdigest()[:8]
+    for rel in (
+        "frontend/runtime_manifest.js",
+        "frontend/engine.worker.js",
+        "frontend/engine_client.js",
+    ):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        tags = re.findall(r"engine\.(?:zip|worker\.js)\?v=([0-9A-Za-z._-]+)", text)
+        assert tags, f"Missing ?v= tag in {rel}"
+        assert all(found == tag for found in tags), (
+            f"{rel} references {tags} instead of ?v={tag}. "
+            "Run scripts/build_engine_bundle.py."
+        )

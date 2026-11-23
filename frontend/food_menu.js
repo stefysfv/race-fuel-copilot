@@ -134,7 +134,7 @@ export function onAddAidClick() {
   ui.aidName.value = "";
   ui.aidKm.value = "";
   ui.aidCutoff.value = "";
-  ui.aidFood.checked = false;
+  ui.aidFood.checked = true;
 }
 
 export function setFuelPreference(value, applyMenu = false) {
@@ -154,6 +154,14 @@ export function applyStyleMenu(value) {
     for (const key of ["gel_25", "iso_gel_22", "high_carb_gel", "caffeine_gel"]) state.vestFoods.delete(key);
     state.vestFoods.add("drink_30");
     state.vestFoods.add("bar");
+    state.vestFoods.add("dates");
+    state.vestFoods.add("banana");
+    state.vestFoods.add("sandwich");
+  } else if (value === "balanced_real_food") {
+    state.vestFoods.add("gel_25");
+    state.vestFoods.add("drink_30");
+    state.vestFoods.add("banana");
+    state.vestFoods.add("sandwich");
     state.vestFoods.add("dates");
   } else if (value === "gels_first") {
     state.vestFoods.add("gel_25");
@@ -176,6 +184,7 @@ export const SOLID_MENU = [
   { key: "sandwich", label: "Half Sandwich / Wrap", carbs: 25, sodium: 140, flavor: "Savoury/Salty", caffeine: 0, form: "solid" },
   { key: "bar", label: "Oat / Energy Bar", carbs: 30, sodium: 100, flavor: "Sweet", caffeine: 0, form: "solid" },
   { key: "dates", label: "Medjool Dates", carbs: 25, sodium: 10, flavor: "Sweet", caffeine: 0, form: "solid" },
+  { key: "banana", label: "Banana", carbs: 22, sodium: 1, flavor: "Sweet", caffeine: 0, form: "solid" },
   { key: "chocolate", label: "Chocolate", carbs: 20, sodium: 20, flavor: "Sweet", caffeine: 0, form: "solid" },
   { key: "chips", label: "Salted Chips / Pretzels", carbs: 20, sodium: 320, flavor: "Savoury/Salty", caffeine: 0, form: "solid" },
 ];
@@ -301,7 +310,10 @@ export function packedVestPayload() {
       const name = String(record?.name || "").trim().slice(0, 60);
       const id = String(food.key).trim().slice(0, 40);
       if (!name || !id) continue;
-      const qty = Math.min(30, Math.max(0, parseInt(state.vestQty?.[food.key] ?? 1, 10) || 0));
+      const rawQty = food.key === "drink_30"
+        ? (state.drinkScoops ?? 1)
+        : (state.vestQty?.[food.key] ?? 1);
+      const qty = Math.min(30, Math.max(0, parseInt(rawQty, 10) || 0));
       if (qty < 1) continue;
       items.push({
         id,
@@ -385,7 +397,7 @@ export function paintDrinkControls() {
   const saltMg = document.querySelector("#salt-mg");
   if (flask && document.activeElement !== flask) flask.value = String(state.flaskQty);
   if (scoops && document.activeElement !== scoops) scoops.value = String(state.drinkScoops);
-  if (carbs && document.activeElement !== carbs) carbs.value = String(state.drinkCarbs ?? 30);
+  if (carbs && document.activeElement !== carbs) carbs.value = String(clampCarbs(foodRecord("vest", "drink_30")?.carbs_g ?? 30));
   if (saltQty && document.activeElement !== saltQty) saltQty.value = String(state.saltQty);
   if (saltMg && document.activeElement !== saltMg) saltMg.value = String(state.saltMg);
 }

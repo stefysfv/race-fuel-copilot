@@ -43,8 +43,18 @@ export function flavorTag(stop) {
 }
 
 /** Runner state handed to the pure projection functions in leg_projection.js. */
+function plannedStartMsFor(plan) {
+  const mins = plan?.athlete?.start_time_minutes;
+  if (!Number.isFinite(mins)) return null;
+  const d = new Date();
+  d.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
+  return d.getTime();
+}
+
 function runnerState() {
   return {
+    startedAt: state.startedAt,
+    plannedStartMs: plannedStartMsFor(state.livePlan || state.packedPlan),
     sectionLogs: state.sectionLogs,
     lastGpsRecalAt: state.lastGpsRecalAt,
     snap: state.snap,
@@ -82,8 +92,12 @@ function renderLaunchScreen() {
     ui.raceLaunchMeta.textContent = `${formatDistance(plan.distance_km, { digits: 1 })} · ${formatDuration(plan.predicted_duration_min)} · ${legCount} ${legCount === 1 ? "section" : "sections"}`;
   }
   if (ui.raceLaunchEta) {
-    const finishMs = Date.now() + (Number(plan.predicted_duration_min) || 0) * 60000;
-    ui.raceLaunchEta.textContent = `Starting now puts finish around ${formatTimeOfDay(finishMs, 5)}`;
+    const startMs = plannedStartMsFor(plan);
+    const baseMs = startMs ?? Date.now();
+    const finishMs = baseMs + (Number(plan.predicted_duration_min) || 0) * 60000;
+    ui.raceLaunchEta.textContent = startMs !== null
+      ? `${formatTimeOfDay(startMs, 1)} start puts finish around ${formatTimeOfDay(finishMs, 5)}`
+      : `Starting now puts finish around ${formatTimeOfDay(finishMs, 5)}`;
   }
 }
 
@@ -420,7 +434,9 @@ export function paintCaffeine(elapsed) {
   const used = (state.livePlan?.fuel_stops || [])
     .filter((stop) => (stop.caffeine_mg || 0) > 0 && stop.scheduled_minute <= elapsed + 0.05)
     .reduce((sum, stop) => sum + stop.caffeine_mg, 0);
-  ui.caffeine.textContent = `Caffeine ${Math.round(used)} / ${Math.round(plan.totals.caffeine_cap_mg || 0)} mg`;
+  const plannedCaf = Math.round(plan.totals.caffeine_mg || 0);
+  const capCaf = Math.round(plan.totals.caffeine_cap_mg || 0);
+  ui.caffeine.textContent = `Caffeine ${Math.round(used)} / ${plannedCaf} mg (cap ${capCaf} mg)`;
 }
 
 export function openRaceMenu() {

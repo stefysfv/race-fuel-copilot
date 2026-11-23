@@ -220,6 +220,30 @@ function bind() {
     renderLocker();
   });
   ui.temperature?.addEventListener("input", syncTempFromInput);
+  ui.startTime?.addEventListener("input", () => {
+    if (/^\d{2}:\d{2}$/.test(ui.startTime.value)) {
+      state.startTime = ui.startTime.value;
+      persist();
+    }
+  });
+  listen("#auto-aids", "click", () => {
+    const totalKm = Number(state.distanceOverrideKm) || Number(state.gpxReport?.distance_km) || 0;
+    if (!(totalKm >= 20)) {
+      setStatus("Load a GPX longer than 20 km first, then auto-add stations.");
+      return;
+    }
+    const step = totalKm >= 70 ? 15 : 12;
+    let added = 0;
+    for (let km = step; km <= totalKm - 8; km += step) {
+      const rounded = Math.round(km);
+      if (state.customAids.some((s) => Math.abs(Number(s.distance_km) - rounded) < 3)) continue;
+      state.customAids.push({ name: `Aid ${added + 1} (${rounded} km)`, distance_km: rounded, has_water: true, has_food: true, drop_bag: false });
+      added += 1;
+    }
+    renderCustomAids();
+    persist();
+    setStatus(added ? `Added ${added} food aid stations across ${totalKm.toFixed(0)} km. Rebuild plan to use them.` : "Aid stations are already spaced across this course.");
+  });
   for (const button of document.querySelectorAll(".unit-btn")) {
     button.addEventListener("click", () => setUnitSystem(button.dataset.unit));
   }
