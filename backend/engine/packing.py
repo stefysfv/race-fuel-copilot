@@ -1,4 +1,4 @@
-﻿"""Vest depletion and the aid-leg packing list."""
+"""Vest depletion and the aid-leg packing list."""
 
 from __future__ import annotations
 
@@ -298,7 +298,7 @@ def _inventory_summary(stocks: list[_VestStock]) -> str:
         for stock in stocks
     ]
     left = sum(stock.remaining for stock in stocks)
-    return f"Vest Inventory Used: {' Â· '.join(parts)} ({left} left at finish)"
+    return f"Vest Inventory Used: {' · '.join(parts)} ({left} left at finish)"
 
 
 def _boost_aid_stations(
@@ -326,7 +326,7 @@ def _boost_aid_stations(
         ranked = sorted(chosen, key=lambda item: (-item.carbs_g, item.name))
 
     remaining = extra_g
-    for idx, stop in enumerate(station_stops):
+    for stop in station_stops:
         if remaining < 10.0:
             break
         leg = next(
@@ -372,14 +372,14 @@ def _boost_aid_stations(
             continue
 
         parts = [
-            f"{qty}Ã— {name}" if qty > 1 else name
+            f"{qty}× {name}" if qty > 1 else name
             for name, _c, _s, qty in picks.values()
         ]
         label = f"{' + '.join(parts)} ({total_carbs:.0f}g)"
         gained = total_carbs - stop.carbs_g
         stop.carbs_g = total_carbs
         stop.sodium_mg = total_sodium
-        stop.reason = f"{label} â€” extra station food to cover vest shortfall"
+        stop.reason = f"{label} — extra station food to cover vest shortfall"
         stop.reasons = [make_reason(ReasonCode.AID_RESTOCK, plate_carbs_g=total_carbs)]
         if leg is not None:
             leg.station_carbs_g = total_carbs
@@ -565,7 +565,7 @@ def _consume_packed_vest(
                 PackItem(
                     item=item.name,
                     quantity=quantity,
-                    detail=f"{item.carbs_g:.0f} g carbs each Â· from the packed vest",
+                    detail=f"{item.carbs_g:.0f} g carbs each · from the packed vest",
                 )
             )
         leg.pack = kept
@@ -576,8 +576,8 @@ def _consume_packed_vest(
     note = ""
     if extra_g >= 1 and all(stock.remaining <= 0 for stock in stocks):
         note = (
-            f"Packed vest 100% scheduled ({int(round(placed_g))} g) Â· "
-            f"+{int(round(extra_g))} g short of target â€” pack more food or add aid stations"
+            f"Packed vest 100% scheduled ({int(round(placed_g))} g) · "
+            f"+{int(round(extra_g))} g short of target — pack more food or add aid stations"
         )
     return _inventory_summary(stocks), note
 
@@ -742,8 +742,8 @@ def _flask_item(
     if needed > carry:
         refills = needed - carry
         note = (
-            f"Refill {refills}Ã— at mid-leg fountain/stream if you need water"
-            f" â€” up to {round(fluid_ml):,} ml on this leg (drink to thirst)."
+            f"Refill {refills}× at mid-leg fountain/stream if you need water"
+            f" — up to {round(fluid_ml):,} ml on this leg (drink to thirst)."
         )
     else:
         note = "Water/Electrolytes."
@@ -858,7 +858,7 @@ def _pack_named_portions(
     mix_note = ""
     if drink is not None and remaining >= drink.carbs_g:
         remaining -= drink.carbs_g
-        mix_note = f"1Ã— {drink.name} ({drink.carbs_g:.0f}g) in one flask."
+        mix_note = f"1× {drink.name} ({drink.carbs_g:.0f}g) in one flask."
 
     gel = None
     if allow_gels and ("gel_25" in by_key or "iso_gel_22" in by_key):
