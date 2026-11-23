@@ -61,7 +61,7 @@ export function restore(session) {
   if (!session) {
     return false;
   }
-  state.source = session.source || "race";
+  state.source = "gpx";
   state.raceId = session.raceId || state.raceId;
   state.gpxXml = session.gpxXml || "";
   state.gpxName = session.gpxName || "";

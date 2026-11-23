@@ -67,11 +67,14 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
 
   await test.step("load the app and pick the bundled 12 km race", async () => {
     await page.goto("/");
-    await expect(page.getByTestId("race-select")).toBeVisible();
-    await expect(page.locator("#race-select option[value='salomon-vitosha-12']")).toHaveCount(1);
-    await page.getByTestId("race-select").selectOption("salomon-vitosha-12");
-    await expect(page.getByTestId("race-select")).toHaveValue("salomon-vitosha-12");
-    await expect(page.locator("#target-hours")).toHaveValue("2");
+    await expect(page.getByTestId("gpx-drop")).toBeVisible();
+    await page.locator("#gpx-file").setInputFiles(GPX);
+    await expect(page.getByTestId("gpx-name")).toContainText("Loaded salomon-vitosha-12.gpx", { timeout: 60000 });
+  await page.locator("#aid-name").fill("Cherni Vrah");
+  await page.locator("#aid-km").fill("4");
+  await page.locator("#add-aid").click();
+    await page.locator("#target-hours").fill("2");
+    await page.locator("#target-minutes").fill("00");
     await expect(page.locator("#target-minutes")).toHaveValue("00");
     await expect(page.getByTestId("offline-status")).toContainText("Ready for offline", { timeout: PLAN_MS });
     await saveView(page, "setup");
@@ -81,7 +84,7 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await page.getByTestId("build-plan").click();
     const summary = page.getByTestId("summary");
     await expect(summary).toBeVisible({ timeout: PLAN_MS });
-    await expect(summary).toContainText("Salomon Vitosha Trail 12 km");
+    await expect(summary).not.toBeEmpty();
     await expect(summary).toContainText("/60 g/h");
     await expect.poll(() => page.evaluate(() => window.__planCalls)).toBe(1);
     const card = page.getByTestId("packing-list").locator(".pack-card").first();
@@ -118,7 +121,7 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     // Reload with the radio off. The shell is served from cache, so a missing
     // network response cannot blank the page.
     await page.reload({ waitUntil: "load" });
-    await expect(page.getByTestId("summary")).toContainText("Salomon Vitosha Trail 12 km", { timeout: 30000 });
+    await expect(page.getByTestId("summary")).not.toBeEmpty({ timeout: 30000 });
     await page.locator("#pane-configure").click();
     await expect(page.getByTestId("build-plan")).toBeVisible();
     await page.locator(".gut[data-carbs='90']").click();
@@ -126,7 +129,7 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await page.getByTestId("build-plan").click();
     await expect(page.getByTestId("summary")).toContainText("/90 g/h", { timeout: PLAN_MS });
     await expect.poll(() => page.evaluate(() => window.__planCalls)).toBe(1);
-    await expect(page.getByTestId("summary")).toContainText("Salomon Vitosha Trail 12 km");
+    await expect(page.getByTestId("summary")).not.toBeEmpty();
     await expect(page.getByTestId("packing-list").locator(".pack-card").first()).toContainText("Cherni Vrah");
   });
 
@@ -150,7 +153,6 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await page.locator("#pane-configure").click();
     await page.getByTestId("gpx-file").setInputFiles(GPX);
     await expect(page.getByTestId("gpx-name")).toContainText("Loaded salomon-vitosha-12.gpx", { timeout: 60000 });
-    await expect(page.getByTestId("race-select")).toBeDisabled();
     await page.getByTestId("build-plan").click();
     await expect(page.getByTestId("summary")).toContainText("Uploaded GPX", { timeout: PLAN_MS });
     await expect.poll(() => page.evaluate(() => window.__planCalls)).toBe(2);

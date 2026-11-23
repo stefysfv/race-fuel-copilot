@@ -21,9 +21,7 @@ test("reloads a usable shell within 4s while app-shell requests stall", async ({
 
   try {
     await page.goto("/");
-    await expect(page.locator("#race-select option[value='salomon-vitosha-12']")).toHaveCount(1, {
-      timeout: 30000,
-    });
+    await expect(page.getByTestId("gpx-drop")).toBeVisible({ timeout: 30000 });
     await page.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 30000 });
     await expect.poll(async () => page.evaluate(async () => {
       const names = await caches.keys();
@@ -60,11 +58,7 @@ test("reloads a usable shell within 4s while app-shell requests stall", async ({
     const started = Date.now();
     await page.reload({ waitUntil: "commit", timeout: 4000 });
     const budget = () => Math.max(1, 4000 - (Date.now() - started));
-    await expect(page.locator("#race-select option[value='salomon-vitosha-12']")).toHaveCount(1, {
-      timeout: budget(),
-    });
-    await page.getByTestId("race-select").selectOption("salomon-vitosha-12");
-    await expect(page.getByTestId("race-select")).toHaveValue("salomon-vitosha-12");
+    await expect(page.getByTestId("gpx-drop")).toBeVisible({ timeout: budget() });
     await expect(page.getByTestId("build-plan")).toBeEnabled();
     expect(Date.now() - started).toBeLessThan(4000);
     expect(stalled, `no stalled shell request; saw ${seen.join(" | ")}`).toBeGreaterThan(0);

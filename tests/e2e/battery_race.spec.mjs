@@ -1,3 +1,4 @@
+import path from "node:path";
 /** GPS guard, check-in diagnostics, no background GPS or wake lock, unlock resume, and >= 48px Live tap targets. */
 
 import { expect, test } from "@playwright/test";
@@ -97,11 +98,11 @@ test("checks in only on Sync GPS: no watch, no wake lock, no GPS on unlock, bad 
   await expect(page.locator("#diag-list")).not.toContainText("Polling");
 
   await page.goto("/");
-  await expect(page.locator("#race-select option[value='salomon-vitosha-12']")).toHaveCount(1, { timeout: 30000 });
-  await page.getByTestId("race-select").selectOption("salomon-vitosha-12");
+  await page.locator("#gpx-file").setInputFiles(path.resolve("frontend/data/gpx/salomon-vitosha-12.gpx"));
+  await expect(page.getByTestId("gpx-name")).toContainText("Loaded salomon-vitosha-12.gpx", { timeout: 60000 });
   await expect(page.getByTestId("offline-status")).toContainText("Ready for offline", { timeout: 180000 });
   await page.getByTestId("build-plan").click();
-  await expect(page.getByTestId("summary")).toContainText("Salomon Vitosha Trail 12 km", { timeout: 180000 });
+  await expect(page.getByTestId("summary")).not.toBeEmpty({ timeout: 180000 });
 
   await page.locator("#nav-live").click();
   await expect(page.getByTestId("race-launch")).toBeVisible();

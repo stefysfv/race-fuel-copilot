@@ -1,3 +1,4 @@
+import path from "node:path";
 /** Minimal Light check-in guide: Launch -> 3-2-1-GO -> Clock fueling windows -> Section check-in -> Crew Sheet -> Recap. */
 
 import { expect, test } from "@playwright/test";
@@ -29,6 +30,8 @@ test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Men
 
   await page.goto("/");
   await expect(page.getByTestId("offline-status")).toContainText("Ready for offline", { timeout: 120000 });
+  await page.locator("#gpx-file").setInputFiles(path.resolve("frontend/data/gpx/salomon-vitosha-12.gpx"));
+  await expect(page.getByTestId("gpx-name")).toContainText("Loaded salomon-vitosha-12.gpx", { timeout: 60000 });
   await page.getByTestId("build-plan").click();
   await expect(page.getByTestId("packing-list")).not.toBeEmpty({ timeout: 60000 });
 

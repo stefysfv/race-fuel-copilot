@@ -12,9 +12,9 @@ import { setupDiagnostics, watchReadiness } from "./offline_status.js";
 import { resetOutdatedStorage, restore } from "./session.js";
 import { renderLocker, addCustomItem, renderCustomAids, onAddAidClick, setFuelPreference, renderVestRows, paintDrinkControls, onVestInventoryInput, renderFoods, saveMenu, setFoodCarbs, toggleFood, onFoodEditorClick, onFoodEditorInput, addCustomFood, toggleFoodFlavor, loadStoredPreferences, renderGutPill, openGutModal, markGut, closeGutModal, saveGut, resetGut } from "./food_menu.js";
 import { renderPacking, setupSummaryLine, stepLeg, exportRaceCard, closeCrewModal } from "./packing.js";
-import { renderLive, startClock, ensureTicker, logIntake, undoAutoLog, paintRaceControls, onPaintDesk, markLegCompleted, openRaceMenu, closeRaceMenu, openRecapModal, closeRecapModal, prefillFeedbackFromRecap } from "./live.js";
+import { renderLive, startClock, ensureTicker, logIntake, paintRaceControls, onPaintDesk, markLegCompleted, openRaceMenu, closeRaceMenu, openRecapModal, closeRecapModal, prefillFeedbackFromRecap } from "./live.js";
 import { drawMap, mapApi } from "./map_screen.js";
-import { applyTargetDefault, paintAidDrawer, paintRaceOptions, paintUnitInputs, setSource, setCarbs, syncTempFromInput, syncWeightFromInput, loadRaces } from "./plan_request.js";
+import { applyTargetDefault, paintAidDrawer, paintUnitInputs, setSource, setCarbs, syncTempFromInput, syncWeightFromInput, loadRaces } from "./plan_request.js";
 import { applyZonePreset, loadZoneProfile, onZoneSlider, scheduleZonePreview } from "./zone_profile.js";
 import { onRaceModeClick, togglePauseRace, openRestartModal, closeRestartModal, confirmRestartRace, skipStartCountdown, paintAutoGps, onUpdateGpsClick, triggerRescue, paintDesk, loadBatterySaver, setBatterySaver, handleVisibilityChange } from "./gps.js";
 import { showSetupPane, toggleSetup, showTab } from "./navigation.js";
@@ -49,13 +49,6 @@ function wireCriticalControls() {
 
 function bind() {
   listen("#setup-form", "submit", (event) => buildPlan(event));
-  listen("#source-race", "click", () => setSource("race"));
-  ui.raceSelect?.addEventListener("change", () => {
-    setSource("race");
-    state.raceId = ui.raceSelect.value;
-    applyTargetDefault();
-    scheduleZonePreview();
-  });
   listen("#add-aid", "click", onAddAidClick);
   listen("#edit-stations", "click", () => {
     state.editStations = !(state.source === "gpx" || state.editStations);
@@ -92,7 +85,6 @@ function bind() {
     });
   });
   ui.rescue?.addEventListener("click", () => { closeRaceMenu(); triggerRescue(); });
-  ui.raceMode?.addEventListener("click", onRaceModeClick);
   ui.liveMenuBtn?.addEventListener("click", openRaceMenu);
   ui.closeRaceMenu?.addEventListener("click", closeRaceMenu);
   ui.closeRaceMenuBottom?.addEventListener("click", closeRaceMenu);
@@ -110,7 +102,6 @@ function bind() {
   ui.raceCountdownSkip?.addEventListener("click", skipStartCountdown);
   ui.liveGoSetup?.addEventListener("click", () => showTab("setup"));
   ui.startRaceCta?.addEventListener("click", onRaceModeClick);
-  ui.launchBatterySaver?.addEventListener("click", () => setBatterySaver(!state.batterySaver));
   ui.launchCrewBtn?.addEventListener("click", exportRaceCard);
   ui.liveCrewBtn?.addEventListener("click", exportRaceCard);
   ui.liveAheadList?.addEventListener("click", (event) => {
@@ -123,8 +114,6 @@ function bind() {
   ui.recapModal?.addEventListener("click", (event) => { if (event.target === ui.recapModal) closeRecapModal(); });
   ui.recapToGut?.addEventListener("click", () => { closeRecapModal(); openGutModal(); });
   ui.recapToFeedback?.addEventListener("click", () => { prefillFeedbackFromRecap(); closeRecapModal(); showTab("feedback"); });
-  ui.batterySaver?.addEventListener("click", () => setBatterySaver(!state.batterySaver));
-  ui.undoAuto?.addEventListener("click", () => undoAutoLog());
   document.addEventListener("visibilitychange", () => {
     handleVisibilityChange();
   });
@@ -236,7 +225,6 @@ function bind() {
   }
   onUnitChange(() => {
     paintUnitInputs();
-    paintRaceOptions();
     repaintGpxUnits();
     renderCustomAids();
     if (state.packedPlan) {
@@ -265,7 +253,7 @@ async function init() {
     renderGutPill();
     bind();
     setCarbs(60);
-    setSource("race");
+    setSource("gpx");
     try {
       const session = await loadSession();
       if (restore(session)) {
@@ -285,9 +273,6 @@ async function init() {
     }
     try {
       await loadRaces();
-      if (state.raceId && ui.raceSelect) {
-        ui.raceSelect.value = state.raceId;
-      }
       applyTargetDefault();
       scheduleZonePreview();
       paintFeedback();

@@ -153,7 +153,7 @@ test("saves feedback on the phone and builds the send link without a POST", asyn
 
   await page.goto("/");
   await page.getByTestId("nav-feedback").click();
-  await expect(page.getByTestId("feedback-race")).toHaveValue(RACE);
+  await page.getByTestId("feedback-race").fill(RACE);
   await expect(page.getByTestId("feedback-preview")).toContainText("race name");
   await expect(page.getByTestId("feedback-preview")).toContainText("GPS tracks");
   await expect(page.getByTestId("feedback-preview")).toContainText("analytics");

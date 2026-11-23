@@ -2,14 +2,14 @@
 
 export const RUNTIME_CACHE = "race-fuel-pyodide-314.0.8";
 
-export const SHELL_CACHE = "race-fuel-v49";
+export const SHELL_CACHE = "race-fuel-v50";
 
 /**
  * sha256 of every SHELL_FILES body, LF-normalized, in list order.
  * This line is left out of the hash so the value can name itself.
  * tests/test_shell_cache.py recomputes it.
  */
-export const SHELL_FILES_HASH = "81f12e6d33740aceb9cea8ea97c0e12a2e230851ac8599cb444ce1bc2568e42a";
+export const SHELL_FILES_HASH = "f95637a6599c9a92e2d62f03c6c75d183c1d7b3e5be65ca8a033ec513af23554";
 
 export const RUNTIME_FILES = [
   "/vendor/pyodide/pyodide.mjs",

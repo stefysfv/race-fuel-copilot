@@ -397,9 +397,6 @@ export function setupGpxUpload() {
   document.querySelector("#distance-override")?.addEventListener("input", () => {
     if (state.gpxReport) paintScaleNote(state.gpxReport);
   });
-  document.querySelector("#use-example")?.addEventListener("click", () => {
-    setSource("race");
-  });
   if (state.gpxReport) paintGpxReport(state.gpxReport);
   loadRecentCourses().then(paintRecent).catch(() => paintRecent([]));
 }

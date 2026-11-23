@@ -1,3 +1,4 @@
+import path from "node:path";
 /** Off-course state: far from the course, Live hides planned grade, zone and arrival until the next good check-in. */
 
 import { expect, test } from "@playwright/test";
@@ -25,6 +26,8 @@ test("shows Off course and hides grade, zone and arrival when far from the cours
 
   await page.goto("/");
   await expect(page.getByTestId("offline-status")).toContainText("Ready for offline", { timeout: 120000 });
+  await page.locator("#gpx-file").setInputFiles(path.resolve("frontend/data/gpx/salomon-vitosha-12.gpx"));
+  await expect(page.getByTestId("gpx-name")).toContainText("Loaded salomon-vitosha-12.gpx", { timeout: 60000 });
   await page.getByTestId("build-plan").click();
   await expect(page.getByTestId("packing-list")).not.toBeEmpty({ timeout: 60000 });
 

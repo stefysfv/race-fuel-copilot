@@ -52,7 +52,6 @@ test("rejects a file that is not GPX, a short track, and an oversized file", asy
 test("loads a custom GPX, edits an aid, builds a plan, and keeps the course", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("gpx-drop")).toBeVisible();
-  await expect(page.getByText("Try an example")).toBeVisible();
   await expect(page.getByTestId("offline-status")).toContainText("Ready for offline", { timeout: 180000 });
 
   const xml = trackXml({

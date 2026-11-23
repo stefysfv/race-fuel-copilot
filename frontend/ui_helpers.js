@@ -3,13 +3,10 @@
 import { formatTimeOfDay } from "./leg_projection.js";
 import { state, ui } from "./state.js";
 
-export let toastTimer = 0;
-
 export function setStatus(message, hold = false) {
   const text = message || "";
   if (ui.status) ui.status.textContent = hold ? text : "";
   if (ui.toast) {
-    window.clearTimeout(toastTimer);
     ui.toast.textContent = "";
     ui.toast.classList.add("hidden");
   }

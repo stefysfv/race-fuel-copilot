@@ -213,18 +213,15 @@ export function applyTargetDefault() {
 }
 
 export function paintAidDrawer() {
-  const show = state.source === "gpx" || state.editStations;
+  const show = true;
   ui.aidDrawer?.classList.toggle("hidden", !show);
   if (show && ui.aidDrawer) ui.aidDrawer.open = true;
   const toggle = document.querySelector("#edit-stations");
   if (toggle) toggle.textContent = show && state.source !== "gpx" ? "Hide Stations" : "Edit Stations";
 }
 
-export function setSource(source) {
-  state.source = source;
-  document.querySelector("#source-race")?.setAttribute("aria-checked", source === "race" ? "true" : "false");
-  document.querySelector("#source-gpx")?.setAttribute("aria-checked", source === "gpx" ? "true" : "false");
-  if (ui.raceSelect) ui.raceSelect.disabled = source !== "race";
+export function setSource() {
+  state.source = "gpx";
   paintAidDrawer();
 }
 
@@ -242,5 +239,4 @@ export async function loadRaces() {
     const primary = state.races.find((race) => race.id === "salomon-vitosha-27");
     state.raceId = (primary || state.races[0])?.id || "";
   }
-  paintRaceOptions();
 }

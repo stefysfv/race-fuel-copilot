@@ -407,10 +407,7 @@ export async function logIntake(options = {}) {
   await persist();
 }
 
-export function undoAutoLog() {}
-
 export function paintRaceControls() {
-  ui.raceMode?.setAttribute("aria-pressed", state.raceMode ? "true" : "false");
 }
 
 export function paintCaffeine(elapsed) {

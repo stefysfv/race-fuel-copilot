@@ -45,8 +45,6 @@ export function loadBatterySaver() {
 export function applyBatterySaverUi() {
   document.body.classList.toggle("battery-saver", Boolean(state.batterySaver));
   document.body.classList.toggle("race-active", Boolean(state.raceMode));
-  ui.batterySaver?.setAttribute("aria-pressed", state.batterySaver ? "true" : "false");
-  ui.launchBatterySaver?.setAttribute("aria-pressed", state.batterySaver ? "true" : "false");
   setBatterySaverDiag(state.batterySaver);
 }
 
@@ -160,8 +158,6 @@ export function pauseRaceMode() {
   state.raceCountdown = false;
   ui.raceCountdownOverlay?.classList.add("hidden");
   state.pausedAt = Date.now();
-  state.pendingAuto = null;
-  state.autoLogAt = 0;
   paintRaceControls();
   renderLive();
   persist();
@@ -199,8 +195,6 @@ export function stopRaceMode() {
   }
   state.raceMode = false;
   applyBatterySaverUi();
-  state.pendingAuto = null;
-  state.autoLogAt = 0;
   paintRaceControls();
   renderLive();
   persist();
@@ -232,11 +226,6 @@ export async function confirmRestartRace() {
   state.passedDistanceM = 0;
   state.sectionLogs = [];
   state.lastGpsRecalAt = 0;
-  state.headsUp.clear();
-  state.dueFired.clear();
-  state.pendingAuto = null;
-  state.autoLogAt = 0;
-  state.lastAutoLog = null;
   state.giRescue = false;
   state.snap = null;
   state.weakGpsAccuracy = null;
@@ -261,8 +250,6 @@ function quietVeryStaleStops(elapsed) {
   const stops = state.livePlan?.fuel_stops || [];
   for (const stop of stops) {
     if (elapsed - stop.scheduled_minute > 10 && !state.logged.includes(stop.sequence)) {
-      state.dueFired.add(stop.sequence);
-      state.headsUp.add(stop.sequence);
     }
   }
 }
@@ -489,11 +476,6 @@ export async function sendFix(latitude, longitude, giRescue, source = "sim") {
     }
     state.logged = [];
     if (source === "gps") {
-      state.headsUp.clear();
-      state.dueFired.clear();
-      state.pendingAuto = null;
-      state.autoLogAt = 0;
-      state.lastAutoLog = null;
     }
     state.giRescue = result.gi_rescue_applied;
     state.snap = {
