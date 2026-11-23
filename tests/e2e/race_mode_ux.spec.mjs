@@ -37,7 +37,7 @@ test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Men
 
   await page.locator("#nav-live").click();
   await expect(page.getByTestId("race-launch")).toBeVisible();
-  await expect(page.getByTestId("race-launch-eta")).toContainText("Starting now puts finish around");
+  await expect(page.getByTestId("race-launch-eta")).toContainText(/start puts finish around \d{2}:\d{2}/);
 
   await page.getByTestId("start-race-cta").click();
   await expect(page.getByTestId("race-countdown-overlay")).toBeVisible();
