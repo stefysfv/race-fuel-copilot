@@ -1043,3 +1043,44 @@ def test_stop_reasons_name_the_chosen_food() -> None:
     assert drinks
     assert all(" g gel" not in stop.reason for stop in drinks)
     assert all("Drink Mix" in stop.reason for stop in drinks)
+
+
+def test_packed_vest_never_exceeds_inventory_or_invents_liquid() -> None:
+    """Vest inventory is a hard cap: no extra gels, no phantom liquid carbs, caffeine counted."""
+
+    points = course_points([(15_000, 0.0), (15_000, 14.0), (30_000, 0.0)])
+    packed = [
+        PackedVestItem(id="caffeine_gel", name="Caffeine Gel", carbs_g=25, caffeine_mg=100, qty=2, flavor="sweet", form="gel"),
+        PackedVestItem(id="bar", name="Oat / Energy Bar", carbs_g=30, qty=1, flavor="sweet", form="solid"),
+        PackedVestItem(id="dates", name="Medjool Dates", carbs_g=25, qty=3, flavor="sweet", form="solid"),
+        PackedVestItem(id="chocolate", name="Chocolate", carbs_g=20, qty=2, flavor="sweet", form="solid"),
+        PackedVestItem(id="chips", name="Salted Chips / Pretzels", carbs_g=20, qty=1, flavor="savoury", form="solid"),
+    ]
+    plan = generate_plan(
+        race_id="pirin-vest",
+        race_name="Pirin Ultra Test",
+        declared_distance_km=60.0,
+        aid_stations=[],
+        profile=points,
+        athlete=AthleteInput(
+            weight_kg=70,
+            flat_pace_min_per_km=10.0,
+            carbs_g_per_hour=90,
+            vest_foods=["caffeine_gel", "bar", "dates", "chocolate", "chips"],
+        ),
+        packed_vest_items=packed,
+    )
+    carb_stops = [stop for stop in plan.fuel_stops if stop.carbs_g > 0 and not stop.at_aid_station]
+    assert carb_stops
+    assert all(stop.reason.startswith("Packed vest:") for stop in carb_stops)
+    counts: dict[str, int] = {}
+    for stop in carb_stops:
+        counts[stop.product] = counts.get(stop.product, 0) + 1
+    assert counts.get("Caffeine Gel", 0) <= 2
+    assert counts.get("Oat / Energy Bar", 0) <= 1
+    assert counts.get("Medjool Dates", 0) <= 3
+    assert counts.get("Chocolate", 0) <= 2
+    assert counts.get("Salted Chips / Pretzels", 0) <= 1
+    assert plan.totals.carbs_g <= 215.0 + 1e-6
+    assert plan.totals.caffeine_mg == pytest.approx(200.0)
+    assert not any(stop.product == "" and stop.carbs_g > 0 for stop in plan.fuel_stops)

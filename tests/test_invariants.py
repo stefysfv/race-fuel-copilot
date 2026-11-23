@@ -1308,9 +1308,9 @@ def test_logged_packed_solids_ignore_palate_gap() -> None:
         packed_vest_items=packed,
     )
     short_solids = _trail_solids(short)
-    assert short_solids
-    assert all(not stop.reason.startswith("Packed vest") for stop in short_solids)
-    _assert_solid_gap(short_solids)
+    # Only savoury chips were packed and 16 km ends before the savoury clock,
+    # so no trail solid is invented out of thin air.
+    assert short_solids == []
 
     plan = generate_plan(
         race_id="flat",
@@ -1322,7 +1322,9 @@ def test_logged_packed_solids_ignore_palate_gap() -> None:
         packed_vest_items=packed,
     )
     solids = _trail_solids(plan)
-    assert len(solids) >= 2
+    assert 1 <= len(solids) <= 2
+    assert all(stop.reason.startswith("Packed vest") for stop in solids)
+    assert all(stop.scheduled_minute >= SAVOURY_START_MIN - 1e-6 for stop in solids)
     _assert_solid_gap(solids)
 
 

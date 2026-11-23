@@ -309,13 +309,13 @@ def _consume_packed_vest(
     feed_interval_min: int,
     athlete: AthleteInput,
 ) -> tuple[str, str]:
-    """Spend the packed vest across the race, alternating foods.
+    """Spend the packed vest across the race as a hard inventory cap.
 
-    Every piece is scheduled when its carbs fit the race budget and the
-    bite rules. A red stop keeps the micro-dose. Caffeine stops at 5 mg/kg.
-    Solids stay 90 minutes apart, and savoury solids wait for the palate
-    switch. A piece that cannot follow those rules stays in the vest.
-    A short race never reaches this function.
+    Never schedules trail carbs beyond what is packed in the vest. Aid station
+    plates and 0 g hydration sips stay put; unbacked trail slots are removed.
+    Solids stay off red climbs, 90 minutes apart, and savoury solids wait for
+    the palate switch. Caffeinated gels wait for green/yellow ground whenever
+    non-red slots remain ahead, and total caffeine stops at 5 mg/kg.
     """
 
     stocks = [
@@ -335,21 +335,29 @@ def _consume_packed_vest(
     used_in_leg: list[dict[str, int]] = [{} for _ in legs]
     by_id = {stock.item.id: stock.item for stock in stocks}
     finish_min = segments[-1].end_minute if segments else 0.0
+    caf_start = (
+        segments[0].start_minute + 0.45 * (segments[-1].end_minute - segments[0].start_minute)
+        if segments
+        else 0.0
+    )
     savoury_at = _savoury_minute(athlete, finish_min)
     caffeine_cap = athlete.weight_kg * CAFFEINE_MG_PER_KG
-    caffeine_used = sum(stop.caffeine_mg for stop in stops)
-    solid_minutes = [stop.scheduled_minute for stop in stops if _is_counted_solid(stop)]
+    caffeine_used = sum(stop.caffeine_mg for stop in stops if not _is_vest_slot(stop))
+    solid_minutes: list[float] = []
+    stamped_ids: set[int] = set()
 
-    def take(stop: FuelStop) -> bool:
+    def take(stop: FuelStop, *, later_non_red: bool = False) -> bool:
         nonlocal placed_g, last_id, caffeine_used
         leg_index = _leg_index_for_km(legs, stop.distance_km)
         blocked: set[str] = set()
-        if segments and stop.scheduled_minute < segments[0].start_minute + 0.45 * (
-            segments[-1].end_minute - segments[0].start_minute
-        ):
-            blocked = {stock.item.id for stock in stocks if stock.item.caffeine_mg > 0}
+        if segments and stop.scheduled_minute < caf_start:
+            blocked |= {stock.item.id for stock in stocks if stock.item.caffeine_mg > 0}
             if blocked and all(stock.remaining <= 0 or stock.item.id in blocked for stock in stocks):
                 blocked = set()
+        if stop.zone is DigestiveZone.red:
+            blocked |= {stock.item.id for stock in stocks if stock.item.form == "solid"}
+            if later_non_red:
+                blocked |= {stock.item.id for stock in stocks if stock.item.caffeine_mg > 0}
         choice = _choose_packed(
             stocks,
             stop.zone,
@@ -365,46 +373,60 @@ def _consume_packed_vest(
         )
         if choice is None:
             return False
-        was_solid = _is_counted_solid(stop)
-        previous_caffeine = stop.caffeine_mg
-        room = caffeine_cap - (caffeine_used - previous_caffeine)
+        room = max(0.0, caffeine_cap - caffeine_used)
         delivered, form, caffeine = _packed_dose(stop, choice.item, room)
         _stamp_packed(stop, choice.item, carbs_g=delivered, caffeine_mg=caffeine, form=form)
-        caffeine_used += caffeine - previous_caffeine
+        caffeine_used += caffeine
         choice.remaining -= 1
         placed_g += delivered
         used_in_leg[leg_index][choice.item.id] = used_in_leg[leg_index].get(choice.item.id, 0) + 1
         last_id = choice.item.id
-        _note_solid(stop, was_solid, solid_minutes)
+        if _is_counted_solid(stop):
+            solid_minutes.append(stop.scheduled_minute)
+        stamped_ids.add(id(stop))
         return True
 
-    for stop in stops:
+    for index, stop in enumerate(stops):
         if not _is_vest_slot(stop):
             continue
         if all(stock.remaining <= 0 for stock in stocks):
             extra_g += stop.carbs_g
             continue
-        if not take(stop) and all(stock.remaining <= 0 for stock in stocks):
+        later_non_red = any(
+            _is_vest_slot(later) and later.zone is not DigestiveZone.red
+            for later in stops[index + 1:]
+        )
+        if not take(stop, later_non_red=later_non_red):
             extra_g += stop.carbs_g
 
+    # Remove every unbacked trail vest slot so the schedule never invents food.
+    stops[:] = [
+        stop
+        for stop in stops
+        if not _is_vest_slot(stop) or id(stop) in stamped_ids
+    ]
+
     if consume_all and segments and any(stock.remaining > 0 for stock in stocks):
-        finish_min = segments[-1].end_minute
+        quiet_limit = segments[0].start_minute + PRE_RACE_QUIET_MIN
         minute = float(feed_interval_min)
         while minute <= finish_min - 10 and any(stock.remaining > 0 for stock in stocks):
             placed = None
             for shift in (12.0, -12.0, 0.0):
                 candidate = minute + shift
-                if candidate < segments[0].start_minute + PRE_RACE_QUIET_MIN:
+                if candidate < quiet_limit:
                     continue
                 if any(abs(stop.scheduled_minute - candidate) < 8 for stop in stops):
                     continue
                 placed = _place_feed(segments, candidate, prefer_safe=True)
-                if placed is not None:
+                if placed is not None and placed[1] >= quiet_limit - 1e-6:
                     minute = candidate
                     break
+                placed = None
             if placed is not None:
                 segment, when = placed
-                if not any(abs(stop.scheduled_minute - when) < 8 for stop in stops):
+                if when >= quiet_limit - 1e-6 and not any(
+                    abs(stop.scheduled_minute - when) < 8 for stop in stops
+                ):
                     distance_m = _distance_at_minute(segment, when)
                     location = location_at_distance(course, distance_m)
                     extra_stop = FuelStop(
@@ -425,12 +447,14 @@ def _consume_packed_vest(
                         reason="Open vest slot",
                         reasons=shift_reasons(minute, when, segment.grade_percent, segment.index),
                     )
-                    if take(extra_stop):
+                    if take(extra_stop, later_non_red=False):
                         stops.append(extra_stop)
+                        extra_g = max(0.0, extra_g - extra_stop.carbs_g)
             minute += feed_interval_min
-        stops.sort(key=lambda stop: (stop.scheduled_minute, stop.sequence))
-        for index, stop in enumerate(stops, start=1):
-            stop.sequence = index
+
+    stops.sort(key=lambda stop: (stop.scheduled_minute, stop.sequence))
+    for index, stop in enumerate(stops, start=1):
+        stop.sequence = index
 
     for leg in legs:
         kept = [line for line in leg.pack if _keep_pack_line(line)]
@@ -458,10 +482,11 @@ def _consume_packed_vest(
     note = ""
     if extra_g >= 1 and all(stock.remaining <= 0 for stock in stocks):
         note = (
-            "Packed vest 100% consumed · "
-            f"+{int(round(extra_g))}g extra needed from aid stations or extra gels"
+            f"Packed vest 100% scheduled ({int(round(placed_g))} g) · "
+            f"+{int(round(extra_g))} g short of target — pack more food or add aid stations"
         )
     return _inventory_summary(stocks), note
+
 
 
 def build_aid_legs(

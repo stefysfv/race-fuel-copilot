@@ -84,7 +84,7 @@ export function renderPacking() {
     ui.packing.append(liveNote);
   }
   for (const leg of shown) {
-    ui.packing.append(packCard(leg));
+    ui.packing.append(packCard(leg, plan));
   }
   if (shown.length) ui.packing.append(hydrationNote());
   ui.exportCard.disabled = false;
@@ -139,11 +139,40 @@ function hydrationNote() {
   return note;
 }
 
-export function packCard(leg) {
+function legScheduledCarbs(plan, leg) {
+  if (!plan?.vest_inventory_summary) return null;
+  const legs = Array.isArray(plan.aid_legs) ? plan.aid_legs : [];
+  const legIndex = legs.indexOf(leg);
+  if (legIndex < 0) return null;
+  const stops = Array.isArray(plan.fuel_stops) ? plan.fuel_stops : [];
+  let trailCarbs = 0;
+  for (const stop of stops) {
+    if (stop.at_aid_station) continue;
+    const km = Number(stop.distance_km) || 0;
+    let idx = Math.max(0, legs.length - 1);
+    for (let i = 0; i < legs.length; i += 1) {
+      if (km < legs[i].to_km - 1e-6 || i === legs.length - 1) {
+        if (km >= legs[i].from_km - 1e-6) {
+          idx = i;
+          break;
+        }
+      }
+    }
+    if (idx === legIndex) trailCarbs += Number(stop.carbs_g) || 0;
+  }
+  return trailCarbs + (Number(leg.station_carbs_g) || 0);
+}
+
+export function packCard(leg, plan = state.packedPlan) {
   const card = document.createElement("article");
   card.className = "pack-card leg-card";
-  const fluidRate = hourlyRate(state.packedPlan?.athlete?.fluid_ml_per_hour);
-  const sodiumRate = hourlyRate(state.packedPlan?.athlete?.sodium_mg_per_hour);
+  const fluidRate = hourlyRate(plan?.athlete?.fluid_ml_per_hour);
+  const sodiumRate = hourlyRate(plan?.athlete?.sodium_mg_per_hour);
+  const scheduledCarbs = legScheduledCarbs(plan, leg);
+  const shownCarbs = scheduledCarbs === null ? leg.carbs_g : scheduledCarbs;
+  const carbsLabel = scheduledCarbs !== null && scheduledCarbs + 5 < leg.carbs_g
+    ? `Carbs packed (target ${grouped(leg.carbs_g)}g)`
+    : "Carbs";
   const salt = leg.pack.filter((item) => /salt capsule/i.test(item.item));
   const chew = leg.pack.filter((item) => !/flask/i.test(item.item) && !/salt capsule/i.test(item.item));
   const sips = leg.pack.filter((item) => /flask/i.test(item.item));
@@ -165,7 +194,7 @@ export function packCard(leg) {
       </div>
       ${coach}
       <div class="macros">
-        <div><strong>${grouped(leg.carbs_g)}g</strong><span>Carbs</span></div>
+        <div><strong>${grouped(shownCarbs)}g</strong><span>${carbsLabel}</span></div>
         <div><strong class="macro-rate">up to ${grouped(fluidRate)} ml/h</strong><span class="macro-plain">drink to thirst</span></div>
         <div><strong class="macro-rate">about ${grouped(sodiumRate)} mg/h</strong><span class="macro-plain">typical range, adjust for sweat saltiness</span></div>
       </div>
