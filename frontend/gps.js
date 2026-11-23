@@ -377,6 +377,10 @@ export function onGpsSuccess(pos) {
   state.realGps = { latitude: lat, longitude: lon, accuracy };
   state.gpsAccuracy = accuracy;
   state.autoGpsError = "";
+  if (state.packedPlan?.segments?.length) {
+    const quickSnap = snapToSegments(state.packedPlan.segments, lat, lon);
+    paintOffCourse(quickSnap.offCourseM);
+  }
   paintGps(`GPS Locked (±${Math.round(accuracy)}m)`, "ok");
   if (state.sim.playing) {
     stopPlay(false);
