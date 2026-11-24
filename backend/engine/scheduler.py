@@ -54,6 +54,7 @@ from backend.engine.doses_menu import (
 )
 
 from backend.engine.packing import (
+    _apply_aid_only_fueling,
     _consume_packed_vest,
     build_aid_legs,
 )
@@ -208,6 +209,8 @@ def generate_plan(
         )
         if extra_note:
             warnings.append(extra_note)
+    elif not _is_short_race(athlete) and not athlete.vest_foods:
+        _apply_aid_only_fueling(stops, legs, timed, athlete)
     gain_m = sum(segment.elevation_gain_m for segment in timed)
     clock_start = timed[0].start_minute
     finish_minute = timed[-1].end_minute

@@ -231,7 +231,7 @@ function callWorker(type, request, gpxText) {
 
 function bootWorker() {
   if (!workerReady) {
-    worker = new Worker("/engine.worker.js?v=8f8584a1", { type: "module" });
+    worker = new Worker("/engine.worker.js?v=7929aff6", { type: "module" });
     workerReady = callWorker("ready", {}, null).catch((error) => {
       workerReady = null;
       throw error;

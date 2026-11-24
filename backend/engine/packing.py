@@ -861,6 +861,88 @@ def _consume_packed_vest(
 
 
 
+
+def _apply_aid_only_fueling(
+    stops: list[FuelStop],
+    legs: list[AidLeg],
+    segments: list[Segment],
+    athlete: AthleteInput,
+) -> None:
+    """When the runner carries an empty vest (0 g) but has food aid stations,
+    zero ghost sodium on plain water sips, boost station meals moderately, and
+    restock portable station food onto green trail slots after each food station."""
+
+    if not legs:
+        return
+    if not athlete.has_salt_caps:
+        for stop in stops:
+            if stop.form is FuelForm.sip and stop.carbs_g == 0 and not stop.at_aid_station:
+                stop.sodium_mg = 0.0
+
+    has_food_stations = any(leg.station_carbs_g > 0 for leg in legs)
+    if not has_food_stations:
+        return
+
+    finish_min = segments[-1].end_minute if segments else 0.0
+    race_start = segments[0].start_minute if segments else 0.0
+    quiet_limit = race_start + PRE_RACE_QUIET_MIN
+    savoury_at = _savoury_minute(athlete, finish_min)
+    need_salt = not athlete.has_salt_caps
+
+    # Find empty-vest forfeited trail slots (carbs_g == 0, form == sip) after food stations
+    candidates = [
+        stop
+        for stop in stops
+        if not stop.at_aid_station
+        and stop.form is FuelForm.sip
+        and stop.carbs_g == 0
+        and "GI Rescue" not in stop.reason
+        and stop.scheduled_minute >= quiet_limit - 1e-6
+    ]
+    budget_g = sum(leg.carbs_g for leg in legs)
+    current_g = sum(stop.carbs_g for stop in stops)
+    extra_g = max(0.0, budget_g - current_g)
+
+    extra_g = _boost_aid_stations(stops, legs, athlete, extra_g, need_salt=need_salt)
+    if not candidates or extra_g < 8.0:
+        return
+
+    # Remove candidate slots before _restock_from_aid_stations re-appends the ones it fills
+    cand_ids = {id(s) for s in candidates}
+    kept_stops = [s for s in stops if id(s) not in cand_ids]
+    solid_minutes: list[float] = []
+    restocked_g, restock_pack = _restock_from_aid_stations(
+        candidates,
+        kept_stops,
+        legs,
+        athlete,
+        solid_minutes,
+        savoury_at,
+        quiet_limit,
+        need_salt=need_salt,
+    )
+    # Keep any unfilled sip slots as plain water sips so hydration reminders remain
+    filled_ids = {id(s) for s in kept_stops}
+    for s in candidates:
+        if id(s) not in filled_ids:
+            kept_stops.append(s)
+
+    kept_stops.sort(key=lambda stop: (stop.scheduled_minute, stop.sequence))
+    for index, stop in enumerate(kept_stops, start=1):
+        stop.sequence = index
+    stops[:] = kept_stops
+
+    for leg_idx, leg in enumerate(legs):
+        for name, carbs_each, quantity in restock_pack.get(leg_idx, []):
+            leg.pack.append(
+                PackItem(
+                    item=name,
+                    quantity=quantity,
+                    detail=f"{carbs_each:.0f} g carbs each \u00b7 grab from {leg.from_name} aid station",
+                )
+            )
+
+
 def build_aid_legs(
     stations: list[AidStation],
     segments: list[Segment],
