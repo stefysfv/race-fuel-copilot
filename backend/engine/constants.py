@@ -35,6 +35,7 @@ EARLY_SAVOURY_MIN = 90.0
 # worth sitting down for when the leg that arrives there lasted 40 minutes.
 OPENING_EASY_MIN = 90.0
 SOLID_EVERY_MIN = 90.0
+PACKED_SOLID_EVERY_MIN = 30.0
 AID_LEG_MIN_MINUTES = 40.0
 # A race of two hours or less still has glycogen. One bottle and one small bite.
 SHORT_RACE_MAX_MIN = 120.0

@@ -37,6 +37,7 @@ from backend.engine.constants import (
     RESCUE_NIL_CARB_MIN,
     SAVOURY_START_MIN,
     SHORT_RACE_NOTE,
+    PACKED_SOLID_EVERY_MIN,
     SOLID_EVERY_MIN,
     WINDOW_MIN,
     YELLOW_DOWNHILL_MIN,
@@ -752,8 +753,13 @@ def _assert_doses(plan: RacePlan, athlete: AthleteInput) -> None:
             solid_times.append(stop.scheduled_minute)
             if stop.zone is DigestiveZone.green and stop.scheduled_minute < switch - 1e-6:
                 assert stop.flavor != "Savoury/Salty"
+    min_solid_gap = (
+        PACKED_SOLID_EVERY_MIN
+        if any(s.reason.startswith(("Packed vest", "Aid restock")) for s in plan.fuel_stops)
+        else SOLID_EVERY_MIN
+    )
     for earlier, later in zip(solid_times, solid_times[1:]):
-        assert later - earlier >= SOLID_EVERY_MIN - 0.05
+        assert later - earlier >= min_solid_gap - 0.05
 
     limit = plan.clock_start_min + PRE_RACE_QUIET_MIN
     for stop in plan.fuel_stops:
@@ -1272,7 +1278,7 @@ def _trail_solids(plan: RacePlan) -> list[FuelStop]:
 
 def _assert_solid_gap(solids: list[FuelStop]) -> None:
     assert all(
-        later.scheduled_minute - earlier.scheduled_minute >= SOLID_EVERY_MIN - 0.05
+        later.scheduled_minute - earlier.scheduled_minute >= PACKED_SOLID_EVERY_MIN - 0.05
         for earlier, later in zip(solids, solids[1:])
     )
     assert all(stop.scheduled_minute >= SAVOURY_START_MIN or stop.flavor != "Savoury/Salty" for stop in solids)

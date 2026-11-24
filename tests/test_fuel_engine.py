@@ -725,7 +725,7 @@ def test_packed_vest_alternates_and_is_finished() -> None:
     packed = [stop.product for stop in plan.fuel_stops if stop.reason.startswith("Packed vest")]
     assert packed.count("Standard Gel") == 3
     assert packed.count("Half Sandwich") == 2
-    assert packed.count("Oat Bar") == 1
+    assert packed.count("Oat Bar") == 2
     for index in range(len(packed) - 2):
         assert len(set(packed[index:index + 3])) > 1
     solids = [
@@ -733,7 +733,7 @@ def test_packed_vest_alternates_and_is_finished() -> None:
         for stop in plan.fuel_stops
         if stop.form is FuelForm.real_food and stop.carbs_g > 0 and not stop.at_aid_station
     ]
-    assert [stop.scheduled_minute for stop in solids] == pytest.approx([60, 150, 240])
+    assert [stop.scheduled_minute for stop in solids] == pytest.approx([60, 150, 210, 240])
     assert all(stop.scheduled_minute >= 150 or stop.flavor != "Savoury/Salty" for stop in solids)
     legs_used = sum(
         1
@@ -743,15 +743,15 @@ def test_packed_vest_alternates_and_is_finished() -> None:
     assert legs_used >= 2
     assert "3/3 Standard Gel" in plan.vest_inventory_summary
     assert "2/2 Half Sandwich" in plan.vest_inventory_summary
-    assert "1/2 Oat Bar" in plan.vest_inventory_summary
-    assert "1 left at finish" in plan.vest_inventory_summary
+    assert "2/2 Oat Bar" in plan.vest_inventory_summary
+    assert "0 left at finish" in plan.vest_inventory_summary
 
     def packed_qty(name: str) -> int:
         return sum(item.quantity for leg in plan.aid_legs for item in leg.pack if item.item == name)
 
     assert packed_qty("Standard Gel") == 3
     assert packed_qty("Half Sandwich") == 2
-    assert packed_qty("Oat Bar") == 1
+    assert packed_qty("Oat Bar") == 2
 
 
 def test_legacy_phone_payload_still_builds_a_plan() -> None:
@@ -1132,8 +1132,9 @@ def test_short_vest_boosts_aid_station_food_without_phantom_gels() -> None:
 
     aid_stops = [stop for stop in plan.fuel_stops if stop.at_aid_station and stop.carbs_g > 0]
     assert len(aid_stops) == 2
-    assert all(stop.carbs_g >= 70.0 for stop in aid_stops)
-    assert all(leg.station_carbs_g >= 70.0 for leg in plan.aid_legs[:2])
+    assert all(30.0 <= stop.carbs_g <= 55.0 for stop in aid_stops)
+    assert all(30.0 <= leg.station_carbs_g <= 55.0 for leg in plan.aid_legs[:2])
+    assert all('cola' not in stop.product.lower() and 'broth' not in stop.product.lower() for stop in restock_stops)
     assert plan.totals.calories_kcal > plan.totals.carbs_g * 4.0
 
 
@@ -1199,3 +1200,61 @@ def test_packed_caffeine_gels_keep_90_minute_gap() -> None:
     caf_stops = [stop for stop in plan.fuel_stops if stop.caffeine_mg > 0]
     assert len(caf_stops) == 2
     assert caf_stops[1].scheduled_minute - caf_stops[0].scheduled_minute >= 90.0 - 0.05
+
+
+def test_three_flasks_and_spread_caffeine_on_100k() -> None:
+    """Explicit flask_count=3 is honored and 2 caffeine gels spread across the back half."""
+
+    points = course_points([(90_000, 0.0)])
+    course = prepare_course(points)
+    stations = []
+    for i, km in enumerate((15.0, 30.0, 45.0, 60.0, 75.0), start=1):
+        pin = location_at_distance(course, int(km * 1000))
+        stations.append(
+            AidStation(
+                name=f"Aid {i}",
+                distance_km=km,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        )
+    plan = generate_plan(
+        race_id="v100-spread",
+        race_name="100k Spread Test",
+        declared_distance_km=90.0,
+        aid_stations=stations,
+        profile=points,
+        athlete=AthleteInput(
+            weight_kg=70,
+            temperature_c=25,
+            flat_pace_min_per_km=9.0,
+            carbs_g_per_hour=90,
+            start_time_minutes=360,
+            flask_count=3,
+            vest_foods=["caffeine_gel", "dates", "sandwich", "chocolate"],
+            station_foods=["sandwich", "banana", "dates", "chips", "cola_broth"],
+        ),
+        packed_vest_items=[
+            PackedVestItem(id="caffeine_gel", name="Caffeine Gel", carbs_g=25, caffeine_mg=100, qty=2, flavor="sweet", form="gel"),
+            PackedVestItem(id="dates", name="Medjool Dates", carbs_g=25, qty=3, flavor="sweet", form="solid"),
+            PackedVestItem(id="sandwich", name="Half Sandwich", carbs_g=25, qty=1, flavor="savoury", form="solid"),
+            PackedVestItem(id="chocolate", name="Chocolate", carbs_g=20, qty=2, flavor="sweet", form="solid"),
+        ],
+    )
+    # 3 flasks honored on hot 2.25h legs
+    first_flasks = [item for item in plan.aid_legs[0].pack if item.item == "500ml Flask"]
+    assert first_flasks and first_flasks[0].quantity == 3
+    # Both caffeine gels land in the back half, spaced >= 150 min apart
+    caf = [s for s in plan.fuel_stops if s.caffeine_mg > 0]
+    assert len(caf) == 2
+    assert caf[1].scheduled_minute - caf[0].scheduled_minute >= 140.0
+    # Dates are scheduled on Leg 1 instead of being dropped or buried behind melting chocolate
+    leg1_trail = [s for s in plan.fuel_stops if not s.at_aid_station and s.distance_km < 15.0 and s.carbs_g > 0]
+    assert any(s.product == "Medjool Dates" for s in leg1_trail)
+    assert len(leg1_trail) >= 2
+    # Station meals stay moderate (<= 55g)
+    aid_stops = [s for s in plan.fuel_stops if s.at_aid_station and s.carbs_g > 0]
+    assert all(s.carbs_g <= 55.0 for s in aid_stops)

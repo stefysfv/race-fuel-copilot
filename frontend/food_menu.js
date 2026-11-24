@@ -407,7 +407,19 @@ export function paintDrinkControls() {
 export function onVestInventoryInput(event) {
   const qty = event.target.closest?.(".qty-input");
   if (qty) {
-    state.vestQty[qty.dataset.qty] = parseInt(qty.value, 10) || 0;
+    const key = qty.dataset.qty;
+    const count = Math.min(30, Math.max(0, parseInt(qty.value, 10) || 0));
+    state.vestQty[key] = count;
+    if (key) {
+      if (count > 0) state.vestFoods.add(key);
+      else state.vestFoods.delete(key);
+      const toggle = qty.closest?.(".vest-row")?.querySelector?.("[data-food]");
+      if (toggle) {
+        toggle.setAttribute("aria-pressed", count > 0 ? "true" : "false");
+        const label = foodRecord("vest", key)?.name || toggle.textContent.replace(/^✓\s*/, "");
+        toggle.textContent = `${count > 0 ? "✓ " : ""}${label}`;
+      }
+    }
     saveMenu();
     return;
   }

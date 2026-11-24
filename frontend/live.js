@@ -306,7 +306,11 @@ export function renderAheadLegs(elapsed = elapsedMin(), precomputed = null) {
         <strong>${escapeHtml(leg.from_name)} → ${escapeHtml(leg.to_name)}</strong>
         <span class="ahead-eta">~${escapeHtml(formatTimeOfDay(etaClockMs, 5))} · ${escapeHtml(compactHours(scaledLegMin))}</span>
       </div>
-      <p class="ahead-row-meta">${grouped(leg.carbs_g)}g · ${escapeHtml(packSummary)}</p>
+      <p class="ahead-row-meta">${(() => {
+        const stops = (plan.fuel_stops || []).filter((s) => Number(s.distance_km) > Number(leg.from_km) + 0.01 && Number(s.distance_km) <= Number(leg.to_km) + 0.05);
+        const planned = stops.reduce((sum, s) => sum + (Number(s.carbs_g) || 0), 0);
+        return grouped(planned > 0 ? planned : leg.carbs_g);
+      })()}g · ${escapeHtml(packSummary)}</p>
     `;
     ui.liveAheadList.append(row);
   }
