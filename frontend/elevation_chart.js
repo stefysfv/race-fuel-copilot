@@ -113,12 +113,12 @@ export function drawElevationChart(canvas, previous, segments, fuelStops, forfei
         x: {
           type: "linear",
           ticks: { color: "#64748B", maxTicksLimit: 6, font: { size: 10 } },
-          title: { display: false },
+          title: { display: true, text: `Distance (${distanceUnit()})` },
           grid: { color: "rgba(15,23,42,0.06)" },
         },
         y: {
           ticks: { color: "#64748B", maxTicksLimit: 4, font: { size: 10 } },
-          title: { display: false },
+          title: { display: true, text: `Elevation (${elevationUnit()})` },
           grid: { color: "rgba(15,23,42,0.06)" },
         },
       },

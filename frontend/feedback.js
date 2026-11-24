@@ -16,6 +16,7 @@ const PREVIEW = "Send feedback includes only these fields: race name, finish ver
 let editingId = "";
 
 function activeRaceName() {
+  if (state.packedPlan?.courseFileName) return state.packedPlan.courseFileName;
   if (state.packedPlan?.race_name) return state.packedPlan.race_name;
   if (state.livePlan?.race_name) return state.livePlan.race_name;
   const race = state.races.find((item) => item.id === state.raceId);

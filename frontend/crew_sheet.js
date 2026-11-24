@@ -108,7 +108,7 @@ export function crewSheetText(plan, aidStations = [], options = {}) {
     ? ` [LIVE GPS UPDATED · ${formatDistance((options.passedDistanceM || 0) / 1000, { digits: 1 })} passed]`
     : "";
   const lines = [
-    `CREW SHEET: ${plan.race_name}${liveTag}`,
+    `CREW SHEET: ${options.courseName || plan.courseFileName || plan.race_name}${liveTag}`,
     `Distance: ${formatDistance(plan.distance_km, { digits: 1 })} | Plan time: ${formatDuration(plan.predicted_duration_min)} | Pace: ${formatPace(athlete.flat_pace_min_per_km || 0)}`,
     `Targets: ${deliveryRateLabel(plan)} | Fluid up to ${grouped(athlete.fluid_ml_per_hour || 0)} ml/h | Sodium ~${grouped(athlete.sodium_mg_per_hour || 0)} mg/h | Temp ${formatTemp(athlete.temperature_c || 0)}`,
     `Caffeine: ${Math.round(plan.totals?.caffeine_mg || 0)} / ${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`,
@@ -131,7 +131,7 @@ export function crewSheetText(plan, aidStations = [], options = {}) {
 
 async function shareCrewSheet(plan, aidStations, options) {
   const text = crewSheetText(plan, aidStations, options);
-  const title = `Crew Sheet - ${plan.race_name}`;
+  const title = `Crew Sheet - ${options.courseName}`;
   const status = ui.raceCard?.querySelector("#crew-share-status");
   const plainWrap = ui.raceCard?.querySelector("#crew-plain-wrap");
   const plainBox = ui.raceCard?.querySelector("#crew-plain-text");
@@ -178,6 +178,7 @@ export function renderCrewSheet() {
     ? Math.min(1.85, Math.max(0.7, latestLog.actualElapsedMin / latestLog.plannedCumMin))
     : 1;
   const options = {
+    courseName: state.packedPlan?.courseFileName || plan.race_name,
     isLiveGps,
     paceScale,
     passedDistanceM: state.passedDistanceM || 0,
@@ -209,7 +210,7 @@ export function renderCrewSheet() {
   ui.crewModal.classList.remove("hidden");
   ui.raceCard.innerHTML = `
     <div class="crew-header" data-testid="crew-sheet">
-      <h2>${escapeHtml(plan.race_name)} — Crew Sheet</h2>
+      <h2>${escapeHtml(options.courseName)} — Crew Sheet</h2>
       ${liveBanner}
       <p class="crew-meta">${escapeHtml(formatDistance(state.packedPlan?.distance_km || plan.distance_km, { digits: 1 }))} · ${isLiveGps ? "Updated finish" : "Plan"} ${escapeHtml(formatDuration(isLiveGps ? totalFinishMin : plan.predicted_duration_min))} · ${escapeHtml(formatPace(athlete.flat_pace_min_per_km || 0))} · ${escapeHtml(preference)}</p>
       <p class="crew-meta">Carbs ${escapeHtml(deliveryRateLabel(plan))} · Fluid up to ${escapeHtml(grouped(athlete.fluid_ml_per_hour || 0))} ml/h · Sodium ~${escapeHtml(grouped(athlete.sodium_mg_per_hour || 0))} mg/h · Caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg</p>

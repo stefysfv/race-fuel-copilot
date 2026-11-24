@@ -163,7 +163,7 @@ export function renderPacking() {
   }
   const athlete = plan.athlete;
   ui.summary.classList.remove("hidden");
-  ui.summary.textContent = `${plan.race_name} · ${formatDistance(plan.distance_km, { digits: 1 })} · ${formatDuration(plan.predicted_duration_min)} · ${formatPace(athlete.flat_pace_min_per_km)} · ${deliveryRateLabel(plan)} · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
+  ui.summary.textContent = `${state.packedPlan?.courseFileName || plan.race_name} · ${formatDistance(plan.distance_km, { digits: 1 })} · ${formatDuration(plan.predicted_duration_min)} · ${formatPace(athlete.flat_pace_min_per_km)} · ${deliveryRateLabel(plan)} · caffeine ${Math.round(plan.totals?.caffeine_mg || 0)}/${Math.round(plan.totals?.caffeine_cap_mg || 0)} mg`;
   const vestLine = plan.vest_inventory_summary || "";
   if (ui.vestUsage) {
     ui.vestUsage.textContent = vestLine;
@@ -226,6 +226,8 @@ export function renderLegStepper(legs) {
   select.append(all);
   select.value = state.legView === "all" ? "all" : String(state.legView);
   const index = state.legView === "all" ? -1 : state.legView;
+  document.querySelector("#leg-caption").textContent =
+    index < 0 ? all.textContent : `Leg ${index + 1} of ${legs.length}`;
   prev.disabled = index <= 0;
   next.disabled = index < 0 || index >= legs.length - 1;
 }

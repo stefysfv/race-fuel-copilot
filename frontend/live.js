@@ -85,7 +85,7 @@ function renderLaunchScreen() {
   ui.raceCockpit?.classList.toggle("hidden", !plan || !started);
   if (!plan) return;
   if (ui.raceLaunchTitle) {
-    ui.raceLaunchTitle.textContent = plan.race_name || "Your race plan";
+    ui.raceLaunchTitle.textContent = plan.courseFileName || plan.race_name || "Your race plan";
   }
   if (ui.raceLaunchMeta) {
     const legCount = plan.aid_legs?.length || 0;
@@ -143,7 +143,10 @@ export function renderLive() {
     }
     if (ui.currentEtaSub) {
       const statusPrefix = state.pausedAt ? "Paused · " : "";
-      ui.currentEtaSub.textContent = `${statusPrefix}Expected arrival in ${compactHours(currentEntry.remMin)} · ${pace.basis}`;
+      const courseMark = Number.isFinite(currentEntry.leg.to_km)
+        ? `At ${formatDistance(currentEntry.leg.to_km)} on course · `
+        : "";
+      ui.currentEtaSub.textContent = `${statusPrefix}${courseMark}In ${compactHours(currentEntry.remMin)} · ${pace.basis}`;
     }
     if (ui.sectionDoneCurrent) {
       ui.sectionDoneCurrent.classList.remove("hidden");
@@ -325,6 +328,12 @@ export function renderAheadLegs(elapsed = elapsedMin(), precomputed = null) {
       const logEntry = (state.sectionLogs || []).find((l) => l.key === item.key);
       const timeTag = logEntry ? ` · ${formatTimeOfDay(logEntry.clockMs, 1)}` : "";
       li.innerHTML = `<span>${escapeHtml(item.leg.from_name)} → ${escapeHtml(item.leg.to_name)}${escapeHtml(timeTag)}</span>`;
+      const { from_km: startKm, to_km: endKm } = item.leg;
+      if (Number.isFinite(startKm) && Number.isFinite(endKm)) {
+        const range = document.createElement("small");
+        range.textContent = `${formatDistance(startKm)} → ${formatDistance(endKm)}`;
+        li.firstElementChild.append(document.createElement("br"), range);
+      }
       if (!item.archivedByGps) {
         const undoBtn = document.createElement("button");
         undoBtn.type = "button";
@@ -495,7 +504,7 @@ export function openRecapModal() {
 
   ui.recapBody.innerHTML = `
     <div class="recap-summary" data-testid="recap-summary">
-      <h3>${escapeHtml(plan.race_name)}</h3>
+      <h3>${escapeHtml(plan.courseFileName || plan.race_name)}</h3>
       <div class="macros">
         <div><strong>${escapeHtml(formatElapsedClock(elapsed))}</strong><span>Elapsed (${escapeHtml(deltaLabel)})</span></div>
         <div><strong>${totalCarbs}g</strong><span>${history.length} logged</span></div>
@@ -519,7 +528,7 @@ export function prefillFeedbackFromRecap() {
   const raceInput = document.querySelector("#feedback-race");
   const finishInput = document.querySelector("#feedback-finish");
   const notesInput = document.querySelector("#feedback-notes");
-  if (raceInput) raceInput.value = plan.race_name || "";
+  if (raceInput) raceInput.value = plan.courseFileName || plan.race_name || "";
   if (finishInput && elapsed >= 0.5) {
     finishInput.value = `${formatDuration(elapsed)} vs ${formatDuration(plan.predicted_duration_min)} predicted`;
   }

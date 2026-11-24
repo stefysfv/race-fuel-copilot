@@ -34,7 +34,9 @@ export async function buildPlan(event) {
     setStatus(starting ? "Starting engine..." : "Building the plan…");
     const body = courseBody(readAthlete(8));
     body.match_target_time = true;
+    const courseFileName = body.gpx_xml ? state.gpxName : "";
     const plan = await generatePlan(body);
+    if (courseFileName) plan.courseFileName = courseFileName;
     state.packedPlan = plan;
     state.livePlan = plan;
     state.logged = [];

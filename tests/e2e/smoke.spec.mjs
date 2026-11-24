@@ -91,6 +91,17 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await expect(card).toBeVisible();
     await expect(card).toContainText("Cherni Vrah");
     await expect(page.locator("#toast")).toHaveClass(/hidden/, { timeout: 8000 });
+    const caption = page.locator("#leg-caption");
+    const picker = page.locator("#leg-select");
+    await expect(caption).toHaveText("Leg 1 of 2");
+    await expect(picker.locator("option").first()).toContainText("Start → Cherni Vrah");
+    await page.locator("#leg-next").click();
+    await expect(caption).toHaveText("Leg 2 of 2");
+    await picker.selectOption("all");
+    await expect(caption).toHaveText("All Legs");
+    await picker.selectOption("1");
+    await page.locator("#leg-prev").click();
+    await expect(caption).toHaveText("Leg 1 of 2");
     await saveView(page, "packing");
 
     await page.locator("#nav-map").click();
@@ -154,7 +165,7 @@ test("loads a race, plans online and offline, recalibrates, and accepts a GPX", 
     await page.getByTestId("gpx-file").setInputFiles(GPX);
     await expect(page.getByTestId("gpx-name")).toContainText("Loaded salomon-vitosha-12.gpx", { timeout: 60000 });
     await page.getByTestId("build-plan").click();
-    await expect(page.getByTestId("summary")).toContainText("Uploaded GPX", { timeout: PLAN_MS });
+    await expect(page.getByTestId("summary")).toContainText("salomon-vitosha-12.gpx", { timeout: PLAN_MS });
     await expect.poll(() => page.evaluate(() => window.__planCalls)).toBe(2);
     await expect(page.getByTestId("packing-list").locator(".pack-card").first()).toBeVisible();
     await page.locator("#nav-map").click();

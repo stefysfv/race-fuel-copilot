@@ -105,7 +105,7 @@ test("generates a plan, opens the crew sheet, renders ETA bands, hand-over, GI r
   await expect(page.getByTestId("summary")).not.toBeEmpty({ timeout: 180000 });
 
   await page.getByTestId("crew-sheet-btn").click();
-  await expect(page.getByTestId("crew-sheet")).toBeVisible();
+  await expect(page.getByTestId("crew-sheet").getByRole("heading")).toContainText("salomon-vitosha-12.gpx");
 
   const rows = page.getByTestId("crew-row");
   const count = await rows.count();
@@ -131,7 +131,7 @@ test("generates a plan, opens the crew sheet, renders ETA bands, hand-over, GI r
   await page.getByTestId("crew-share").click();
   await expect(page.getByTestId("crew-plain-text")).toBeVisible();
   const plain = await page.getByTestId("crew-plain-text").inputValue();
-  expect(plain).toContain("CREW SHEET:");
+  expect(plain).toContain("CREW SHEET: salomon-vitosha-12.gpx");
   expect(plain).toContain("Fast (-10%)");
   expect(plain).toContain("Slow (+10%)");
   expect(plain).toContain("Cherni Vrah");

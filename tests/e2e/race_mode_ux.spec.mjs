@@ -39,6 +39,7 @@ test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Men
   await expect(page.getByTestId("race-launch")).toBeVisible();
   await expect(page.getByTestId("race-launch-eta")).toContainText(/start puts finish around \d{2}:\d{2}/);
 
+  await expect(page.getByTestId("race-launch-title")).toHaveText("salomon-vitosha-12.gpx");
   await page.getByTestId("start-race-cta").click();
   await expect(page.getByTestId("race-countdown-overlay")).toBeVisible();
   await expect(page.getByTestId("race-countdown-overlay")).toBeHidden({ timeout: 8000 });
@@ -67,7 +68,9 @@ test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Men
   await page.getByTestId("open-recap-live").click();
   await expect(page.getByTestId("recap-modal")).toBeVisible();
   await expect(page.getByTestId("recap-summary")).toContainText("1 logged");
+  await expect(page.getByTestId("recap-summary").getByRole("heading")).toHaveText("salomon-vitosha-12.gpx");
   await page.getByTestId("recap-to-feedback").click();
+  await expect(page.getByTestId("feedback-race")).toHaveValue("salomon-vitosha-12.gpx");
   await expect(page.getByTestId("feedback-notes")).toHaveValue(/Logged intakes:/);
 
   await page.locator("#nav-live").click();

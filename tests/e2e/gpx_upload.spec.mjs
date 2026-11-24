@@ -78,7 +78,7 @@ test("loads a custom GPX, edits an aid, builds a plan, and keeps the course", as
   await expect(page.getByTestId("sanity-scale")).toHaveText("The plan will use 9.0 km.");
 
   await page.getByTestId("build-plan").click();
-  await expect(page.getByTestId("summary")).toContainText("Uploaded GPX", { timeout: 180000 });
+  await expect(page.getByTestId("summary")).toContainText("creek-loop.gpx", { timeout: 180000 });
   await expect(page.getByTestId("packing-list")).toContainText("Creek aid");
 
   await page.reload();

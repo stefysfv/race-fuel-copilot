@@ -1,0 +1,78 @@
+[2m[WebServer] [22mINFO:     Started server process [34820]
+[2m[WebServer] [22mINFO:     Waiting for application startup.
+[2m[WebServer] [22mINFO:     Application startup complete.
+[2m[WebServer] [22mINFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+
+Running 23 tests using 1 worker
+
+  [30;1mpw:browser [0m<launching> C:\Users\stefa\AppData\Local\ms-playwright\chromium_headless_shell-1193\chrome-win\headless_shell.exe --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AcceptCHFrame,AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=C:\Users\stefa\AppData\Local\Temp\playwright_chromiumdev_profile-3b9WoV --remote-debugging-pipe --no-startup-window [30m+0ms[0m
+  [30;1mpw:browser [0m<launched> pid=36704 [30m+33ms[0m
+  ✓   1 [chromium] › tests\e2e\battery_race.spec.mjs:17:1 › filters synthetic noisy GPS tracks (1.1s)
+  ✓   2 [chromium] › tests\e2e\battery_race.spec.mjs:95:1 › checks in only on Sync GPS: no watch, no wake lock, no GPS on unlock, bad fixes rejected, 48px targets (16.8s)
+  ✓   3 [chromium] › tests\e2e\engine_parity.spec.mjs:95:1 › Pyodide worker matches every golden snapshot in tests/golden/cases.json (27.2s)
+  ✓   4 [chromium] › tests\e2e\food_search.spec.mjs:2:1 › vest and aid station food search dropdowns open, filter, and add items without errors (3.3s)
+[Start] Upcoming map stops: 7
+[Start] Active section: Start → K1
+[GPS #1 @ 18 km] Active: Current position → K1
+Archived:
+Completed sections (3)
+Start → K1
+0.0 km → 4.8 km
+K1 → Подкрепителен Пункт
+4.8 km → 9.2 km
+Подкрепителен Пункт → Aid 1
+9.2 km → 12.0 km
+[GPS #1] Upcoming map stops: 3 (was 7)
+[GPS #2 @ 33 km] Active: Current position → Подкрепителен Пункт
+Archived:
+Completed sections (8)
+Start → K1
+0.0 km → 4.8 km
+K1 → Подкрепителен Пункт
+4.8 km → 9.2 km
+Подкрепителен Пункт → Aid 1
+9.2 km → 12.0 km
+Aid 1 → K1
+12.0 km → 19.8 km
+K1 → Подкрепителен Пункт
+19.8 km → 21.3 km
+Подкрепителен Пункт → Aid 2
+21.3 km → 24.0 km
+Aid 2 → Подкрепителен Пункт
+24.0 km → 27.9 km
+Подкрепителен Пункт → Подкрепителен Пункт
+27.9 km → 30.9 km
+[Reload] Same active section and all 8 archived rows persisted.
+  ✓   5 [chromium] › tests\e2e\gps_archive.spec.mjs:43:1 › spoofed GPS check-ins archive passed sections, clear past map stops, and survive reload (26.6s)
+  ✓   6 [chromium] › tests\e2e\gpx_upload.spec.mjs:39:1 › rejects a file that is not GPX, a short track, and an oversized file (15.3s)
+  ✓   7 [chromium] › tests\e2e\gpx_upload.spec.mjs:62:1 › loads a custom GPX, edits an aid, builds a plan, and keeps the course (14.1s)
+  ✓   8 [chromium] › tests\e2e\off_course.spec.mjs:23:1 › shows Off course and hides grade, zone and arrival when far from the course (23.2s)
+  ✓   9 [chromium] › tests\e2e\race_day.spec.mjs:23:1 › shows the install card in a browser and keeps a dismissal for 7 days (3.1s)
+  ✓  10 [chromium] › tests\e2e\race_day.spec.mjs:89:3 › installed display mode › hides the install card (1.4s)
+  ✓  11 [chromium] › tests\e2e\race_day.spec.mjs:103:3 › iPhone Safari › names Share > Add to Home Screen (1.0s)
+  ✓  12 [chromium] › tests\e2e\race_day.spec.mjs:114:3 › Android Chrome › names Install app (763ms)
+  ✓  13 [chromium] › tests\e2e\race_day.spec.mjs:121:1 › states when cached files can be evicted and when the last check is stale (2.5s)
+  ✓  14 [chromium] › tests\e2e\race_day.spec.mjs:158:1 › saves feedback on the phone and builds the send link without a POST (3.8s)
+  ✓  15 [chromium] › tests\e2e\race_mode_ux.spec.mjs:12:1 › runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Menu -> Finish Recap (19.2s)
+  ✓  16 [chromium] › tests\e2e\shell_cache.spec.mjs:16:1 › reloads a usable shell within 4s while app-shell requests stall (2.2s)
+  ✓  17 [chromium] › tests\e2e\smoke.spec.mjs:50:1 › loads a race, plans online and offline, recalibrates, and accepts a GPX (25.1s)
+  ✓  18 [chromium] › tests\e2e\trust_release.spec.mjs:14:1 › exposes privacy, terms, OG metadata, How It Works, changelog, what's new, and opt-in diagnostics (3.4s)
+  ✓  19 [chromium] › tests\e2e\units_crew.spec.mjs:16:1 › round-trips every unit conversion and sends an identical engine request in metric vs imperial (11.2s)
+  ✓  20 [chromium] › tests\e2e\units_crew.spec.mjs:103:1 › generates a plan, opens the crew sheet, renders ETA bands, hand-over, GI rescue, and plain-text share (12.6s)
+  ✓  21 [chromium] › tests\offline_race.spec.mjs:12:1 › setup, map, checklist, and diagnostics are on the page (1.9s)
+  ✓  22 [chromium] › tests\offline_race.spec.mjs:27:1 › builds and recalibrates with no signal (15.7s)
+  [30;1mpw:browser [0m[pid=36704] <gracefully close start> [30m+4m[0m
+  [30;1mpw:browser [0m[pid=36704] <process did exit: exitCode=0, signal=null> [30m+63ms[0m
+  [30;1mpw:browser [0m[pid=36704] starting temporary directories cleanup [30m+0ms[0m
+  [30;1mpw:browser [0m[pid=36704] finished temporary directories cleanup [30m+11ms[0m
+  [30;1mpw:browser [0m[pid=36704] <gracefully close end> [30m+0ms[0m
+  [30;1mpw:browser [0m<launching> C:\Users\stefa\AppData\Local\ms-playwright\webkit-2203\Playwright.exe --inspector-pipe --disable-accelerated-compositing --headless --no-startup-window [30m+0ms[0m
+  [30;1mpw:browser [0m<launched> pid=19484 [30m+12ms[0m
+  ✓  23 [webkit-parity] › tests\e2e\engine_parity.spec.mjs:95:1 › Pyodide worker matches every golden snapshot in tests/golden/cases.json (21.5s)
+  [30;1mpw:browser [0m[pid=19484] <gracefully close start> [30m+22s[0m
+  [30;1mpw:browser [0m[pid=19484] <process did exit: exitCode=0, signal=null> [30m+98ms[0m
+  [30;1mpw:browser [0m[pid=19484] starting temporary directories cleanup [30m+1ms[0m
+  [30;1mpw:browser [0m[pid=19484] finished temporary directories cleanup [30m+1ms[0m
+  [30;1mpw:browser [0m[pid=19484] <gracefully close end> [30m+0ms[0m
+
+  23 passed (4.4m)

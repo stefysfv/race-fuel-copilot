@@ -125,12 +125,6 @@ function paintPrep(percent, ready) {
   }
   node.dataset.state = "ready";
   node.textContent = "Ready for offline";
-  const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-  if (standalone) return;
-  const hint = document.createElement("span");
-  hint.className = "offline-hint";
-  hint.textContent = "Add Fuel Co-Pilot to your Home Screen. iOS can delete data for a site it treats as unused.";
-  node.append(hint);
 }
 
 function paintHttpMode() {
