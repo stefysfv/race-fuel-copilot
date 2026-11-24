@@ -247,7 +247,7 @@ function hourlyRate(value) {
 function hydrationNote() {
   const note = document.createElement("p");
   note.className = "micro hydration-note";
-  note.textContent = "Fluid is a ceiling: up to the hourly rate, drink to thirst. In a long, cool race, drinking the whole planned volume can outrun thirst and dilute blood sodium. Sodium is a typical range for this temperature; adjust it for how salty you sweat.";
+  note.textContent = "Fluid is a ceiling: up to the hourly rate, drink to thirst. In a long, cool race, drinking the whole planned volume can outrun thirst and dilute blood sodium. Sodium: typical range, adjust for sweat saltiness for this temperature.";
   return note;
 }
 
@@ -306,7 +306,7 @@ export function packCard(leg, plan = state.packedPlan) {
   const legFoodNa = Math.round(legScheduledSodium(plan, leg));
   const hasSaltCaps = Boolean(plan?.athlete?.has_salt_caps);
   const saltGapNote = !hasSaltCaps && salt.length === 0 && legSweatNa >= 250 && legFoodNa < legSweatNa * 0.7
-    ? `<p class="micro salt-gap-note">Salt: ~${grouped(legFoodNa)} mg from food vs ~${grouped(legSweatNa)} mg est. sweat — enable Salt Caps/Drink Mix in Setup or take extra salt at aid stations.</p>`
+    ? `<p class="micro salt-gap-note">Salt: ~${grouped(legFoodNa)} mg food vs ~${grouped(legSweatNa)} mg sweat — add Salt Caps/Mix or grab extra salt at stations.</p>`
     : "";
   const trail = (chew.length
     ? `<ul class="carry-list">${lines}</ul>`
@@ -314,8 +314,8 @@ export function packCard(leg, plan = state.packedPlan) {
   const station = escapeHtml(leg.to_name);
   const marker = formatDistance(leg.to_km, { digits: 1 }).toUpperCase();
   const meal = leg.station_meal
-    ? `<p class="table-where">AT ${escapeHtml(leg.to_name.toUpperCase())} CHECKPOINT TABLE (${escapeHtml(marker)})</p><p class="eat-note">${escapeHtml(eatLabel(leg))}</p>`
-    : `<p class="pass-badge">Pass through station — water refill only if needed</p>`;
+    ? `<p class="eat-note">${escapeHtml(eatLabel(leg))}</p>`
+    : `<p class="pass-badge">Water refill only if needed</p>`;
   const coach = leg.note ? `<p class="coach-note">${escapeHtml(leg.note)}</p>` : "";
   card.innerHTML = `
     <div class="leg-card-header">
@@ -327,16 +327,16 @@ export function packCard(leg, plan = state.packedPlan) {
       <div class="macros">
         <div><strong>${grouped(shownCarbs)}g</strong><span>${carbsLabel}</span></div>
         <div><strong class="macro-rate">up to ${grouped(fluidRate)} ml/h</strong><span class="macro-plain">drink to thirst</span></div>
-        <div><strong class="macro-rate">about ${grouped(sodiumRate)} mg/h</strong><span class="macro-plain">typical range, adjust for sweat saltiness</span></div>
+        <div><strong class="macro-rate">~${grouped(sodiumRate)} mg/h</strong><span class="macro-plain">est. sweat sodium</span></div>
       </div>
     </div>
     <div class="leg-card-scroll">
       <section class="carry-block">
-        <p class="kicker">On the trail (consume while moving)</p>
+        <p class="kicker">On the trail</p>
         ${trail}
       </section>
       <section class="table-block">
-        <p class="kicker">At ${station} checkpoint table (eat before leaving)</p>
+        <p class="kicker">At ${station} · ${escapeHtml(marker)}</p>
         ${meal}
       </section>
     </div>`;

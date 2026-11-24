@@ -793,6 +793,31 @@ def _consume_packed_vest(
             if stop.form is FuelForm.sip and stop.carbs_g == 0 and not stop.at_aid_station:
                 stop.sodium_mg = 0.0
 
+    # When a solids-only vest runs dry mid-race, green 0g hydration sips on later legs
+    # become eligible trail slots for portable aid-station restocks.
+    if all(stock.remaining <= 0 for stock in stocks) and not _gels_selected(athlete):
+        last_vest_min = max(
+            (s.scheduled_minute for s in stops if id(s) in stamped_ids),
+            default=quiet_limit,
+        )
+        window_g = athlete.carbs_g_per_hour * (athlete.feed_interval_min / 60.0)
+        extra_green_sips = [
+            s
+            for s in stops
+            if not s.at_aid_station
+            and s.form is FuelForm.sip
+            and s.carbs_g == 0
+            and s.zone is DigestiveZone.green
+            and "GI Rescue" not in s.reason
+            and s.scheduled_minute > last_vest_min + 1.0
+        ]
+        if extra_green_sips:
+            sip_ids = {id(s) for s in extra_green_sips}
+            stops[:] = [s for s in stops if id(s) not in sip_ids]
+            unbacked_slots.extend(extra_green_sips)
+            extra_g += len(extra_green_sips) * window_g
+            unbacked_slots.sort(key=lambda s: (s.scheduled_minute, s.sequence))
+
     restock_pack: dict[int, list[tuple[str, float, int]]] = {}
     if (extra_g >= 8.0 or need_salt) and (all(stock.remaining <= 0 for stock in stocks) or packed_g < budget_g * 0.95):
         extra_g = _boost_aid_stations(stops, legs, athlete, extra_g, need_salt=need_salt)

@@ -55,6 +55,7 @@ export function showTab(name) {
   document.body.dataset.tab = name;
   if (name === "map") {
     drawMap();
+    requestAnimationFrame(() => { try { mapApi().invalidate?.(); } catch {} });
     setTimeout(() => mapView?.resize(), 150);
   }
   if (name === "live") {

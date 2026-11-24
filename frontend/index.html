@@ -107,7 +107,7 @@
       <div id="configure-pane" class="configure-view">
         <section class="landing-intro" data-testid="landing-intro">
           <details class="how-it-works" data-testid="how-it-works">
-            <summary>How it works: Green, Yellow &amp; Red fueling zones</summary>
+            <summary>How fueling zones work</summary>
             <p>Steep climbs pull blood away from your stomach and steep descents slosh it. The planner slices your GPX into 500 m segments and shifts feeds within &plusmn;6 minutes onto safer ground:</p>
             <ul>
               <li><strong>Green (&minus;8% to +5%):</strong> Runnable ground — full carb dose (gels or real food).</li>
@@ -126,7 +126,7 @@
         <section class="gpx-landing" data-testid="gpx-landing">
           <h2 class="ready-title">Load your race GPX</h2>
           <div id="gpx-drop" class="gpx-drop" data-testid="gpx-drop">
-            <p>Drop a .gpx file here, or choose one from your phone.</p>
+            <p>Load a .gpx route from your device.</p>
             <button id="source-gpx" class="thumb-btn liquid-pill" type="button" aria-label="Upload GPX">Choose GPX</button>
           </div>
           <input id="gpx-file" class="file-input" type="file" accept=".gpx,application/gpx+xml,.xml" aria-label="GPX file" data-testid="gpx-file">
@@ -209,7 +209,6 @@
             </div>
           </div>
         </div>
-        <p class="micro setup-note">This plan is guidance, not medical or dietetic advice. Carb, fluid, and sodium figures are estimates and defaults, so test them in training and adjust.</p>
         </div>
 
         <details id="vest-drawer" class="drawer liquid-glass">
@@ -226,7 +225,7 @@
             </label>
             <div class="vest-row">
               <button id="drink-toggle" class="vest-toggle" type="button" aria-pressed="true">✓ Carb Drink Mix in Flasks</button>
-              <span class="vest-fields">
+              <span id="drink-fields" class="vest-fields">
                 <label class="vest-field">Scoops
                   <input id="drink-qty" class="qty-input" type="number" inputmode="numeric" min="1" max="30" step="1" value="1" aria-label="Drink mix servings" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                 </label>
@@ -249,7 +248,7 @@
           </div>
           <div id="vest-custom-row" class="food-search-wrap">
             <div class="food-search-bar">
-              <input id="vest-custom-name" class="food-search-input" type="search" maxlength="60" placeholder="Search 65+ foods (Maurten, chews, waffle, rice ball...)" aria-label="Search or add vest food" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+              <input id="vest-custom-name" class="food-search-input" type="search" maxlength="60" placeholder="Search gels &amp; chews (Maurten, SiS...)" aria-label="Search or add vest food" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             </div>
             <div id="vest-suggestions" class="food-suggestions hidden" role="listbox" aria-label="Vest food suggestions"></div>
             <div id="vest-custom-fallback" class="custom-food-add hidden">
@@ -269,7 +268,7 @@
           </details>
           <div class="food-search-wrap">
             <div class="food-search-bar">
-              <input id="station-custom-name" class="food-search-input" type="search" maxlength="60" placeholder="Search 65+ station foods (pickles, broth, pretzels, mag...)" aria-label="Search or add aid station food" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+              <input id="station-custom-name" class="food-search-input" type="search" maxlength="60" placeholder="Search station foods (broth, pickles...)" aria-label="Search or add aid station food" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             </div>
             <div id="station-suggestions" class="food-suggestions hidden" role="listbox" aria-label="Aid station food suggestions"></div>
             <div id="station-custom-fallback" class="custom-food-add hidden">
@@ -288,7 +287,7 @@
             <input id="aid-cutoff" type="number" inputmode="decimal" min="0.1" max="72" step="0.1" placeholder="Cutoff" aria-label="Cutoff hours" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <button id="add-aid" type="button" aria-label="Add aid station">+</button>
           </div>
-          <p id="aid-empty-hint" class="micro aid-empty-hint">No aid stations added yet. If your GPX does not include them, add them here or tap Auto-add so the plan includes station food.</p>
+          <p id="aid-empty-hint" class="micro aid-empty-hint">No aid stations yet. Add them above or tap Auto-add.</p>
           <div class="aid-quick-row"><button id="auto-aids" class="text-btn liquid-pill" type="button">Auto-add food stations (every 15 km)</button></div>
           <ul id="aid-list" class="pill-row"></ul>
         </details>
@@ -581,7 +580,8 @@
     <div class="modal-sheet liquid-glass">
       <div class="modal-top">
         <strong>About Fuel Co-Pilot</strong>
-        <button id="close-info" class="modal-x" type="button" aria-label="Close">&times;</button>
+                    <p class="micro">This plan is guidance, not medical or dietetic advice. Carb, fluid, and sodium figures are estimates and defaults, so test them in training and adjust.</p>
+<button id="close-info" class="modal-x" type="button" aria-label="Close">&times;</button>
       </div>
       <p class="micro">100% on-device trail &amp; ultra fueling engine. No accounts, no tracking, no automatic error reporting.</p>
       <div class="info-links">

@@ -249,7 +249,7 @@ function bind() {
     for (let km = step; km <= totalKm - 8; km += step) {
       const rounded = Math.round(km);
       if (state.customAids.some((s) => Math.abs(Number(s.distance_km) - rounded) < 3)) continue;
-      state.customAids.push({ name: `Aid ${added + 1} (${rounded} km)`, distance_km: rounded, has_water: true, has_food: true, drop_bag: false });
+      state.customAids.push({ name: `Aid ${added + 1}`, distance_km: rounded, has_water: true, has_food: true, drop_bag: false });
       added += 1;
     }
     renderCustomAids();

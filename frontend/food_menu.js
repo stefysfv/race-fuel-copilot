@@ -404,7 +404,7 @@ export function renderVestRows() {
   document.querySelector("#vest-drinks")?.classList.toggle("hidden", !drinks);
   document.querySelector("#vest-custom-row")?.classList.toggle("hidden", drinks);
   const name = document.querySelector("#vest-custom-name");
-  if (name) name.placeholder = state.vestTab === "solids" ? "Search or browse 65+ foods (waffle, rice ball, pretzels...)" : "Search or browse gels & chews (Maurten, SiS, chews...)";
+  if (name) name.placeholder = state.vestTab === "solids" ? "Search 65+ foods (waffle, rice ball...)" : "Search gels & chews (Maurten, SiS...)";
   for (const button of document.querySelectorAll(".vest-tab")) {
     button.setAttribute("aria-selected", button.dataset.vestTab === state.vestTab ? "true" : "false");
   }
@@ -426,6 +426,7 @@ export function paintDrinkControls() {
     saltButton.textContent = `${state.saltOn ? "✓ " : ""}Salt Capsules (optional)`;
   }
   document.querySelector("#salt-fields")?.classList.toggle("hidden", !state.saltOn);
+  document.querySelector("#drink-fields")?.classList.toggle("hidden", !drinkOn);
   const flask = document.querySelector("#flask-qty");
   const scoops = document.querySelector("#drink-qty");
   const carbs = document.querySelector("#drink-carbs");

@@ -55,6 +55,8 @@ export function drawMap() {
     if (state.realGps) {
       view.setRealLocation(state.realGps.latitude, state.realGps.longitude);
     }
+    requestAnimationFrame(() => view.invalidate?.());
+    setTimeout(() => view.invalidate?.(), 180);
   } catch (error) {
     setStatus(error.message);
   }
