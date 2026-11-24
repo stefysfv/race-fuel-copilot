@@ -247,11 +247,16 @@
               </span>
             </div>
           </div>
-          <div id="vest-custom-row" class="custom-food-add">
-            <input id="vest-custom-name" type="text" maxlength="60" placeholder="Custom gel" aria-label="Custom vest food name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            <input id="vest-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom vest food carbs in grams" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            <button id="vest-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
-            <button id="vest-custom-add" type="button" aria-label="Add custom vest food">+</button>
+          <div id="vest-custom-row" class="food-search-wrap">
+            <div class="food-search-bar">
+              <input id="vest-custom-name" class="food-search-input" type="search" maxlength="60" placeholder="Search 65+ foods (Maurten, chews, waffle, rice ball...)" aria-label="Search or add vest food" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <div id="vest-suggestions" class="food-suggestions hidden" role="listbox" aria-label="Vest food suggestions"></div>
+            <div id="vest-custom-fallback" class="custom-food-add hidden">
+              <input id="vest-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="Carbs (g)" aria-label="Custom vest food carbs in grams" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+              <button id="vest-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
+              <button id="vest-custom-add" type="button" aria-label="Add custom vest food">Add</button>
+            </div>
           </div>
         </details>
 
@@ -262,11 +267,16 @@
             <summary>Edit item carbs</summary>
             <div id="station-active" class="food-editor"></div>
           </details>
-          <div class="custom-food-add">
-            <input id="station-custom-name" type="text" maxlength="60" placeholder="Food name" aria-label="Custom aid station food name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            <input id="station-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="g" aria-label="Custom aid station food carbs in grams" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            <button id="station-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
-            <button id="station-custom-add" type="button" aria-label="Add custom aid station food">+</button>
+          <div class="food-search-wrap">
+            <div class="food-search-bar">
+              <input id="station-custom-name" class="food-search-input" type="search" maxlength="60" placeholder="Search 65+ station foods (pickles, broth, pretzels, mag...)" aria-label="Search or add aid station food" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <div id="station-suggestions" class="food-suggestions hidden" role="listbox" aria-label="Aid station food suggestions"></div>
+            <div id="station-custom-fallback" class="custom-food-add hidden">
+              <input id="station-custom-carbs" type="number" inputmode="decimal" min="1" max="120" step="1" placeholder="Carbs (g)" aria-label="Custom aid station food carbs in grams" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+              <button id="station-custom-flavor" class="flavor-toggle liquid-pill" type="button" data-flavor="Sweet">Sweet</button>
+              <button id="station-custom-add" type="button" aria-label="Add custom aid station food">Add</button>
+            </div>
           </div>
         </details>
         <details id="aid-drawer" class="drawer hidden">

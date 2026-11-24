@@ -137,6 +137,10 @@ function bind() {
   listen("#open-gut-live", "click", openGutModal);
   listen("#vest-custom-add", "click", () => addCustomFood("vest"));
   listen("#station-custom-add", "click", () => addCustomFood("station"));
+  listen("#vest-custom-name", "input", () => onFoodSearchInput("vest"));
+  listen("#station-custom-name", "input", () => onFoodSearchInput("station"));
+  listen("#vest-suggestions", "click", (event) => onFoodSuggestionClick(event, "vest"));
+  listen("#station-suggestions", "click", (event) => onFoodSuggestionClick(event, "station"));
   listen("#vest-custom-flavor", "click", () => toggleFoodFlavor("vest"));
   listen("#station-custom-flavor", "click", () => toggleFoodFlavor("station"));
   document.querySelector("#vest-active")?.addEventListener("click", (event) => onFoodEditorClick(event, "vest"));

@@ -9,7 +9,11 @@
     "red_climb_grade",
     "start_time_minutes",
     "calories_kcal",
-    "salt_caps_sodium_mg"
+    "salt_caps_sodium_mg",
+    "kcal",
+    "magnesium_mg",
+    "potassium_mg",
+    "portable"
   ],
   "cases": [
     {

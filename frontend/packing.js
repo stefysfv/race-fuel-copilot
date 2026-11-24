@@ -86,9 +86,11 @@ function renderNutritionOverview(plan) {
   const capMg = Math.max(50, Number(plan.athlete?.salt_cap_mg) || 200);
   const naGap = Math.max(0, targetNa - plannedNa);
   const extraCaps = naGap >= capMg ? Math.round(naGap / capMg) : 0;
+  const magMg = Math.round(Number(totals.magnesium_mg) || 0);
+  const magNote = magMg >= 40 ? ` · ${magMg} mg Mg` : "";
   const naSub = extraCaps > 0
-    ? `Est. sweat ~${grouped(targetNa)} mg (~${extraCaps} extra salt caps)`
-    : `Est. sweat ~${grouped(targetNa)} mg · covered`;
+    ? `Est. sweat ~${grouped(targetNa)} mg (~${extraCaps} extra caps)${magNote}`
+    : `Est. sweat ~${grouped(targetNa)} mg · covered${magNote}`;
 
   const cafMg = Math.round(Number(totals.caffeine_mg) || 0);
   const cafCap = Math.round(Number(totals.caffeine_cap_mg) || 0);

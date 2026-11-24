@@ -2,14 +2,14 @@
 
 export const RUNTIME_CACHE = "race-fuel-pyodide-314.0.8";
 
-export const SHELL_CACHE = "race-fuel-v57";
+export const SHELL_CACHE = "race-fuel-v58";
 
 /**
  * sha256 of every SHELL_FILES body, LF-normalized, in list order.
  * This line is left out of the hash so the value can name itself.
  * tests/test_shell_cache.py recomputes it.
  */
-export const SHELL_FILES_HASH = "a9a836408e4465bfed0e40c6568713e9bc15824c6bbfbd7729602bb0dccda237";
+export const SHELL_FILES_HASH = "9e20f9e71a637d085f4cd53d1ffc6871b09980589513a660145841cbebd5ebe6";
 
 export const RUNTIME_FILES = [
   "/vendor/pyodide/pyodide.mjs",
@@ -22,11 +22,11 @@ export const RUNTIME_FILES = [
   "/vendor/pyodide/annotated_types-0.7.0-py3-none-any.whl",
   "/vendor/pyodide/typing_extensions-4.15.0-py3-none-any.whl",
   "/vendor/pyodide/typing_inspection-0.4.2-py3-none-any.whl",
-  "/engine.zip?v=c3d04af1",
-  "/engine.worker.js?v=c3d04af1",
+  "/engine.zip?v=8f8584a1",
+  "/engine.worker.js?v=8f8584a1",
 ];
 
-export const ENGINE_FILES = ["/engine.zip?v=c3d04af1", "/engine.worker.js?v=c3d04af1"];
+export const ENGINE_FILES = ["/engine.zip?v=8f8584a1", "/engine.worker.js?v=8f8584a1"];
 
 export const PYODIDE_FILES = RUNTIME_FILES.filter((url) => !ENGINE_FILES.includes(url));
 
@@ -57,6 +57,7 @@ export const SHELL_FILES = [
   "/plan_cursor.js",
   "/packing.js",
   "/fuel_budget.js",
+  "/food_library.js",
   "/food_menu.js",
   "/session.js",
   "/offline_status.js",

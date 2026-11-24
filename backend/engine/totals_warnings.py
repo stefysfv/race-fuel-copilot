@@ -16,6 +16,7 @@ from backend.models import (
     Segment,
 )
 
+from backend.engine.food_library import lookup_food
 from backend.engine.constants import (
     CAFFEINE_MG_PER_KG,
     DELIVERY_INFO_RATIO,
@@ -130,15 +131,15 @@ def _delivery_warnings(
 
 
 def _stop_calories(stop: FuelStop) -> float:
-    """Estimate kilocalories for one scheduled stop.
+    """Return exact item kilocalories when known, else estimate from carbs & form."""
 
-    Pure gels and drink mixes are essentially 4 kcal/g carbs. Real food
-    (sandwiches, bars, chips, chocolate, station plates) carries fat and
-    protein alongside carbs (~5.2 kcal/g of carbs).
-    """
-
+    if stop.kcal > 0:
+        return stop.kcal
     if stop.carbs_g <= 0:
         return 0.0
+    prof = lookup_food("", stop.product)
+    if prof is not None and prof.kcal > 0 and prof.carbs_g > 0:
+        return prof.kcal * (stop.carbs_g / prof.carbs_g)
     factor = 5.2 if stop.form is FuelForm.real_food else 4.0
     return stop.carbs_g * factor
 
@@ -177,6 +178,8 @@ def _totals(
         caffeine_mg=sum(stop.caffeine_mg for stop in stops),
         calories_kcal=sum(_stop_calories(stop) for stop in stops),
         salt_caps_sodium_mg=(float(athlete.salt_caps_qty * athlete.salt_cap_mg) if athlete.has_salt_caps else 0.0),
+        magnesium_mg=sum(stop.magnesium_mg for stop in stops),
+        potassium_mg=sum(stop.potassium_mg for stop in stops),
         caffeine_cap_mg=athlete.weight_kg * CAFFEINE_MG_PER_KG,
     )
 

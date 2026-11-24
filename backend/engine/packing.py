@@ -58,6 +58,7 @@ from backend.engine.constants import (
     _ZONE_FIT_BONUS,
 )
 
+from backend.engine.food_library import lookup_food
 from backend.engine.doses_menu import (
     STATION_MENU,
     VEST_MENU,
@@ -270,7 +271,13 @@ def _stamp_packed(
 
     stop.product = item.name
     stop.carbs_g = carbs_g
-    stop.sodium_mg = float(item.sodium_mg)
+    prof = lookup_food(item.id, item.name)
+    stop.sodium_mg = float(item.sodium_mg if item.sodium_mg > 0 else (prof.sodium_mg if prof else 0.0))
+    base_kcal = item.kcal if item.kcal > 0 else (prof.kcal if prof else 0.0)
+    ratio = (carbs_g / float(item.carbs_g)) if item.carbs_g > 0 else 1.0
+    stop.kcal = base_kcal * ratio if base_kcal > 0 else 0.0
+    stop.magnesium_mg = float(item.magnesium_mg if item.magnesium_mg > 0 else (prof.magnesium_mg if prof else 0.0)) * ratio
+    stop.potassium_mg = float(item.potassium_mg if item.potassium_mg > 0 else (prof.potassium_mg if prof else 0.0)) * ratio
     stop.caffeine_mg = caffeine_mg
     stop.form = form
     stop.flavor = "Savoury/Salty" if item.flavor == "savoury" else "Sweet"
@@ -314,7 +321,8 @@ def _boost_aid_stations(
     *,
     need_salt: bool = False,
 ) -> float:
-    """Scale aid-station table meals moderately (up to 40-50 g/stop) with salty pairings."""
+    """Scale aid-station table meals moderately (up to 40-50 g/stop) with salty/electrolyte pairings
+    and timed second-half magnesium when selected."""
 
     if extra_g < 8.0 and not need_salt:
         return extra_g
@@ -326,14 +334,16 @@ def _boost_aid_stations(
     if not chosen:
         chosen = list(STATION_MENU.values())
 
+    mag_items = [item for item in chosen if item.magnesium_mg >= 100.0]
+    regular_items = [item for item in chosen if item.magnesium_mg < 100.0] or chosen
+
     def table_sort_key(item: _MenuItem) -> tuple[int, float, str]:
-        heat_melt = 1 if (athlete.temperature_c >= 22.0 and item.key == "chocolate") else 0
+        heat_melt = 1 if (athlete.temperature_c >= 22.0 and (item.heat_sensitive or "chocolate" in item.name.lower())) else 0
         return (heat_melt, -item.carbs_g, item.name)
 
-    # Keep low-carb salt bites like Cucumber (3g carbs, 300mg Na)
-    ranked = sorted((item for item in chosen if item.carbs_g >= 1), key=table_sort_key)
+    ranked = sorted((item for item in regular_items if item.carbs_g >= 1), key=table_sort_key)
     if not ranked:
-        ranked = sorted(chosen, key=table_sort_key)
+        ranked = sorted(regular_items, key=table_sort_key)
     salty_pool = sorted(
         (item for item in ranked if item.sodium_mg >= 150 or item.key in SALT_STATION_KEYS),
         key=lambda item: (-item.sodium_mg, -item.carbs_g, item.name),
@@ -344,10 +354,12 @@ def _boost_aid_stations(
     )
     meal_cap = 40.0 if sensitive else 50.0
     prioritize_salt = need_salt or athlete.temperature_c >= 20.0
+    mag_scheduled = False
+    mag_target_idx = max(0, (len(station_stops) * 2) // 3 - 1) if len(station_stops) >= 2 else 0
 
     remaining = extra_g
     for stop_idx, stop in enumerate(station_stops):
-        if remaining < 8.0 and not prioritize_salt:
+        if remaining < 8.0 and not prioritize_salt and not (mag_items and not mag_scheduled):
             break
         leg = next(
             (item for item in legs if abs(item.to_km - stop.distance_km) < 0.05 and item.station_carbs_g > 0),
@@ -355,28 +367,47 @@ def _boost_aid_stations(
         )
         leg_room = (leg.carbs_g - leg.station_carbs_g) if leg is not None else meal_cap
         max_boost = min(meal_cap - stop.carbs_g, max(0.0, remaining), leg_room)
-        if max_boost < 8.0 and not (prioritize_salt and stop.sodium_mg < 250.0):
+        want_mag_here = bool(mag_items and not mag_scheduled and stop.scheduled_minute >= 180.0 and stop_idx >= mag_target_idx)
+        if max_boost < 8.0 and not (prioritize_salt and stop.sodium_mg < 250.0) and not want_mag_here:
             continue
 
         target = min(meal_cap, stop.carbs_g + max(0.0, max_boost))
-        picks: dict[str, tuple[str, float, float, int]] = {}
+        picks: dict[str, tuple[str, float, float, float, float, float, int]] = {}
         total_carbs = 0.0
         total_sodium = 0.0
+        total_kcal = 0.0
+        total_mag = 0.0
+        total_pot = 0.0
         servings = 0
 
-        # Seed a rotated salty anchor (Cucumber, Salted chips, Sandwich, or broth) first when salt matters
+        def add_item(item: _MenuItem) -> None:
+            nonlocal total_carbs, total_sodium, total_kcal, total_mag, total_pot, servings
+            kcal = item.kcal if item.kcal > 0 else item.carbs_g * (4.0 if item.kind == "liquid" else 5.0)
+            picks[item.key] = (item.name, item.carbs_g, item.sodium_mg, kcal, item.magnesium_mg, item.potassium_mg, 1)
+            total_carbs += item.carbs_g
+            total_sodium += item.sodium_mg
+            total_kcal += kcal
+            total_mag += item.magnesium_mg
+            total_pot += item.potassium_mg
+            servings += 1
+
+        # 1) Seed a rotated salty/electrolyte anchor (Electrolyte drink, Salted cucumber, Sour pickles, Warm broth, Salted potatoes, Chips)
         if prioritize_salt and salty_pool:
             anchor = salty_pool[stop_idx % len(salty_pool)]
             if anchor.carbs_g <= target + 1e-6:
-                picks[anchor.key] = (anchor.name, anchor.carbs_g, anchor.sodium_mg, 1)
-                total_carbs += anchor.carbs_g
-                total_sodium += anchor.sodium_mg
-                servings += 1
+                add_item(anchor)
 
-        # Rotate the carb candidates slightly across stations so plates don't repeat identically
+        # 2) Add timed second-half Magnesium shot/tab once when ticked on ultras >= 3h
+        if want_mag_here and mag_items:
+            mag = mag_items[0]
+            if total_carbs + mag.carbs_g <= meal_cap + 5.0:
+                add_item(mag)
+                mag_scheduled = True
+
+        # 3) Rotate carb items across stations for variety
         non_picked = [item for item in ranked if item.key not in picks]
         if len(non_picked) > 2:
-            shift = stop_idx % min(3, len(non_picked))
+            shift = stop_idx % min(4, len(non_picked))
             ordered = non_picked[shift:] + non_picked[:shift]
         else:
             ordered = non_picked
@@ -385,36 +416,34 @@ def _boost_aid_stations(
             if servings >= 3 or total_carbs >= target - 3.0:
                 break
             if total_carbs + item.carbs_g <= target + 1e-6:
-                picks[item.key] = (item.name, item.carbs_g, item.sodium_mg, 1)
-                total_carbs += item.carbs_g
-                total_sodium += item.sodium_mg
-                servings += 1
+                add_item(item)
 
-        # Top up with a low-carb salt bite (e.g. Cucumber) if there's still room and sodium is low
+        # 4) Top up with a low-carb salty bite (Salted cucumber, Sour pickles, Electrolyte drink) if sodium is still low
         if servings < 3 and prioritize_salt and total_sodium < 250.0:
             for item in salty_pool:
                 if item.key in picks:
                     continue
                 if total_carbs + item.carbs_g <= target + 1e-6:
-                    picks[item.key] = (item.name, item.carbs_g, item.sodium_mg, 1)
-                    total_carbs += item.carbs_g
-                    total_sodium += item.sodium_mg
-                    servings += 1
+                    add_item(item)
                     break
 
         improved_carbs = total_carbs > stop.carbs_g + 1.0
         improved_salt = prioritize_salt and total_carbs >= stop.carbs_g - 5.0 and total_sodium > stop.sodium_mg + 50.0
-        if not (improved_carbs or improved_salt):
+        added_mag = total_mag >= 100.0
+        if not (improved_carbs or improved_salt or added_mag):
             continue
 
         parts = [
             f"{qty}× {name}" if qty > 1 else name
-            for name, _c, _s, qty in picks.values()
+            for name, _c, _s, _k, _mg, _po, qty in picks.values()
         ]
         label = f"{' + '.join(parts)} ({total_carbs:.0f}g)"
         gained = max(0.0, total_carbs - stop.carbs_g)
         stop.carbs_g = total_carbs
         stop.sodium_mg = total_sodium
+        stop.kcal = total_kcal
+        stop.magnesium_mg = total_mag
+        stop.potassium_mg = total_pot
         stop.reason = f"{label} — real food meal at aid station"
         stop.reasons = [make_reason(ReasonCode.AID_RESTOCK, plate_carbs_g=total_carbs)]
         if leg is not None:
@@ -440,10 +469,10 @@ def _restock_from_aid_stations(
 ) -> tuple[float, dict[int, list[tuple[str, float, int]]]]:
     """After a food aid station, grab portable station food for the next leg instead of inventing gels.
 
-    Only carryable solid foods (bananas, dates, sandwiches, chips, apples) go
-    into the trail carry list — never loose broth/cola cups. Uses independent
-    savoury/sweet rotation counters so salty snacks like Salted chips are
-    always reachable.
+    Uses each item's ``portable`` and ``heat_sensitive`` flags from the food
+    library so loose cups/wet items stay at the table and carryable foods
+    (salted potatoes, pretzels, chips, sandwiches, bananas, dates, etc.) fill
+    the trail carry list.
     """
 
     if not candidate_slots or len(legs) < 2:
@@ -452,16 +481,15 @@ def _restock_from_aid_stations(
     chosen = _resolved_foods(athlete.station_foods, STATION_MENU, athlete.custom_station_items)
     if not chosen:
         chosen = list(STATION_MENU.values())
-    table_only = {"watermelon", "cucumber", "cola_broth"}
     portable = [
         item
         for item in chosen
-        if item.kind == "solid" and item.carbs_g >= 10 and item.key not in table_only
+        if item.kind == "solid" and item.portable and item.carbs_g >= 10
     ]
     if not portable:
         portable = [item for item in chosen if item.kind == "solid" and item.carbs_g >= 10]
-    if athlete.temperature_c >= 22.0 and any(item.key != "chocolate" for item in portable):
-        portable = [item for item in portable if item.key != "chocolate"]
+    if athlete.temperature_c >= 22.0 and any(not item.heat_sensitive for item in portable):
+        portable = [item for item in portable if not item.heat_sensitive]
 
     food_legs = {
         idx + 1
@@ -536,9 +564,13 @@ def _restock_from_aid_stations(
             for entry in slot.reasons
             if entry.code in {ReasonCode.SHIFTED_EARLIER, ReasonCode.SHIFTED_LATER}
         ]
+        ratio = (carbs / float(picked.carbs_g)) if picked.carbs_g > 0 else 1.0
         slot.product = picked.name
         slot.carbs_g = carbs
-        slot.sodium_mg = float(picked.sodium_mg)
+        slot.sodium_mg = float(picked.sodium_mg) * ratio
+        slot.kcal = (float(picked.kcal) * ratio) if picked.kcal > 0 else 0.0
+        slot.magnesium_mg = float(picked.magnesium_mg) * ratio
+        slot.potassium_mg = float(picked.potassium_mg) * ratio
         slot.caffeine_mg = 0.0
         slot.form = FuelForm.real_food
         slot.flavor = "Savoury/Salty" if picked.flavor == "Savoury/Salty" else "Sweet"

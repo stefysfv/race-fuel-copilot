@@ -234,6 +234,9 @@ class PackedVestItem(APIModel):
     name: str = Field(min_length=1, max_length=60)
     carbs_g: float = Field(gt=0, le=120)
     sodium_mg: float = Field(default=50.0, ge=0, le=2000)
+    kcal: float = Field(default=0.0, ge=0, le=1500)
+    magnesium_mg: float = Field(default=0.0, ge=0, le=1000)
+    potassium_mg: float = Field(default=0.0, ge=0, le=3000)
     caffeine_mg: float = Field(default=0.0, ge=0, le=400)
     qty: int = Field(default=1, ge=0, le=30)
     flavor: str = Field(default="sweet", pattern=r"^(sweet|savoury|neutral)$")
@@ -253,6 +256,10 @@ class CustomFoodItem(APIModel):
     name: str = Field(min_length=1, max_length=60)
     carbs_g: float = Field(gt=0, le=120)
     sodium_mg: float = Field(default=0, ge=0, le=2000)
+    kcal: float = Field(default=0.0, ge=0, le=1500)
+    magnesium_mg: float = Field(default=0.0, ge=0, le=1000)
+    potassium_mg: float = Field(default=0.0, ge=0, le=3000)
+    portable: bool | None = Field(default=None)
     flavor: str = Field(default="Sweet", pattern=r"^(Sweet|Savoury/Salty)$")
 
 
@@ -613,6 +620,9 @@ class FuelStop(APIModel):
     carbs_g: float = Field(ge=0)
     fluid_ml: float = Field(ge=0)
     sodium_mg: float = Field(ge=0)
+    kcal: float = Field(default=0.0, ge=0)
+    magnesium_mg: float = Field(default=0.0, ge=0)
+    potassium_mg: float = Field(default=0.0, ge=0)
     form: FuelForm
     reason: str
     caffeine_mg: float = Field(default=0, ge=0)
@@ -719,6 +729,8 @@ class PlanTotals(APIModel):
     caffeine_mg: float = Field(default=0, ge=0)
     calories_kcal: float = Field(default=0, ge=0)
     salt_caps_sodium_mg: float = Field(default=0, ge=0)
+    magnesium_mg: float = Field(default=0.0, ge=0)
+    potassium_mg: float = Field(default=0.0, ge=0)
     caffeine_cap_mg: float = Field(
         default=0,
         ge=0,

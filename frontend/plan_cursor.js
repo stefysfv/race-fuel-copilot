@@ -54,7 +54,9 @@ export function shortIntake(stop) {
     return `Aid plate · ${Math.round(stop.carbs_g)}g`;
   }
   if (/^Hydration check/i.test(stop.reason || "")) return stop.reason;
-  if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) return "Water and salt sip";
+  if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) {
+    return stop.form === "sip" && Number(stop.sodium_mg) === 0 ? "Water sip" : "Water and salt sip";
+  }
   const name = stop.product || "";
   if (/tiny bites/i.test(stop.reason || "")) {
     return `Tiny bites of ${name || "food"} (${Math.round(stop.carbs_g)}g)`;

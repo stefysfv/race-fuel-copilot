@@ -1,6 +1,7 @@
 /** Vest menu, station menu, gut check, and the product locker. */
 
 import { PRESETS, state, ui } from "./state.js";
+import { libraryFoodByKey, searchFoodLibrary } from "./food_library.js";
 import { clampCarbs, escapeAttr, setStatus } from "./ui_helpers.js";
 import { persist } from "./session.js";
 import { distanceFromDisplay, formatDistance } from "./units.js";
@@ -200,13 +201,16 @@ export const VEST_MENU = [...GEL_MENU, ...DRINK_MENU, ...SOLID_MENU];
 export const STATION_MENU = [
   { key: "sandwich", label: "Sandwich", carbs: 30, sodium: 250, flavor: "Savoury/Salty" },
   { key: "watermelon", label: "Watermelon", carbs: 12, sodium: 5, flavor: "Sweet" },
-  { key: "cucumber", label: "Cucumber", carbs: 3, sodium: 300, flavor: "Savoury/Salty" },
-  { key: "chips", label: "Chips", carbs: 22, sodium: 300, flavor: "Savoury/Salty" },
-  { key: "chocolate", label: "Chocolate", carbs: 24, sodium: 20, flavor: "Sweet" },
-  { key: "apple", label: "Apple", carbs: 18, sodium: 2, flavor: "Sweet" },
-  { key: "dates", label: "Dates", carbs: 28, sodium: 5, flavor: "Sweet" },
+  { key: "cucumber", label: "Salted cucumber", carbs: 3, sodium: 320, flavor: "Savoury/Salty" },
+  { key: "chips", label: "Salted chips", carbs: 22, sodium: 300, flavor: "Savoury/Salty" },
+  { key: "salted_potatoes", label: "Salted potatoes", carbs: 25, sodium: 400, flavor: "Savoury/Salty" },
+  { key: "electrolyte_drink", label: "Electrolyte drink", carbs: 8, sodium: 350, flavor: "Savoury/Salty" },
+  { key: "magnesium_shot", label: "Magnesium shot", carbs: 3, sodium: 15, flavor: "Sweet" },
   { key: "banana", label: "Banana", carbs: 22, sodium: 1, flavor: "Sweet" },
-  { key: "cola_broth", label: "Cola or broth", carbs: 18, sodium: 200, flavor: "Sweet" },
+  { key: "dates", label: "Dates", carbs: 28, sodium: 5, flavor: "Sweet" },
+  { key: "apple", label: "Apple", carbs: 18, sodium: 2, flavor: "Sweet" },
+  { key: "chocolate", label: "Chocolate", carbs: 24, sodium: 20, flavor: "Sweet" },
+  { key: "cola_broth", label: "Cola or broth", carbs: 18, sodium: 250, flavor: "Sweet" },
 ];
 
 export function menuFor(which) {
@@ -261,11 +265,16 @@ export function customFoodPayload(which) {
     if (!key || !selectedFoods(which).has(food.key)) continue;
     const name = String(food.name || "").trim();
     if (!name) continue;
+    const lib = libraryFoodByKey(key);
     items.push({
       key,
       name: name.slice(0, 60),
       carbs_g: clampCarbs(food.carbs_g),
-      sodium_mg: 0,
+      sodium_mg: Math.min(2000, Math.max(0, Number(food.sodium_mg ?? lib?.sodium_mg ?? 0) || 0)),
+      kcal: Math.min(1500, Math.max(0, Number(food.kcal ?? lib?.kcal ?? 0) || 0)),
+      magnesium_mg: Math.min(1000, Math.max(0, Number(food.magnesium_mg ?? lib?.magnesium_mg ?? 0) || 0)),
+      potassium_mg: Math.min(3000, Math.max(0, Number(food.potassium_mg ?? lib?.potassium_mg ?? 0) || 0)),
+      ...(typeof (food.portable ?? lib?.portable) === "boolean" ? { portable: Boolean(food.portable ?? lib?.portable) } : {}),
       flavor: food.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
     });
   }
@@ -302,8 +311,30 @@ export function packedVestPayload() {
     const selected = state.vestFoods instanceof Set ? state.vestFoods : new Set();
     const customs = Array.isArray(state.customFoods?.vest) ? state.customFoods.vest : [];
     const foods = [
-      ...VEST_MENU.map((food) => ({ key: food.key, sodium: food.sodium, flavor: food.flavor })),
-      ...customs.map((food) => ({ key: food?.key, sodium: 0, flavor: food?.flavor })),
+      ...VEST_MENU.map((food) => {
+        const lib = libraryFoodByKey(food.key);
+        return {
+          key: food.key,
+          sodium: food.sodium,
+          kcal: lib?.kcal || 0,
+          magnesium: lib?.magnesium_mg || 0,
+          potassium: lib?.potassium_mg || 0,
+          caffeine: food.caffeine || 0,
+          flavor: food.flavor,
+        };
+      }),
+      ...customs.map((food) => {
+        const lib = libraryFoodByKey(food?.key);
+        return {
+          key: food?.key,
+          sodium: Number(food?.sodium_mg ?? lib?.sodium_mg ?? 0) || 0,
+          kcal: Number(food?.kcal ?? lib?.kcal ?? 0) || 0,
+          magnesium: Number(food?.magnesium_mg ?? lib?.magnesium_mg ?? 0) || 0,
+          potassium: Number(food?.potassium_mg ?? lib?.potassium_mg ?? 0) || 0,
+          caffeine: Number(food?.caffeine_mg ?? lib?.caffeine_mg ?? 0) || 0,
+          flavor: food?.flavor,
+        };
+      }),
     ];
     const items = [];
     for (const food of foods) {
@@ -321,8 +352,11 @@ export function packedVestPayload() {
         id,
         name,
         carbs_g: clampCarbs(record.carbs_g),
-        sodium_mg: Math.min(2000, Math.max(0, Number(food.sodium) || 50)),
-        caffeine_mg: Math.min(400, Math.max(0, Number(catalogFood("vest", food.key)?.caffeine) || 0)),
+        sodium_mg: Math.min(2000, Math.max(0, Number(food.sodium) || 0)),
+        kcal: Math.min(1500, Math.max(0, Number(food.kcal) || 0)),
+        magnesium_mg: Math.min(1000, Math.max(0, Number(food.magnesium) || 0)),
+        potassium_mg: Math.min(3000, Math.max(0, Number(food.potassium) || 0)),
+        caffeine_mg: Math.min(400, Math.max(0, Number(food.caffeine) || 0)),
         qty,
         flavor: vestFlavor(food.flavor),
         form: vestForm(food.key, name),
@@ -572,6 +606,118 @@ export function onFoodEditorInput(event, which) {
   saveMenu();
 }
 
+
+function formatNutrientSub(item) {
+  const parts = [`${item.carbs_g}g carbs`];
+  if (item.kcal) parts.push(`${item.kcal} kcal`);
+  if (item.sodium_mg >= 30) parts.push(`${item.sodium_mg}mg Na`);
+  if (item.magnesium_mg >= 25) parts.push(`${item.magnesium_mg}mg Mg`);
+  if (item.caffeine_mg > 0) parts.push(`${item.caffeine_mg}mg caf`);
+  if (!item.portable) parts.push("Table");
+  return parts.join(" · ");
+}
+
+export function addLibraryFood(which, key) {
+  const item = libraryFoodByKey(key);
+  if (!item) return;
+  const bag = selectedFoods(which);
+  const inCatalog = Boolean(catalogFood(which, key));
+  if (!inCatalog && !customFood(which, key)) {
+    if (state.customFoods[which].length >= 16) {
+      setStatus("That menu already has 16 added foods.");
+      return;
+    }
+    state.customFoods[which].push({
+      key: item.key,
+      name: item.name,
+      carbs_g: clampCarbs(item.carbs_g),
+      sodium_mg: item.sodium_mg,
+      kcal: item.kcal,
+      magnesium_mg: item.magnesium_mg,
+      potassium_mg: item.potassium_mg,
+      caffeine_mg: item.caffeine_mg,
+      portable: item.portable,
+      flavor: item.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
+      form: item.form === "gel" ? "gel" : "solid",
+    });
+  }
+  bag.add(key);
+  if (which === "vest") {
+    if (!(state.vestQty[key] >= 1)) state.vestQty[key] = 1;
+    state.vestTab = item.form === "gel" ? "gels" : "solids";
+  }
+  const input = document.querySelector(which === "vest" ? "#vest-custom-name" : "#station-custom-name");
+  const list = document.querySelector(which === "vest" ? "#vest-suggestions" : "#station-suggestions");
+  const fallback = document.querySelector(which === "vest" ? "#vest-custom-fallback" : "#station-custom-fallback");
+  if (input) input.value = "";
+  list?.classList.add("hidden");
+  list?.replaceChildren();
+  fallback?.classList.add("hidden");
+  renderFoods();
+  saveMenu();
+}
+
+export function onFoodSearchInput(which) {
+  const input = document.querySelector(which === "vest" ? "#vest-custom-name" : "#station-custom-name");
+  const list = document.querySelector(which === "vest" ? "#vest-suggestions" : "#station-suggestions");
+  const fallback = document.querySelector(which === "vest" ? "#vest-custom-fallback" : "#station-custom-fallback");
+  if (!input || !list) return;
+  const query = input.value.trim();
+  if (!query) {
+    list.replaceChildren();
+    list.classList.add("hidden");
+    fallback?.classList.add("hidden");
+    return;
+  }
+  const scope = which === "vest" ? "vest" : "station";
+  const hits = searchFoodLibrary(query, scope, 7);
+  const allHits = hits.length ? hits : searchFoodLibrary(query, "all", 7);
+  list.replaceChildren();
+  for (const item of allHits) {
+    const already = selectedFoods(which).has(item.key);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "food-suggestion-row";
+    btn.setAttribute("role", "option");
+    btn.dataset.libKey = item.key;
+    btn.innerHTML = `
+      <span class="food-sug-main">
+        <strong>${escapeAttr(item.name)}</strong>
+        <span class="food-sug-meta">${escapeAttr(formatNutrientSub(item))}</span>
+      </span>
+      <span class="food-sug-action">${already ? "Added" : "+ Add"}</span>`;
+    list.append(btn);
+  }
+  const customRow = document.createElement("button");
+  customRow.type = "button";
+  customRow.className = "food-suggestion-row is-custom";
+  customRow.dataset.showFallback = "1";
+  customRow.innerHTML = `
+    <span class="food-sug-main">
+      <strong>Can't find “${escapeAttr(query)}”?</strong>
+      <span class="food-sug-meta">Enter custom carbs manually</span>
+    </span>
+    <span class="food-sug-action">Custom</span>`;
+  list.append(customRow);
+  list.classList.remove("hidden");
+}
+
+export function onFoodSuggestionClick(event, which) {
+  const option = event.target.closest?.(".food-suggestion-row");
+  if (!option) return;
+  if (option.dataset.libKey) {
+    addLibraryFood(which, option.dataset.libKey);
+    return;
+  }
+  if (option.dataset.showFallback) {
+    const list = document.querySelector(which === "vest" ? "#vest-suggestions" : "#station-suggestions");
+    const fallback = document.querySelector(which === "vest" ? "#vest-custom-fallback" : "#station-custom-fallback");
+    list?.classList.add("hidden");
+    fallback?.classList.remove("hidden");
+    document.querySelector(which === "vest" ? "#vest-custom-carbs" : "#station-custom-carbs")?.focus();
+  }
+}
+
 export function addCustomFood(which) {
   const nameInput = document.querySelector(which === "vest" ? "#vest-custom-name" : "#station-custom-name");
   const carbInput = document.querySelector(which === "vest" ? "#vest-custom-carbs" : "#station-custom-carbs");
@@ -597,6 +743,8 @@ export function addCustomFood(which) {
   selectedFoods(which).add(key);
   if (nameInput) nameInput.value = "";
   if (carbInput) carbInput.value = "";
+  document.querySelector(which === "vest" ? "#vest-custom-fallback" : "#station-custom-fallback")?.classList.add("hidden");
+  document.querySelector(which === "vest" ? "#vest-suggestions" : "#station-suggestions")?.classList.add("hidden");
   renderFoods();
   saveMenu();
 }
@@ -648,13 +796,22 @@ export function loadStoredPreferences() {
         state.customFoods[which] = menu.custom[which]
           .filter((item) => item && typeof item.key === "string" && typeof item.name === "string")
           .slice(0, 12)
-          .map((item) => ({
-            key: item.key,
-            name: item.name,
-            carbs_g: clampCarbs(item.carbs_g),
-            flavor: item.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
-            form: item.form === "gel" ? "gel" : "solid",
-          }));
+          .map((item) => {
+            const lib = libraryFoodByKey(item.key);
+            return {
+              key: item.key,
+              name: item.name,
+              carbs_g: clampCarbs(item.carbs_g),
+              sodium_mg: Number(item.sodium_mg ?? lib?.sodium_mg ?? 0) || 0,
+              kcal: Number(item.kcal ?? lib?.kcal ?? 0) || 0,
+              magnesium_mg: Number(item.magnesium_mg ?? lib?.magnesium_mg ?? 0) || 0,
+              potassium_mg: Number(item.potassium_mg ?? lib?.potassium_mg ?? 0) || 0,
+              caffeine_mg: Number(item.caffeine_mg ?? lib?.caffeine_mg ?? 0) || 0,
+              portable: typeof item.portable === "boolean" ? item.portable : (lib ? lib.portable : true),
+              flavor: item.flavor === "Savoury/Salty" ? "Savoury/Salty" : "Sweet",
+              form: item.form === "gel" || item.form === "liquid" ? item.form : (lib?.form || "solid"),
+            };
+          });
       }
     }
   } catch {

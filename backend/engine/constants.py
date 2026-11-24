@@ -93,7 +93,7 @@ DEFAULT_STATION_KEYS = ("sandwich", "watermelon", "cucumber", "chips", "cola_bro
 SAVOURY_VEST_KEYS = frozenset({"sandwich", "chips"})
 HEAVY_VEST_KEYS = frozenset({"sandwich", "chocolate", "chips"})
 FRUIT_STATION_KEYS = frozenset({"watermelon", "apple", "banana"})
-SALT_STATION_KEYS = frozenset({"cucumber", "chips"})
+SALT_STATION_KEYS = frozenset({"cucumber", "chips", "sour_pickles", "salted_potatoes", "electrolyte_drink", "warm_broth", "noodle_soup", "pickle_juice", "pretzels", "saltines", "olives", "tomato_salt"})
 
 HYDRATION_SIP_MIN = 25.0
 SHORT_RACE_SIP = "Hydration check · Take 3–4 sips from flask"

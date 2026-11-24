@@ -43,6 +43,7 @@ from backend.engine.constants import (
     WINDOW_MIN,
 )
 
+from backend.engine.food_library import FOOD_PROFILES, lookup_food
 from backend.engine.sweat import sweat_rates
 
 
@@ -57,6 +58,12 @@ class _MenuItem:
     flavor: str
     kind: str  # gel, liquid, or solid
     uses_portion: bool = False  # True when the runner set this name and carb count
+    kcal: float = 0.0
+    potassium_mg: float = 0.0
+    magnesium_mg: float = 0.0
+    caffeine_mg: float = 0.0
+    portable: bool = True
+    heat_sensitive: bool = False
 
 
 VEST_MENU: dict[str, _MenuItem] = {
@@ -85,6 +92,49 @@ STATION_MENU: dict[str, _MenuItem] = {
 }
 
 
+for _key, _prof in FOOD_PROFILES.items():
+    _entry = _MenuItem(
+        _prof.key,
+        _prof.name,
+        _prof.carbs_g,
+        _prof.sodium_mg,
+        _prof.flavor,
+        _prof.form,
+        False,
+        _prof.kcal,
+        _prof.potassium_mg,
+        _prof.magnesium_mg,
+        _prof.caffeine_mg,
+        _prof.portable,
+        _prof.heat_sensitive,
+    )
+    if "vest" in _prof.scopes:
+        VEST_MENU.setdefault(_key, _entry)
+    if "station" in _prof.scopes:
+        STATION_MENU.setdefault(_key, _entry)
+
+# Enrich built-in keys with full kcal/K/Mg/portability from FOOD_PROFILES
+for _cat in (VEST_MENU, STATION_MENU):
+    for _key, _item in list(_cat.items()):
+        _prof = FOOD_PROFILES.get(_key)
+        if _prof is not None:
+            _cat[_key] = _MenuItem(
+                _item.key,
+                _item.name,
+                _item.carbs_g,
+                _item.sodium_mg,
+                _item.flavor,
+                _item.kind,
+                _item.uses_portion,
+                _prof.kcal,
+                _prof.potassium_mg,
+                _prof.magnesium_mg,
+                _prof.caffeine_mg,
+                _prof.portable,
+                _prof.heat_sensitive,
+            )
+
+
 @dataclass
 class _MenuClock:
     """Remembers the last solid so a leg cannot turn into a picnic."""
@@ -111,13 +161,13 @@ def _kind_for_custom(name: str) -> str:
 
 
 def _overlay_menu_item(base: _MenuItem, custom: CustomFoodItem) -> _MenuItem:
-    """Replace the catalog name and carb grams with the runner's portion.
-
-    Sodium stays on the catalog value when the custom row sends 0, because
-    the setup screen edits the label and the carbs, not the salt.
-    """
+    """Replace the catalog name and carb grams while keeping rich nutrient metadata."""
 
     sodium = custom.sodium_mg if custom.sodium_mg > 0 else base.sodium_mg
+    kcal = custom.kcal if custom.kcal > 0 else base.kcal
+    potassium = custom.potassium_mg if custom.potassium_mg > 0 else base.potassium_mg
+    magnesium = custom.magnesium_mg if custom.magnesium_mg > 0 else base.magnesium_mg
+    portable = base.portable if custom.portable is None else custom.portable
     return _MenuItem(
         base.key,
         custom.name.strip() or base.name,
@@ -126,6 +176,12 @@ def _overlay_menu_item(base: _MenuItem, custom: CustomFoodItem) -> _MenuItem:
         custom.flavor or base.flavor,
         base.kind,
         True,
+        kcal,
+        potassium,
+        magnesium,
+        base.caffeine_mg,
+        portable,
+        base.heat_sensitive,
     )
 
 
@@ -166,15 +222,30 @@ def _resolved_foods(
         if extra.key.strip() and extra.key.strip() not in selected:
             continue
         seen.add(key)
+        prof = lookup_food(key, extra.name)
+        sodium = extra.sodium_mg if extra.sodium_mg > 0 else (prof.sodium_mg if prof else 0.0)
+        kcal = extra.kcal if extra.kcal > 0 else (prof.kcal if prof else 0.0)
+        potassium = extra.potassium_mg if extra.potassium_mg > 0 else (prof.potassium_mg if prof else 0.0)
+        magnesium = extra.magnesium_mg if extra.magnesium_mg > 0 else (prof.magnesium_mg if prof else 0.0)
+        caffeine = prof.caffeine_mg if prof else 0.0
+        portable = extra.portable if extra.portable is not None else (prof.portable if prof else True)
+        heat_sensitive = prof.heat_sensitive if prof else False
+        kind = prof.form if prof else _kind_for_custom(extra.name)
         resolved.append(
             _MenuItem(
                 key,
                 extra.name.strip(),
                 extra.carbs_g,
-                extra.sodium_mg,
+                sodium,
                 extra.flavor,
-                _kind_for_custom(extra.name),
+                kind,
                 True,
+                kcal,
+                potassium,
+                magnesium,
+                caffeine,
+                portable,
+                heat_sensitive,
             )
         )
     return resolved

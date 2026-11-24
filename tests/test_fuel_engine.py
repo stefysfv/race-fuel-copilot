@@ -1305,3 +1305,61 @@ def test_plain_water_has_no_ghost_sodium_and_stations_serve_salt() -> None:
     assert aid_stops and all(s.sodium_mg >= 200.0 for s in aid_stops)
     restocks = [s for s in plan.fuel_stops if s.reason.startswith("Aid restock")]
     assert any("chips" in s.product.lower() for s in restocks)
+
+
+def test_food_library_electrolytes_magnesium_and_sour_cucumber() -> None:
+    """Aid stations serve electrolytes, second-half magnesium, and recognize typed 'sour cucumber'."""
+
+    from backend.models import CustomFoodItem
+
+    pts = course_points([(15_000, 0.04), (15_000, -0.02), (20_000, 0.03), (20_000, -0.03), (15_000, 0.02), (15_000, -0.02)])
+    course = prepare_course(pts)
+    stations = []
+    for i, km in enumerate((15.0, 30.0, 45.0, 60.0, 75.0, 90.0), start=1):
+        pin = location_at_distance(course, int(km * 1000))
+        stations.append(
+            AidStation(
+                name=f"Aid {i}",
+                distance_km=km,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        )
+    plan = generate_plan(
+        race_id="v100-lib",
+        race_name="Vitosha 100 Library Test",
+        declared_distance_km=100.0,
+        aid_stations=stations,
+        profile=pts,
+        athlete=AthleteInput(
+            weight_kg=70,
+            temperature_c=25,
+            flat_pace_min_per_km=8.0,
+            carbs_g_per_hour=90,
+            start_time_minutes=360,
+            flask_count=3,
+            vest_foods=["caffeine_gel", "sandwich", "banana"],
+            station_foods=["electrolyte_drink", "magnesium_shot", "salted_potatoes", "banana", "dates", "custom-sour"],
+            custom_station_items=[
+                CustomFoodItem(key="custom-sour", name="Sour cucumber", carbs_g=2, sodium_mg=0, flavor="Savoury/Salty"),
+            ],
+        ),
+        packed_vest_items=[
+            PackedVestItem(id="caffeine_gel", name="Caffeine Gel", carbs_g=25, caffeine_mg=100, qty=2, flavor="sweet", form="gel"),
+            PackedVestItem(id="sandwich", name="Half Sandwich", carbs_g=25, qty=2, flavor="savoury", form="solid"),
+            PackedVestItem(id="banana", name="Banana", carbs_g=22, qty=2, flavor="sweet", form="solid"),
+        ],
+    )
+    # Both packed caffeine gels stay scheduled on Vitosha 100 Default zones
+    caf = [s for s in plan.fuel_stops if s.caffeine_mg > 0]
+    assert len(caf) == 2
+    assert plan.totals.caffeine_mg == pytest.approx(200.0)
+    # Second-half Magnesium shot is scheduled and counted in totals.magnesium_mg
+    assert plan.totals.magnesium_mg >= 250.0
+    # Typed 'Sour cucumber' with sodium_mg=0 is auto-enriched via FOOD_PROFILES (~480 mg Na)
+    aid_reasons = " ".join(s.reason.lower() for s in plan.fuel_stops if s.at_aid_station)
+    assert "electrolyte" in aid_reasons or "sour cucumber" in aid_reasons or "potato" in aid_reasons
+    assert plan.totals.potassium_mg > 500.0
