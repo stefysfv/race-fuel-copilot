@@ -10,3 +10,6 @@ test-results/
 Thumbs.db
 ehthumbs.db
 desktop.ini
+
+/playwright-debug-*.log
+/playwright-debug-*/
