@@ -141,7 +141,7 @@ export function projectLegs(plan, elapsed, run) {
 
 function cleanStopName(stop) {
   if (stop.form === "rescue_sip" || (stop.form === "sip" && stop.carbs_g === 0)) {
-    return "Water & electrolyte sip";
+    return stop.form === "sip" && Number(stop.sodium_mg) === 0 ? "Water sip" : "Water & electrolyte sip";
   }
   const name = stop.product || (stop.form === "liquid" || stop.form === "micro_dose" ? "Liquid carbs" : "Fuel");
   return String(name).replace(/soft flask.*/i, "Carb flask");

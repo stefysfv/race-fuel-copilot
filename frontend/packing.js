@@ -249,6 +249,18 @@ function hydrationNote() {
   return note;
 }
 
+function legScheduledSodium(plan, leg) {
+  if (!plan?.fuel_stops?.length) return 0;
+  const fromKm = Number(leg.from_km) || 0;
+  const toKm = Number(leg.to_km) || 0;
+  return plan.fuel_stops
+    .filter((stop) => {
+      const km = Number(stop.distance_km) || 0;
+      return km > fromKm + 0.01 && km <= toKm + 0.05;
+    })
+    .reduce((sum, stop) => sum + (Number(stop.sodium_mg) || 0), 0);
+}
+
 function legScheduledCarbs(plan, leg) {
   if (!plan?.vest_inventory_summary) return null;
   const legs = Array.isArray(plan.aid_legs) ? plan.aid_legs : [];
@@ -287,9 +299,16 @@ export function packCard(leg, plan = state.packedPlan) {
   const chew = leg.pack.filter((item) => !/flask/i.test(item.item) && !/salt capsule/i.test(item.item));
   const sips = leg.pack.filter((item) => /flask/i.test(item.item));
   const lines = [...chew, ...sips, ...salt].map((item) => carryLine(item)).join("");
-  const trail = chew.length
+  const legHours = Math.max(0, (Number(leg.predicted_minutes) || 0) / 60);
+  const legSweatNa = Math.round(sodiumRate * legHours);
+  const legFoodNa = Math.round(legScheduledSodium(plan, leg));
+  const hasSaltCaps = Boolean(plan?.athlete?.has_salt_caps);
+  const saltGapNote = !hasSaltCaps && salt.length === 0 && legSweatNa >= 250 && legFoodNa < legSweatNa * 0.7
+    ? `<p class="micro salt-gap-note">Salt: ~${grouped(legFoodNa)} mg from food vs ~${grouped(legSweatNa)} mg est. sweat — enable Salt Caps/Drink Mix in Setup or take extra salt at aid stations.</p>`
+    : "";
+  const trail = (chew.length
     ? `<ul class="carry-list">${lines}</ul>`
-    : `<p class="trail-clear">✓ No trail eating needed — focus on pace &amp; hydration sips</p>${lines ? `<ul class="carry-list">${lines}</ul>` : ""}`;
+    : `<p class="trail-clear">✓ No trail eating needed — focus on pace &amp; hydration sips</p>${lines ? `<ul class="carry-list">${lines}</ul>` : ""}`) + saltGapNote;
   const station = escapeHtml(leg.to_name);
   const marker = formatDistance(leg.to_km, { digits: 1 }).toUpperCase();
   const meal = leg.station_meal

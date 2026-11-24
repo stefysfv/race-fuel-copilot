@@ -51,6 +51,7 @@ from backend.engine.constants import (
     PRE_RACE_QUIET_MIN,
     PRE_RACE_SHORT_LEG_MIN,
     RED_MICRO_DOSE_G,
+    SALT_STATION_KEYS,
     PACKED_SOLID_EVERY_MIN,
     SOLID_EVERY_MIN,
     _REPEAT_PENALTY,
@@ -310,10 +311,12 @@ def _boost_aid_stations(
     legs: list[AidLeg],
     athlete: AthleteInput,
     extra_g: float,
+    *,
+    need_salt: bool = False,
 ) -> float:
-    """Scale aid-station table meals moderately (up to 40-50 g/stop) to avoid GI overload."""
+    """Scale aid-station table meals moderately (up to 40-50 g/stop) with salty pairings."""
 
-    if extra_g < 8.0:
+    if extra_g < 8.0 and not need_salt:
         return extra_g
     station_stops = [stop for stop in stops if stop.at_aid_station and stop.carbs_g > 0]
     if not station_stops:
@@ -322,41 +325,64 @@ def _boost_aid_stations(
     chosen = _resolved_foods(athlete.station_foods, STATION_MENU, athlete.custom_station_items)
     if not chosen:
         chosen = list(STATION_MENU.values())
-    # Prefer savoury/easy foods plus cola/broth at the aid-station table; avoid heavy chocolate in heat
+
     def table_sort_key(item: _MenuItem) -> tuple[int, float, str]:
         heat_melt = 1 if (athlete.temperature_c >= 22.0 and item.key == "chocolate") else 0
         return (heat_melt, -item.carbs_g, item.name)
 
-    ranked = sorted((item for item in chosen if item.carbs_g >= 5), key=table_sort_key)
+    # Keep low-carb salt bites like Cucumber (3g carbs, 300mg Na)
+    ranked = sorted((item for item in chosen if item.carbs_g >= 1), key=table_sort_key)
     if not ranked:
         ranked = sorted(chosen, key=table_sort_key)
+    salty_pool = sorted(
+        (item for item in ranked if item.sodium_mg >= 150 or item.key in SALT_STATION_KEYS),
+        key=lambda item: (-item.sodium_mg, -item.carbs_g, item.name),
+    )
 
     sensitive = athlete.climb_sensitivity == "sensitive" or (
         athlete.green_max_grade is not None and athlete.green_max_grade <= 3.5
     )
     meal_cap = 40.0 if sensitive else 50.0
+    prioritize_salt = need_salt or athlete.temperature_c >= 20.0
 
     remaining = extra_g
-    for stop in station_stops:
-        if remaining < 8.0:
+    for stop_idx, stop in enumerate(station_stops):
+        if remaining < 8.0 and not prioritize_salt:
             break
         leg = next(
             (item for item in legs if abs(item.to_km - stop.distance_km) < 0.05 and item.station_carbs_g > 0),
             None,
         )
         leg_room = (leg.carbs_g - leg.station_carbs_g) if leg is not None else meal_cap
-        max_boost = min(meal_cap - stop.carbs_g, remaining, leg_room)
-        if max_boost < 8.0:
+        max_boost = min(meal_cap - stop.carbs_g, max(0.0, remaining), leg_room)
+        if max_boost < 8.0 and not (prioritize_salt and stop.sodium_mg < 250.0):
             continue
 
-        target = stop.carbs_g + max_boost
+        target = min(meal_cap, stop.carbs_g + max(0.0, max_boost))
         picks: dict[str, tuple[str, float, float, int]] = {}
         total_carbs = 0.0
         total_sodium = 0.0
         servings = 0
 
-        for item in ranked:
-            if servings >= 3 or total_carbs >= target - 4.0:
+        # Seed a rotated salty anchor (Cucumber, Salted chips, Sandwich, or broth) first when salt matters
+        if prioritize_salt and salty_pool:
+            anchor = salty_pool[stop_idx % len(salty_pool)]
+            if anchor.carbs_g <= target + 1e-6:
+                picks[anchor.key] = (anchor.name, anchor.carbs_g, anchor.sodium_mg, 1)
+                total_carbs += anchor.carbs_g
+                total_sodium += anchor.sodium_mg
+                servings += 1
+
+        # Rotate the carb candidates slightly across stations so plates don't repeat identically
+        non_picked = [item for item in ranked if item.key not in picks]
+        if len(non_picked) > 2:
+            shift = stop_idx % min(3, len(non_picked))
+            ordered = non_picked[shift:] + non_picked[:shift]
+        else:
+            ordered = non_picked
+
+        for item in ordered:
+            if servings >= 3 or total_carbs >= target - 3.0:
                 break
             if total_carbs + item.carbs_g <= target + 1e-6:
                 picks[item.key] = (item.name, item.carbs_g, item.sodium_mg, 1)
@@ -364,7 +390,21 @@ def _boost_aid_stations(
                 total_sodium += item.sodium_mg
                 servings += 1
 
-        if total_carbs <= stop.carbs_g + 1.0:
+        # Top up with a low-carb salt bite (e.g. Cucumber) if there's still room and sodium is low
+        if servings < 3 and prioritize_salt and total_sodium < 250.0:
+            for item in salty_pool:
+                if item.key in picks:
+                    continue
+                if total_carbs + item.carbs_g <= target + 1e-6:
+                    picks[item.key] = (item.name, item.carbs_g, item.sodium_mg, 1)
+                    total_carbs += item.carbs_g
+                    total_sodium += item.sodium_mg
+                    servings += 1
+                    break
+
+        improved_carbs = total_carbs > stop.carbs_g + 1.0
+        improved_salt = prioritize_salt and total_carbs >= stop.carbs_g - 5.0 and total_sodium > stop.sodium_mg + 50.0
+        if not (improved_carbs or improved_salt):
             continue
 
         parts = [
@@ -372,7 +412,7 @@ def _boost_aid_stations(
             for name, _c, _s, qty in picks.values()
         ]
         label = f"{' + '.join(parts)} ({total_carbs:.0f}g)"
-        gained = total_carbs - stop.carbs_g
+        gained = max(0.0, total_carbs - stop.carbs_g)
         stop.carbs_g = total_carbs
         stop.sodium_mg = total_sodium
         stop.reason = f"{label} — real food meal at aid station"
@@ -395,12 +435,15 @@ def _restock_from_aid_stations(
     solid_minutes: list[float],
     savoury_at: float,
     quiet_limit: float,
+    *,
+    need_salt: bool = False,
 ) -> tuple[float, dict[int, list[tuple[str, float, int]]]]:
     """After a food aid station, grab portable station food for the next leg instead of inventing gels.
 
     Only carryable solid foods (bananas, dates, sandwiches, chips, apples) go
-    into the trail carry list — never loose broth/cola cups. Spacing follows
-    PACKED_SOLID_EVERY_MIN (45 min) on runnable terrain and respects the savoury clock.
+    into the trail carry list — never loose broth/cola cups. Uses independent
+    savoury/sweet rotation counters so salty snacks like Salted chips are
+    always reachable.
     """
 
     if not candidate_slots or len(legs) < 2:
@@ -409,7 +452,6 @@ def _restock_from_aid_stations(
     chosen = _resolved_foods(athlete.station_foods, STATION_MENU, athlete.custom_station_items)
     if not chosen:
         chosen = list(STATION_MENU.values())
-    # Exclude loose wet/table-only items (watermelon, cucumber, cola/broth) from pocket trail carry
     table_only = {"watermelon", "cucumber", "cola_broth"}
     portable = [
         item
@@ -432,7 +474,9 @@ def _restock_from_aid_stations(
     window_g = athlete.carbs_g_per_hour * (athlete.feed_interval_min / 60.0)
     covered = 0.0
     per_leg_counts: dict[int, dict[str, tuple[str, float, int]]] = {}
-    pick_i = 0
+    savoury_i = 0
+    sweet_i = 0
+    alt_i = 0
 
     for slot in candidate_slots:
         if slot.scheduled_minute < quiet_limit - 1e-6:
@@ -458,19 +502,30 @@ def _restock_from_aid_stations(
         ]
         if not eligible:
             continue
+
         if slot.scheduled_minute + 1e-6 >= savoury_at:
             savoury_pool = [i for i in eligible if i.flavor == "Savoury/Salty"]
+            if need_salt or athlete.temperature_c >= 20.0:
+                savoury_pool.sort(key=lambda item: (-item.sodium_mg, -item.carbs_g, item.name))
             sweet_pool = [i for i in eligible if i.flavor != "Savoury/Salty"]
-            # Alternate savoury and sweet real food in the back half for palate variety
             if savoury_pool and sweet_pool:
-                pool = savoury_pool if pick_i % 2 == 0 else sweet_pool
+                if alt_i % 2 == 0:
+                    picked = savoury_pool[savoury_i % len(savoury_pool)]
+                    savoury_i += 1
+                else:
+                    picked = sweet_pool[sweet_i % len(sweet_pool)]
+                    sweet_i += 1
+                alt_i += 1
+            elif savoury_pool:
+                picked = savoury_pool[savoury_i % len(savoury_pool)]
+                savoury_i += 1
             else:
-                pool = savoury_pool or eligible
+                picked = sweet_pool[sweet_i % len(sweet_pool)]
+                sweet_i += 1
         else:
-            pool = eligible
+            picked = eligible[sweet_i % len(eligible)]
+            sweet_i += 1
 
-        picked = pool[pick_i % len(pool)]
-        pick_i += 1
         carbs = min(float(picked.carbs_g), window_g)
         if carbs < 5.0:
             continue
@@ -504,6 +559,7 @@ def _restock_from_aid_stations(
         for leg_idx, bucket in per_leg_counts.items()
     }
     return covered, summary
+
 
 
 def _consume_packed_vest(
@@ -694,10 +750,21 @@ def _consume_packed_vest(
     # Whenever the starting vest leaves trail slots uncovered, use food aid stations:
     # 1) Moderate real-food table meals (capped at 40-50 g/stop so the stomach stays steady)
     # 2) Portable carryable station snacks on the trail legs after each food station
+    has_electrolytes = athlete.has_salt_caps or any(
+        stock.item.form == "liquid" and stock.item.sodium_mg > 0 for stock in stocks
+    )
+    need_salt = not has_electrolytes
+
+    # Plain water sips carry 0 mg sodium when neither drink mix nor salt caps are packed
+    if not has_electrolytes:
+        for stop in stops:
+            if stop.form is FuelForm.sip and stop.carbs_g == 0 and not stop.at_aid_station:
+                stop.sodium_mg = 0.0
+
     restock_pack: dict[int, list[tuple[str, float, int]]] = {}
-    if extra_g >= 8.0 and (all(stock.remaining <= 0 for stock in stocks) or packed_g < budget_g * 0.95):
-        extra_g = _boost_aid_stations(stops, legs, athlete, extra_g)
-        if unbacked_slots:
+    if (extra_g >= 8.0 or need_salt) and (all(stock.remaining <= 0 for stock in stocks) or packed_g < budget_g * 0.95):
+        extra_g = _boost_aid_stations(stops, legs, athlete, extra_g, need_salt=need_salt)
+        if unbacked_slots and extra_g >= 8.0:
             restocked_g, restock_pack = _restock_from_aid_stations(
                 unbacked_slots,
                 stops,
@@ -706,6 +773,7 @@ def _consume_packed_vest(
                 solid_minutes,
                 savoury_at,
                 quiet_limit,
+                need_salt=need_salt,
             )
             extra_g = max(0.0, extra_g - restocked_g)
 

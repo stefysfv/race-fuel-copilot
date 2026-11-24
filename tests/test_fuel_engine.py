@@ -1258,3 +1258,50 @@ def test_three_flasks_and_spread_caffeine_on_100k() -> None:
     # Station meals stay moderate (<= 55g)
     aid_stops = [s for s in plan.fuel_stops if s.at_aid_station and s.carbs_g > 0]
     assert all(s.carbs_g <= 55.0 for s in aid_stops)
+
+
+def test_plain_water_has_no_ghost_sodium_and_stations_serve_salt() -> None:
+    """Plain water sips carry 0 mg sodium; hot aid stations and restocks include salty foods."""
+
+    points = course_points([(60_000, 0.0)])
+    course = prepare_course(points)
+    stations = []
+    for i, km in enumerate((15.0, 30.0, 45.0), start=1):
+        pin = location_at_distance(course, int(km * 1000))
+        stations.append(
+            AidStation(
+                name=f"Aid {i}",
+                distance_km=km,
+                lat=pin.lat,
+                lon=pin.lon,
+                elevation_m=pin.elevation_m,
+                has_water=True,
+                has_food=True,
+            )
+        )
+    plan = generate_plan(
+        race_id="salt-truth",
+        race_name="Salt Truth 60k",
+        declared_distance_km=60.0,
+        aid_stations=stations,
+        profile=points,
+        athlete=AthleteInput(
+            weight_kg=70,
+            temperature_c=25,
+            flat_pace_min_per_km=9.0,
+            carbs_g_per_hour=90,
+            has_salt_caps=False,
+            vest_foods=["dates", "banana"],
+            station_foods=["sandwich", "cucumber", "chips", "banana", "dates", "cola_broth"],
+        ),
+        packed_vest_items=[
+            PackedVestItem(id="dates", name="Medjool Dates", carbs_g=25, sodium_mg=10, qty=2, flavor="sweet", form="solid"),
+            PackedVestItem(id="banana", name="Banana", carbs_g=22, sodium_mg=1, qty=1, flavor="sweet", form="solid"),
+        ],
+    )
+    plain_sips = [s for s in plan.fuel_stops if s.form is FuelForm.sip and s.carbs_g == 0 and not s.at_aid_station]
+    assert all(s.sodium_mg == 0.0 for s in plain_sips)
+    aid_stops = [s for s in plan.fuel_stops if s.at_aid_station and s.carbs_g > 0]
+    assert aid_stops and all(s.sodium_mg >= 200.0 for s in aid_stops)
+    restocks = [s for s in plan.fuel_stops if s.reason.startswith("Aid restock")]
+    assert any("chips" in s.product.lower() for s in restocks)
