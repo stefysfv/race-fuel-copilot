@@ -58,7 +58,7 @@ test("runs Launch -> 3-2-1-GO -> fueling windows -> section check-in -> Race Men
   await expect(page.getByTestId("crew-live-banner")).toContainText("Live GPS updated");
   await page.locator("#close-crew").click();
 
-  await page.getByTestId("log-intake").click();
+  await page.getByRole("button", { name: "Log intake", exact: true }).click();
   await expect(page.getByTestId("race-log-card")).toBeVisible();
   await page.getByTestId("mark-section-done").click();
   await expect(page.getByTestId("live-completed-details")).toBeVisible();

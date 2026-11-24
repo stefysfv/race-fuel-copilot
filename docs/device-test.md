@@ -85,7 +85,7 @@ Run this once outdoors on a real trail or steep walk/run before calling the app 
 2. Build a plan (your uploaded GPX or a Vitosha course) and tap **Live**.
 3. Turn on **Airplane Mode** (Wi-Fi and cellular off; GPS stays active on iOS/Android).
 4. Tap **Start Race**. Note start time, start battery `%`, and screen brightness (~30–40%).
-5. Run/hike for 60 minutes with the phone locked. About every 10–15 minutes, unlock it, tap **Sync GPS**, confirm the expected arrival and fueling windows update, and lock it again. Log at least one feed with **I ate** and test **GI trouble** once.
+5. Run/hike for 60 minutes with the phone locked. About every 10–15 minutes, unlock it, tap **Sync GPS**, confirm the expected arrival and fueling windows update, and lock it again. Log at least one feed with **Log intake** and test **GI trouble** once.
 6. After one stretch locked for 10 minutes or more, unlock and confirm the clock is correct and no GPS reading happened until you tapped Sync GPS.
 7. At 60 minutes, open the **?** info sheet, tap **Copy diagnostics**, and paste the check-in metrics (`gpsFixes`, `gpsRejectedAccuracy`, `gpsRejectedJump`, `recalibrations`, `backgroundResumes`) alongside your measured battery drain below.
 

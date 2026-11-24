@@ -2,18 +2,24 @@
 
 Topographical and physiological fueling co-pilot for mountain ultras. It turns a GPX into a carb, fluid, and sodium plan that follows the grade, the clock, and the GPS check-ins you make during the race.
 
+## Start using the app
+
+[Open Race Fuel Co-Pilot](https://race-fuel-copilot.stefanaky-yos.workers.dev/)
+
+On Wi-Fi, open **Setup**, choose your course GPX, enter your expected finish time and tap **Build Plan**. Review the packing list and check the **Offline** tab before leaving coverage. Start a short practice race to try a GPS check-in and log an intake. Open the app on race day in the same browser or Home Screen installation you prepared.
+
 ## Race day: check in, don't track
 
 Built for long mountain races (12+ hours). A live coach that tracks you and sends alerts does not survive a locked iPhone, and keeping the screen on drains the battery. So the phone stays **locked in your vest**.
 
 1. Build the plan at home, check **Ready for offline**, and tap **Start Race**.
-2. At an aid station, or whenever you slow down, pull the phone out for about 10 seconds and tap **Sync GPS**. The app snaps you to the course and recalculates the rest of the race: expected arrival times and the fueling windows for the next section. Tap **I ate** to log food, and **Section done** to check a section off.
+2. At an aid station, or whenever you slow down, pull the phone out for about 10 seconds and tap **Sync GPS**. The app snaps you to the course and recalculates the rest of the race: expected arrival times and the fueling windows for the next section. Tap **Log intake** to record food or drink, and **Section done** to check a section off.
 3. Finished trail and meals clear from the screen, so you only see what is left ahead.
 4. At the finish, **Finish Run** gives a full recap of everything you ate, section by section.
 
 GPS is read only inside your tap, one reading per tap. There is no background tracking, no wake lock, and no voice or notification cues, so the app will not remind you to eat. If you are more than 2 km from the course, Live shows **Off course** and hides grade, zone, and expected arrival instead of planned values. Sync again once you are back on the trail.
 
-There is no hosted demo in this repository. Race day is a static site. FastAPI is only the local dev server and the test harness.
+The public app is served as a static site. FastAPI is only the local dev server and the test harness.
 
 ## Not medical advice
 
@@ -21,7 +27,7 @@ Carb, fluid, and sodium figures are estimates and defaults, so test them in trai
 
 ## Privacy
 
-Plans and recalibrations are computed on the phone. The GPX, the athlete profile, and the fueling plan stay in the browser. Nothing is uploaded. There are no analytics and no accounts. Your location is read only when you tap **Sync GPS** or **GI Rescue**, and it is never sent anywhere.
+Plans and recalibrations are computed on the phone. The GPX, the athlete profile, and the fueling plan stay in the browser. Online map requests identify the area displayed to the tile provider. There are no analytics and no accounts. Your location is read only when you tap **Sync GPS** or **GI Rescue**, and it is never sent anywhere.
 
 Notes from "How did it go?" are saved in `localStorage` on that phone. They leave the device only if you press **Send feedback**. That action opens a mail draft or a feedback form you chose to fill in. The draft contains the race name, finish versus predicted time, GI trouble, what you changed, and the note. It does not contain a GPS track.
 
@@ -63,7 +69,7 @@ Custom GPX uploads can include aid stations (`name`, `distance_km`, `has_water`,
 ## Tech stack and PWA
 
 - **Engine.** Python 3.12+, Pydantic v2. Sports math stays in `backend/engine/`. `backend/fuel_engine.py` re-exports it. GPX parsing stays in `backend/gpx_parser.py`. The phone runs that package in Pyodide. FastAPI is the dev server.
-- **UI.** Vanilla HTML, CSS, and ES modules. Leaflet draws the route on OpenTopoMap. Chart.js draws elevation and zone color.
+- **UI.** Vanilla HTML, CSS, and ES modules. Leaflet draws the route over Esri map tiles, with an OpenStreetMap fallback. Chart.js draws elevation and zone color.
 - **Offline.** IndexedDB stores the active plan. The app shell is one cache, stale-while-revalidate: a cached file is shown immediately and refreshed in the background. Pyodide and `engine.zip` are a second cache, cache-first, and a shell update does not delete it. Map tiles that were already viewed stay in the browser cache.
 - **Check-in race mode.** Race Start and Stop only run the race clock. There is no `watchPosition`, no polling timer, no wake lock, and no voice, chime, or notification. GPS is one `getCurrentPosition` call inside the **Sync GPS** tap (GI Rescue does the same). A GPS guard in `frontend/gps_guard.js` ignores a weak or jumping fix so one bad reading cannot rewrite the plan.
 
@@ -123,7 +129,7 @@ After **Ready for offline**, the phone can do all of this with no signal:
 - Map marker snapping onto the saved course
 - Map tiles that were already viewed
 
-OpenTopoMap tiles and the Inter font still need a network the first time they are requested. A shell update does not clear the Pyodide cache.
+Background map tiles need a connection. The saved course and elevation profile are available offline. A shell update does not clear the Pyodide cache.
 
 `tests/offline_race.spec.mjs` loads the app, waits for that ready state, goes offline, builds a plan, and recalibrates. `tests/e2e/smoke.spec.mjs` is the safety net for UI refactors. It selects the bundled 12 km race, builds a plan, and checks the summary, the elevation chart, the fuel-stop markers on that chart, and a packing card. It then builds again with the network off, recalibrates from a mocked GPS fix, and uploads `frontend/data/gpx/salomon-vitosha-12.gpx` with Playwright's file input. One screenshot of each main view (setup, packing, map, live) is written to `tests/e2e/screenshots/` for a side-by-side look.
 
@@ -188,7 +194,7 @@ Verify real battery drain before race day so you know your phone will clear 12+ 
 1. Charge to at least 80% and open the installed app with `?diag=1` (e.g. `https://your-site/?diag=1`), or check diagnostics before and after.
 2. Build a plan for any 12-40 km course, open the **Live** tab, and tap **Start Race**.
 3. Record start time and exact battery `%` (plus `Work per hour` from `?diag=1`).
-4. Walk outdoors for **60 minutes** with the phone **locked in a pocket or vest**. Pull it out about every 10-15 minutes, tap **Sync GPS**, and lock it again. Tap **I ate** once or twice:
+4. Walk outdoors for **60 minutes** with the phone **locked in a pocket or vest**. Pull it out about every 10-15 minutes, tap **Sync GPS**, and lock it again. Tap **Log intake** once or twice:
    - **iPhone (Safari / Home Screen PWA):** Low Power Mode on or off, whichever you race with. Note iOS battery `%` at 0 min and 60 min (Settings > Battery also shows Safari/Web App share).
    - **Android (Chrome / Installed PWA):** Set Location to High Accuracy and disable battery optimization for Chrome/PWA if needed. Note Android battery `%` at 0 min and 60 min (Settings > Battery > Battery usage).
 5. At 60 minutes, open `?diag=1`, tap **Copy as JSON**, and record:

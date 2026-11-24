@@ -97,7 +97,7 @@
         <button id="pane-ready" class="liquid-pill" type="button" role="tab" aria-selected="false" aria-controls="ready-pane">Offline</button>
       </div>
       <div id="whats-new-banner" class="whats-new hidden" role="status" data-testid="whats-new-banner">
-        <span>Updated to <strong>v0.9.0-beta</strong> — see what's new.</span>
+        <span>Updated to <strong id="update-version">v1.0.0</strong> — see what's new.</span>
         <div class="whats-new-actions">
           <button id="whats-new-open" class="text-btn" type="button" data-testid="whats-new-open">What's new</button>
           <button id="whats-new-dismiss" class="text-btn" type="button" data-testid="whats-new-dismiss">Dismiss</button>
@@ -371,7 +371,7 @@
       <p id="map-empty" class="empty-note">Build a plan to draw the course.</p>
       <div id="map-block" class="hidden map-stage">
         <div class="map-canvas liquid-glass">
-          <div id="map" role="region" aria-label="Race route on OpenTopoMap"></div>
+          <div id="map" role="region" aria-label="Race route map"></div>
           <button id="center-me" class="glass glass-right liquid-pill" type="button">Center on Me</button>
         </div>
         <div class="chart-pane liquid-glass">
@@ -483,7 +483,7 @@
 
         <div class="action-bar-compact">
           <button id="update-gps" class="thumb-btn" type="button" data-testid="sync-gps" disabled>Sync GPS</button>
-          <button id="log-intake" class="thumb-btn primary" type="button" data-testid="log-intake" disabled>I ate</button>
+          <button id="log-intake" class="thumb-btn primary" type="button" data-testid="log-intake" disabled>Log intake</button>
         </div>
       </div>
     </section>
@@ -592,7 +592,7 @@
       <div class="info-links">
         <a class="thumb-btn liquid-pill" href="/privacy.html" data-testid="footer-privacy">Privacy Policy</a>
         <a class="thumb-btn liquid-pill" href="/terms.html" data-testid="footer-terms">Terms &amp; Not Medical Advice</a>
-        <button id="open-changelog" class="thumb-btn liquid-pill" type="button" data-testid="footer-changelog">What's New &amp; Changelog (<span id="app-version">v0.9.0-beta</span>)</button>
+        <button id="open-changelog" class="thumb-btn liquid-pill" type="button" data-testid="footer-changelog">What's New &amp; Changelog (<span id="app-version">v1.0.0</span>)</button>
         <button id="optin-copy-diag" class="thumb-btn liquid-pill" type="button" data-testid="optin-copy-diag">Copy diagnostics (bug report)</button>
       </div>
       <p id="optin-diag-note" class="micro" role="status" data-testid="optin-diag-note"></p>

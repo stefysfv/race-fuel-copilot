@@ -2,10 +2,19 @@
 
 import { readText, writeText } from "./local_store.js";
 
-export const APP_VERSION = "0.10.0-beta";
+export const APP_VERSION = "1.0.0";
 export const SEEN_VERSION_KEY = "fuel-seen-version";
 
 export const CHANGELOG = [
+  {
+    version: APP_VERSION,
+    date: "2026-11-24",
+    items: [
+      "Load a GPX, build a packing plan and share station handovers with your crew.",
+      "Live shows your next intake first. Tap Log intake for food or drink and Sync GPS to update the remaining plan.",
+      "Completed sections show their course distances and survive reload. The finish recap and feedback form identify your course.",
+    ],
+  },
   {
     version: "0.10.0-beta",
     date: "2026-11-22",
@@ -30,8 +39,9 @@ export const CHANGELOG = [
 ];
 
 export function setupVersionUi() {
-  const versionBadge = document.querySelector("#app-version");
-  if (versionBadge) versionBadge.textContent = `v${APP_VERSION}`;
+  for (const badge of document.querySelectorAll("#app-version, #update-version")) {
+    badge.textContent = `v${APP_VERSION}`;
+  }
 
   const modal = document.querySelector("#changelog-modal");
   const list = document.querySelector("#changelog-body");

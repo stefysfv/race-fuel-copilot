@@ -2,6 +2,11 @@
 
 All notable changes to Race Fuel Co-Pilot are documented here.
 
+## v1.0.0 — 2026-11-24
+- Load a GPX, build a packing plan and share station handovers with your crew.
+- Live shows your next intake first. Tap Log intake for food or drink and Sync GPS to update the remaining plan.
+- Completed sections show their course distances and survive reload. The finish recap and feedback form identify your course.
+
 ## v0.10.0-beta — 2026-11-22
 - **Check-in concept:** The app is now a smart offline check-in guide for 12+ hour mountain races. The phone stays locked in your vest. At an aid station, or when you slow down, tap **Sync GPS** (about 10 seconds) and the rest of the race is recalculated: arrival times and fueling windows. Finished sections and meals clear from Live, and Finish Run lists everything you ate.
 - **GPS only on tap:** Location is read with one `getCurrentPosition` call inside the Sync GPS or GI Rescue tap. Starting a race, building a plan and unlocking the phone no longer read GPS.
