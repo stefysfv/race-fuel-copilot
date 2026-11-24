@@ -965,6 +965,8 @@ def build_aid_legs(
     finish_name = "Finish"
     for station in stations:
         distance_m = station.distance_km * 1000.0
+        if distance_m > total_m + FINISH_MERGE_M:
+            continue
         if distance_m >= total_m - FINISH_MERGE_M and distance_m > marks[-1][1] + 30:
             finish_name = station.name
             continue

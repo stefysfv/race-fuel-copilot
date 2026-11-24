@@ -404,7 +404,7 @@ export function renderVestRows() {
   document.querySelector("#vest-drinks")?.classList.toggle("hidden", !drinks);
   document.querySelector("#vest-custom-row")?.classList.toggle("hidden", drinks);
   const name = document.querySelector("#vest-custom-name");
-  if (name) name.placeholder = state.vestTab === "solids" ? "Custom solid food" : "Custom gel";
+  if (name) name.placeholder = state.vestTab === "solids" ? "Search or browse 65+ foods (waffle, rice ball, pretzels...)" : "Search or browse gels & chews (Maurten, SiS, chews...)";
   for (const button of document.querySelectorAll(".vest-tab")) {
     button.setAttribute("aria-selected", button.dataset.vestTab === state.vestTab ? "true" : "false");
   }
@@ -657,21 +657,33 @@ export function addLibraryFood(which, key) {
   saveMenu();
 }
 
-export function onFoodSearchInput(which) {
+const FEATURED_VEST_GELS = ["maurten_100", "maurten_caf", "sis_electrolyte", "energy_chews", "maple_gel", "fruit_puree"];
+const FEATURED_VEST_SOLIDS = ["waffle", "rice_ball", "pbj_sandwich", "pretzels", "salted_potatoes", "halva", "gummy_bears"];
+const FEATURED_STATION = ["warm_broth", "sour_pickles", "pretzels", "noodle_soup", "pickle_juice", "tomato_salt", "orange", "banitsa"];
+
+export function onFoodSearchInput(which, showFeatured = false) {
   const input = document.querySelector(which === "vest" ? "#vest-custom-name" : "#station-custom-name");
   const list = document.querySelector(which === "vest" ? "#vest-suggestions" : "#station-suggestions");
   const fallback = document.querySelector(which === "vest" ? "#vest-custom-fallback" : "#station-custom-fallback");
   if (!input || !list) return;
   const query = input.value.trim();
+  let allHits = [];
   if (!query) {
-    list.replaceChildren();
-    list.classList.add("hidden");
     fallback?.classList.add("hidden");
-    return;
+    if (!showFeatured) {
+      list.replaceChildren();
+      list.classList.add("hidden");
+      return;
+    }
+    const keys = which === "vest"
+      ? (state.vestTab === "gels" ? FEATURED_VEST_GELS : FEATURED_VEST_SOLIDS)
+      : FEATURED_STATION;
+    allHits = keys.map((k) => libraryFoodByKey(k)).filter(Boolean);
+  } else {
+    const scope = which === "vest" ? "vest" : "station";
+    const hits = searchFoodLibrary(query, scope, 7);
+    allHits = hits.length ? hits : searchFoodLibrary(query, "all", 7);
   }
-  const scope = which === "vest" ? "vest" : "station";
-  const hits = searchFoodLibrary(query, scope, 7);
-  const allHits = hits.length ? hits : searchFoodLibrary(query, "all", 7);
   list.replaceChildren();
   for (const item of allHits) {
     const already = selectedFoods(which).has(item.key);
@@ -688,17 +700,19 @@ export function onFoodSearchInput(which) {
       <span class="food-sug-action">${already ? "Added" : "+ Add"}</span>`;
     list.append(btn);
   }
-  const customRow = document.createElement("button");
-  customRow.type = "button";
-  customRow.className = "food-suggestion-row is-custom";
-  customRow.dataset.showFallback = "1";
-  customRow.innerHTML = `
-    <span class="food-sug-main">
-      <strong>Can't find “${escapeAttr(query)}”?</strong>
-      <span class="food-sug-meta">Enter custom carbs manually</span>
-    </span>
-    <span class="food-sug-action">Custom</span>`;
-  list.append(customRow);
+  if (query) {
+    const customRow = document.createElement("button");
+    customRow.type = "button";
+    customRow.className = "food-suggestion-row is-custom";
+    customRow.dataset.showFallback = "1";
+    customRow.innerHTML = `
+      <span class="food-sug-main">
+        <strong>Can't find “${escapeAttr(query)}”?</strong>
+        <span class="food-sug-meta">Enter custom carbs manually</span>
+      </span>
+      <span class="food-sug-action">Custom</span>`;
+    list.append(customRow);
+  }
   list.classList.remove("hidden");
 }
 

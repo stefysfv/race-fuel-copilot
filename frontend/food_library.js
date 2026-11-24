@@ -467,10 +467,7 @@ export const FOOD_LIBRARY = [
       "station"
     ],
     "aliases": [
-      "cola",
-      "broth",
-      "bouillon",
-      "coke"
+      "cola or broth"
     ]
   },
   {

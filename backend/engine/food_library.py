@@ -49,7 +49,7 @@ FOOD_PROFILES: dict[str, FoodProfile] = {
     'isotonic_drink': FoodProfile('isotonic_drink', 'Isotonic Sports Drink', 16.0, 65.0, 180.0, 60.0, 15.0, 0.0, 'Sweet', 'liquid', False, False, ('station',), ('isotonic', 'isostar', 'powerade', 'gatorade')),
     'magnesium_shot': FoodProfile('magnesium_shot', 'Magnesium Shot', 3.0, 15.0, 15.0, 40.0, 250.0, 0.0, 'Sweet', 'liquid', True, False, ('station', 'vest'), ('magnesium', 'mag', 'ampoule', 'cramp', 'mg')),
     'magnesium_tab': FoodProfile('magnesium_tab', 'Magnesium + Electrolyte Tab', 2.0, 10.0, 200.0, 100.0, 150.0, 0.0, 'Savoury/Salty', 'liquid', True, False, ('station', 'vest'), ('mag tab', 'effervescent', 'magnesium tablet', 'electrolyte tab')),
-    'cola_broth': FoodProfile('cola_broth', 'Cola or warm broth', 18.0, 72.0, 250.0, 50.0, 10.0, 15.0, 'Sweet', 'liquid', False, False, ('station',), ('cola', 'broth', 'bouillon', 'coke')),
+    'cola_broth': FoodProfile('cola_broth', 'Cola or warm broth', 18.0, 72.0, 250.0, 50.0, 10.0, 15.0, 'Sweet', 'liquid', False, False, ('station',), ('cola or broth',)),
     'cola': FoodProfile('cola', 'Flat Cola (200ml)', 21.0, 84.0, 10.0, 5.0, 0.0, 20.0, 'Sweet', 'liquid', False, False, ('station',), ('coca cola', 'coke', 'pepsi', 'soda')),
     'warm_broth': FoodProfile('warm_broth', 'Warm Broth / Bouillon', 4.0, 25.0, 650.0, 120.0, 15.0, 0.0, 'Savoury/Salty', 'liquid', False, False, ('station',), ('broth', 'bouillon', 'soup', 'salty soup', 'bulion')),
     'noodle_soup': FoodProfile('noodle_soup', 'Warm Noodle / Ramen Soup', 22.0, 120.0, 700.0, 140.0, 20.0, 0.0, 'Savoury/Salty', 'liquid', False, False, ('station',), ('soup', 'ramen', 'noodles', 'supa')),

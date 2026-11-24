@@ -10,7 +10,7 @@ import { state, ui } from "./state.js";
 import { setStatus, listen, paintMinutes } from "./ui_helpers.js";
 import { setupDiagnostics, watchReadiness } from "./offline_status.js";
 import { resetOutdatedStorage, restore } from "./session.js";
-import { renderLocker, addCustomItem, renderCustomAids, onAddAidClick, setFuelPreference, renderVestRows, paintDrinkControls, onVestInventoryInput, renderFoods, saveMenu, setFoodCarbs, toggleFood, onFoodEditorClick, onFoodEditorInput, addCustomFood, toggleFoodFlavor, loadStoredPreferences, renderGutPill, openGutModal, markGut, closeGutModal, saveGut, resetGut } from "./food_menu.js";
+import { renderLocker, addCustomItem, renderCustomAids, onAddAidClick, setFuelPreference, renderVestRows, paintDrinkControls, onVestInventoryInput, renderFoods, saveMenu, setFoodCarbs, toggleFood, onFoodEditorClick, onFoodEditorInput, addCustomFood, toggleFoodFlavor, loadStoredPreferences, renderGutPill, openGutModal, markGut, closeGutModal, saveGut, resetGut, onFoodSearchInput, onFoodSuggestionClick } from "./food_menu.js";
 import { renderPacking, setupSummaryLine, stepLeg, exportRaceCard, closeCrewModal } from "./packing.js";
 import { renderLive, startClock, ensureTicker, logIntake, paintRaceControls, onPaintDesk, markLegCompleted, openRaceMenu, closeRaceMenu, openRecapModal, closeRecapModal, prefillFeedbackFromRecap } from "./live.js";
 import { drawMap, mapApi } from "./map_screen.js";
@@ -139,6 +139,14 @@ function bind() {
   listen("#station-custom-add", "click", () => addCustomFood("station"));
   listen("#vest-custom-name", "input", () => onFoodSearchInput("vest"));
   listen("#station-custom-name", "input", () => onFoodSearchInput("station"));
+  listen("#vest-custom-name", "focus", () => onFoodSearchInput("vest", true));
+  listen("#station-custom-name", "focus", () => onFoodSearchInput("station", true));
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest?.(".food-search-wrap")) {
+      document.querySelector("#vest-suggestions")?.classList.add("hidden");
+      document.querySelector("#station-suggestions")?.classList.add("hidden");
+    }
+  });
   listen("#vest-suggestions", "click", (event) => onFoodSuggestionClick(event, "vest"));
   listen("#station-suggestions", "click", (event) => onFoodSuggestionClick(event, "station"));
   listen("#vest-custom-flavor", "click", () => toggleFoodFlavor("vest"));
