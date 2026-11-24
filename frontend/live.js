@@ -269,7 +269,7 @@ export function paintRaceHud(elapsed = elapsedMin()) {
     const remainingKm = Math.max(0, (state.packedPlan.distance_km || 0) - passedKm);
     ui.liveProgressLine.textContent = passedKm > 0.05
       ? `${formatDistance(passedKm, { digits: 1 })} passed · ${formatDistance(remainingKm, { digits: 1 })} left`
-      : `${formatDistance(state.packedPlan.distance_km || 0, { digits: 1 })} remaining`;
+      : `${formatDistance(state.packedPlan.distance_km || 0, { digits: 1 })} to finish`;
   }
   if (ui.racePause) {
     ui.racePause.textContent = state.pausedAt ? "Resume race" : "Pause race";
